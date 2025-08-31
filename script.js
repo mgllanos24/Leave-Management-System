@@ -416,6 +416,77 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('employeeLoginContainer').style.display = 'none';
         document.getElementById('adminLoginContainer').style.display = 'none';
     }
+
+    // Attach button click handlers
+    const employeeEntryBtn = document.getElementById('employeeEntryBtn');
+    if (employeeEntryBtn) {
+        employeeEntryBtn.addEventListener('click', showEmployeeLogin);
+    }
+
+    const adminEntryBtn = document.getElementById('adminEntryBtn');
+    if (adminEntryBtn) {
+        adminEntryBtn.addEventListener('click', showAdminLogin);
+    }
+
+    const tabLeaveRequest = document.getElementById('tabLeaveRequest');
+    if (tabLeaveRequest) {
+        tabLeaveRequest.addEventListener('click', () => switchTab('leave-request'));
+    }
+    const tabCheckHistory = document.getElementById('tabCheckHistory');
+    if (tabCheckHistory) {
+        tabCheckHistory.addEventListener('click', () => switchTab('check-history'));
+    }
+    const tabEmployeeManagement = document.getElementById('tabEmployeeManagement');
+    if (tabEmployeeManagement) {
+        tabEmployeeManagement.addEventListener('click', () => switchTab('employee-management'));
+    }
+    const tabApplicationStatus = document.getElementById('tabApplicationStatus');
+    if (tabApplicationStatus) {
+        tabApplicationStatus.addEventListener('click', () => switchTab('application-status'));
+    }
+    const tabHolidayDates = document.getElementById('tabHolidayDates');
+    if (tabHolidayDates) {
+        tabHolidayDates.addEventListener('click', () => switchTab('holiday-dates'));
+    }
+
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    if (deleteAllBtn) {
+        deleteAllBtn.addEventListener('click', deleteAllEmployees);
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => filterApplications(btn.dataset.status));
+    });
+
+    const exportBackupBtn = document.getElementById('exportBackupBtn');
+    if (exportBackupBtn) {
+        exportBackupBtn.addEventListener('click', exportDatabaseBackup);
+    }
+
+    const importBackupBtn = document.getElementById('importBackupBtn');
+    if (importBackupBtn) {
+        importBackupBtn.addEventListener('click', importDatabaseBackup);
+    }
+
+    const errorModalClose = document.getElementById('errorModalClose');
+    if (errorModalClose) {
+        errorModalClose.addEventListener('click', closeErrorModal);
+    }
+
+    const errorModalOk = document.getElementById('errorModalOk');
+    if (errorModalOk) {
+        errorModalOk.addEventListener('click', closeErrorModal);
+    }
+
+    const editModalClose = document.getElementById('editModalClose');
+    if (editModalClose) {
+        editModalClose.addEventListener('click', closeEditModal);
+    }
+
+    const editModalCancel = document.getElementById('editModalCancel');
+    if (editModalCancel) {
+        editModalCancel.addEventListener('click', closeEditModal);
+    }
     
     // Add visual debugging indicators to buttons if enabled
     if (addVisualDebugging && enableButtonDebugging) {
@@ -441,39 +512,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 100);
     }
     
-    // Ensure button onclick handlers work as backup
+    // Ensure button handlers work as backup
     if (enableButtonDebugging) {
         setTimeout(() => {
             const employeeBtn = document.getElementById('employeeEntryBtn');
             const adminBtn = document.getElementById('adminEntryBtn');
-            
+
             console.log('🔧 Setting up backup button handlers...');
-            
+
             if (employeeBtn) {
-                // Ensure onclick handler exists
-                if (!employeeBtn.onclick) {
-                    console.log('⚠️ Employee button missing onclick - adding it');
-                    employeeBtn.onclick = function(e) {
-                        e.preventDefault();
-                        console.log('🔄 Backup employee handler triggered');
-                        showEmployeeLogin();
-                    };
-                }
+                employeeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('🔄 Backup employee handler triggered');
+                    showEmployeeLogin();
+                });
                 console.log('✅ Employee button handler confirmed');
             } else {
                 console.error('❌ Employee button not found!');
             }
-            
+
             if (adminBtn) {
-                // Ensure onclick handler exists  
-                if (!adminBtn.onclick) {
-                    console.log('⚠️ Admin button missing onclick - adding it');
-                    adminBtn.onclick = function(e) {
-                        e.preventDefault();
-                        console.log('🔄 Backup admin handler triggered');
-                        showAdminLogin();
-                    };
-                }
+                adminBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('🔄 Backup admin handler triggered');
+                    showAdminLogin();
+                });
                 console.log('✅ Admin button handler confirmed');
             } else {
                 console.error('❌ Admin button not found!');
@@ -591,19 +654,19 @@ function setupLoginButtonsFallback() {
     
     const employeeBtn = document.getElementById('employeeEntryBtn');
     const adminBtn = document.getElementById('adminEntryBtn');
-    
-    if (employeeBtn && !employeeBtn.onclick) {
-        employeeBtn.onclick = function(e) {
+
+    if (employeeBtn) {
+        employeeBtn.addEventListener('click', function(e) {
             e.preventDefault();
             showEmployeeLogin();
-        };
+        });
     }
-    
-    if (adminBtn && !adminBtn.onclick) {
-        adminBtn.onclick = function(e) {
+
+    if (adminBtn) {
+        adminBtn.addEventListener('click', function(e) {
             e.preventDefault();
             showAdminLogin();
-        };
+        });
     }
 }
 
@@ -1171,6 +1234,18 @@ function switchTab(tabName) {
     if (targetButton) {
         targetButton.classList.add('active');
     }
+}
+
+function filterApplications(status) {
+    console.log(`Filtering applications by status: ${status}`);
+}
+
+function exportDatabaseBackup() {
+    console.log('Export database backup triggered (not implemented)');
+}
+
+function importDatabaseBackup() {
+    console.log('Import database backup triggered (not implemented)');
 }
 
 // Utility functions
