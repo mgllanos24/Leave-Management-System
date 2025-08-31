@@ -1,0 +1,6 @@
+# Email configuration
+smtp_server = "your-smtp-server.com"
+smtp_port = 587
+smtp_username = "your-email@company.com"
+smtp_password = "your-app-password"
+

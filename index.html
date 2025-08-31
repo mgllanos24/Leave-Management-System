@@ -1,0 +1,527 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Leave Management System</title>
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/layout.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cal+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Entry Point Selection -->
+    <div id="entryContainer" class="entry-container">
+        <div class="entry-content">
+            <h1>🏢 Employee Leave Management System</h1>
+            <p>Please select your login type</p>
+            <div class="entry-buttons">
+                <button id="employeeEntryBtn" class="entry-btn employee-btn" onclick="showEmployeeLogin()">
+                    👤 Employee Login
+                </button>
+                <button id="adminEntryBtn" class="entry-btn admin-btn" onclick="showAdminLogin()">
+                    🔐 Administrator Login
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Login Page -->
+    <div id="employeeLoginContainer" class="login-container" style="display: none;">
+        <div class="login-header">
+            <h2>👤 Employee Login</h2>
+            <button id="backToEntryFromEmployee" class="back-btn">← Back</button>
+        </div>
+        <div class="login-form active">
+            <form id="loginEmployeeForm">
+                <input type="email" id="loginEmployeeEmail" placeholder="Enter your email address" autocomplete="off" required />
+                <button type="submit" class="btn-login">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Login Page -->
+    <div id="adminLoginContainer" class="login-container" style="display: none;">
+        <div class="login-header">
+            <h2>🔐 Administrator Login</h2>
+            <button id="backToEntryFromAdmin" class="back-btn">← Back</button>
+        </div>
+        <div class="login-form active">
+            <form id="loginAdminForm">
+                <input type="text" id="loginAdminUsername" placeholder="Username" autocomplete="off" required />
+                <input type="password" id="loginAdminPassword" placeholder="Password" autocomplete="off" required />
+                <button type="submit" class="btn-login">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="appContainer" class="container" style="display: none;">
+        <header>
+            <h1>🏢 Employee Leave Management System</h1>
+            <p>Manage leave requests and employee allocations</p>
+            <div id="welcomeContainer" style="display:none; margin-top:10px;">
+                <span id="welcomeName"></span>
+                <button id="logoutBtn" class="btn btn-secondary" style="margin-left:15px;">Logout</button>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <!-- Visible tabs depend on login role -->
+            <button id="tabLeaveRequest" class="tab-button active" onclick="switchTab('leave-request')">🏖️ Leave Request</button>
+            <button id="tabCheckHistory" class="tab-button" onclick="switchTab('check-history')">🔍 Check Status/History</button>
+            <button id="tabEmployeeManagement" class="tab-button" style="display: none;" onclick="switchTab('employee-management')">👥 Employee Management</button>
+            <button id="tabApplicationStatus" class="tab-button" style="display: none;" onclick="switchTab('application-status')">📋 Application Status</button>
+            <button id="tabHolidayDates" class="tab-button" style="display: none;" onclick="switchTab('holiday-dates')">🎉 Holiday Dates</button>
+        </div>
+
+        <!-- Leave Request Tab -->
+        <div id="leave-request" class="tab-content active">
+            <!-- Employee Selection Section -->
+            <section class="employee-selection">
+                <h2>👤 Employee</h2>
+                <div class="employee-input">
+                    <label for="employeeInfo">Employee Name/Application ID:</label>
+                    <div id="employeeInfo" class="employee-info-display">
+                        <span id="employeeDisplayName">Please log in first</span>
+                        <small id="applicationIdPreview" style="display: block; color: #64748b; margin-top: 5px;">Application ID will be generated upon submission</small>
+                    </div>
+                    <!-- Leave Balance Display -->
+                    <div id="leaveBalanceDisplay" class="leave-balance-display" style="display: none;">
+                        <h3>📊 Available Leave Balance</h3>
+                        <div class="balance-row">
+                            <div class="balance-item privilege-leave">
+                                <span class="balance-label">🏖️ Privilege Leave (PL):</span>
+                                <span class="balance-value" id="privilegeLeaveBalance">-- days</span>
+                            </div>
+                            <div class="balance-item sick-leave">
+                                <span class="balance-label">🤒 Sick Leave (SL):</span>
+                                <span class="balance-value" id="sickLeaveBalance">-- days</span>
+                            </div>
+                        </div>
+                        <small class="balance-note" id="balanceUpdateNote">Balance updates automatically when leave requests are approved.</small>
+                    </div>
+                </div>
+            </section>
+
+            <form id="vacationForm" class="vacation-form">
+                <!-- Date Selection Section -->
+                <section class="form-section">
+                    <h2>📅 Vacation Dates</h2>
+                    <div class="date-inputs">
+                        <div class="date-group">
+                            <label for="startDate">Start Date:</label>
+                            <input type="date" id="startDate" name="startDate" required>
+                            <div class="half-day-options">
+                                <label class="radio-label">
+                                    <input type="radio" name="startDayType" value="full" checked>
+                                    Full Day
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="startDayType" value="am">
+                                    AM Only
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="startDayType" value="pm">
+                                    PM Only
+                                </label>
+                            </div>
+                        </div>
+                        <div class="date-group">
+                            <label for="endDate">End Date:</label>
+                            <input type="date" id="endDate" name="endDate" required>
+                            <div class="half-day-options">
+                                <label class="radio-label">
+                                    <input type="radio" name="endDayType" value="full" checked>
+                                    Full Day
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="endDayType" value="am">
+                                    AM Only
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="endDayType" value="pm">
+                                    PM Only
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="duration-display">
+                        <span id="durationText">Duration will be calculated automatically</span>
+                    </div>
+                </section>
+
+                <!-- Leave Type Selection Section -->
+                <section class="form-section">
+                    <h2>📋 Reason for Time Off</h2>
+                    <div class="leave-types">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="personal">
+                            <span class="checkmark"></span>
+                            Personal Leave
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="sick">
+                            <span class="checkmark"></span>
+                            Sick Leave
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="family-emergency">
+                            <span class="checkmark"></span>
+                            Family Emergency
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="medical-appointment">
+                            <span class="checkmark"></span>
+                            Medical Appointment
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="vacation-annual">
+                            <span class="checkmark"></span>
+                            Vacation / Annual Leave
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="bereavement">
+                            <span class="checkmark"></span>
+                            Bereavement / Funeral
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="maternity-paternity">
+                            <span class="checkmark"></span>
+                            Maternity / Paternity Leave
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="study-exam">
+                            <span class="checkmark"></span>
+                            Study / Exam Leave
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="childcare">
+                            <span class="checkmark"></span>
+                            Childcare / Dependent Care
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="leaveType" value="jury-duty">
+                            <span class="checkmark"></span>
+                            Jury Duty / Legal Obligation
+                        </label>
+                        <label class="checkbox-label" id="leaveWithoutPayContainer" style="display: none;">
+                            <input type="checkbox" name="leaveType" value="leave-without-pay" id="leaveWithoutPayCheckbox">
+                            <span class="checkmark"></span>
+                            Leave Without Pay
+                        </label>
+                        <label class="checkbox-label" id="otherLeaveType">
+                            <input type="checkbox" name="leaveType" value="other">
+                            <span class="checkmark"></span>
+                            Other (please specify under "Reason for Leave")
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Reason Section -->
+                <section class="form-section">
+                    <h2>📝 Reason for Leave</h2>
+                    <textarea 
+                        id="reason" 
+                        name="reason" 
+                        placeholder="Please enter the reason for your leave request..."
+                        rows="4"
+                        disabled
+                    ></textarea>
+                    <p class="reason-note" id="reasonNote">Please select a leave type above to enable this field, or select "Other" to specify a custom reason.</p>
+                </section>
+
+                <!-- Submit Section -->
+                <section class="form-section">
+                    <button type="submit" class="btn-primary" id="submitBtn">
+                        📤 Submit Vacation Request
+                    </button>
+                </section>
+            </form>
+        </div>
+
+        <!-- Check Status/History Tab -->
+        <div id="check-history" class="tab-content">
+            <section class="section">
+                <h2>🔍 My Vacation Requests</h2>
+                <div class="table-container">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Application ID</th>
+                                <th>Leave Type</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Total Days</th>
+                                <th>Status</th>
+                                <th>Date Applied</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <!-- History rows will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- Employee Management Tab -->
+        <div id="employee-management" class="tab-content">
+            <div class="admin-panel">
+                <div class="section">
+                    <h2>Add New Employee</h2>
+                    <form id="employeeForm" class="employee-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="firstName">First Name <span style="color: red;">*</span></label>
+                                <input type="text" id="firstName" name="firstName" required maxlength="50">
+                            </div>
+                            <div class="form-group">
+                                <label for="surname">Surname <span style="color: red;">*</span></label>
+                                <input type="text" id="surname" name="surname" required maxlength="50">
+                            </div>
+                            <div class="form-group">
+                                <label for="personalEmail">Personal Email Address <span style="color: red;">*</span></label>
+                                <input type="email" id="personalEmail" name="personalEmail" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="annualLeave">Privilege Leave (PL) (days)</label>
+                                <input type="number" id="annualLeave" name="annualLeave" min="0" max="45" value="15" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="sickLeave">Sick Leave (SL) (days)</label>
+                                <input type="number" id="sickLeave" name="sickLeave" min="0" max="15" value="7" required>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Add Employee</button>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h2>Employee List</h2>
+                    <button id="deleteAllBtn" type="button" class="btn btn-danger" style="margin-bottom: 15px;" onclick="deleteAllEmployees()">
+                        🗑️ Delete All Employees
+                    </button>
+                    <div class="table-container">
+                        <table id="employeeTable">
+                            <thead>
+                                <tr>
+                                    <th>Employee Name</th>
+                                    <th>Email Address</th>
+                                    <th>Privilege Leave (PL)</th>
+                                    <th>Sick Leave (SL)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeTableBody">
+                                <!-- Employee rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Application Status Tab -->
+        <div id="application-status" class="tab-content">
+            <div class="admin-panel">
+                <div class="section">
+                    <h2>Employee Leave Summary</h2>
+                    <div class="table-container">
+                        <table id="employeeStatusTable">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Privilege Allocated</th>
+                                    <th>Privilege Used</th>
+                                    <th>Privilege Remaining</th>
+                                    <th>Sick Allocated</th>
+                                    <th>Sick Used</th>
+                                    <th>Sick Remaining</th>
+                                    <th>Active Requests</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeStatusTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2>Leave Application Status</h2>
+                    <div class="status-filters">
+                        <button class="filter-btn active" onclick="filterApplications('all')">All</button>
+                        <button class="filter-btn" onclick="filterApplications('Pending')">Pending</button>
+                        <button class="filter-btn" onclick="filterApplications('Approved')">Approved</button>
+                        <button class="filter-btn" onclick="filterApplications('Rejected')">Rejected</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="applicationsTable">
+                            <thead>
+                                <tr>
+                                    <th>Application ID</th>
+                                    <th>Employee</th>
+                                    <th>Leave Type</th>
+                                    <th>Start Date</th>
+                                    <th>End Date</th>
+                                    <th>Total Days</th>
+                                    <th>Status</th>
+                                    <th>Date Applied</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="applicationsTableBody">
+                                <!-- Application rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Holiday Dates Tab -->
+        <div id="holiday-dates" class="tab-content">
+            <div class="admin-panel">
+                <div class="section">
+                    <h2>Manage Company Holidays</h2>
+                    <form id="holidayForm" class="employee-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="holidayDate">Holiday Date</label>
+                                <input type="date" id="holidayDate" name="holidayDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="holidayName">Holiday Name</label>
+                                <input type="text" id="holidayName" name="holidayName" required placeholder="e.g. Independence Day">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Holiday</button>
+                    </form>
+                </div>
+                <div class="section">
+                    <h2>Holiday Dates List</h2>
+                    <div style="margin-bottom: 15px;">
+                        <button onclick="exportDatabaseBackup()" class="btn btn-secondary" style="margin-right: 10px;">📁 Export Backup</button>
+                        <button onclick="importDatabaseBackup()" class="btn btn-secondary">📂 Import Backup</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="holidayTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Name</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="holidayTableBody">
+                                <!-- Holiday rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Modal -->
+        <div id="successModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>✅ Request Submitted Successfully!</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Your vacation leave request has been submitted successfully!</p>
+                    <p><strong>Application ID:</strong> <span id="requestId"></span></p>
+                    <p><strong>Status:</strong> Pending Approval</p>
+                    <p>You will be notified once your request is reviewed.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="closeModal" class="btn-primary">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Modal for Insufficient Balance -->
+        <div id="errorModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>❌ Insufficient Leave Balance</h2>
+                    <button class="close-btn" onclick="closeErrorModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="errorModalMessage"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-primary" onclick="closeErrorModal()">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Employee Modal -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Edit Employee</h2>
+                    <button class="close-btn" onclick="closeEditModal()">&times;</button>
+                </div>
+                <form id="editEmployeeForm" class="edit-employee-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editFirstName">First Name</label>
+                            <input type="text" id="editFirstName" name="editFirstName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editSurname">Surname</label>
+                            <input type="text" id="editSurname" name="editSurname" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editPersonalEmail">Personal Email Address</label>
+                            <input type="email" id="editPersonalEmail" name="editPersonalEmail" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editAnnualLeave">Privilege Leave (PL) (days)</label>
+                            <input type="number" id="editAnnualLeave" name="editAnnualLeave" min="0" max="45" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editSickLeave">Sick Leave (SL) (days)</label>
+                            <input type="number" id="editSickLeave" name="editSickLeave" min="0" max="15" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editRemainingPrivilege">Privilege Remaining (days)</label>
+                            <input type="number" id="editRemainingPrivilege" name="editRemainingPrivilege" min="0" step="0.5" required>
+                            <small class="form-help">@tweakable Current unused privilege leave days</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="editRemainingSick">Sick Remaining (days)</label>
+                            <input type="number" id="editRemainingSick" name="editRemainingSick" min="0" step="0.5" required>
+                            <small class="form-help">Current unused sick leave days</small>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <p>Processing your request...</p>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>

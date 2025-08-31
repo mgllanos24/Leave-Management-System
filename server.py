@@ -1,0 +1,575 @@
+import http.server
+import socketserver
+import json
+import urllib.parse
+import sys
+import os
+import uuid
+from datetime import datetime  # @tweakable fix datetime import to resolve "module 'datetime' has no attribute 'now'" error
+
+# Import service modules
+from services.database_service import init_database, get_db_connection, db_lock
+from services.employee_service import create_employee, update_employee, delete_employee, get_employees, get_employee_by_email
+# @tweakable import employee validation constants to fix undefined variable errors
+from services.employee_service import (
+    ENABLE_EMPLOYEE_VALIDATION, VALIDATE_EMAIL_UNIQUENESS, MAX_FIRSTNAME_LENGTH, 
+    MAX_SURNAME_LENGTH, DEFAULT_PRIVILEGE_LEAVE, DEFAULT_SICK_LEAVE, ENABLE_EMPLOYEE_AUDIT
+)
+from services.balance_manager import initialize_employee_balances, update_leave_balance, get_employee_balances, update_balances_from_admin_edit
+from services.email_service import send_notification_email
+
+# @tweakable server configuration
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SMTP_USERNAME = "qtaskvacation@gmail.com"
+SMTP_PASSWORD = "bicg llyb myff kigu"
+ADMIN_EMAIL = "mgllanos@gmail.com"
+
+# @tweakable employee management configuration - define missing constants
+AUTO_CREATE_BALANCE_RECORDS = True
+
+class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
+    def do_POST(self):
+        if self.path == '/send-notification':
+            self.handle_email_notification()
+        elif self.path == '/api/bootstrap_employee':
+            self.handle_bootstrap_employee()
+        elif self.path.startswith('/api/'):
+            self.handle_api_request()
+        else:
+            self.send_error(404, "Not Found")
+    
+    def do_GET(self):
+        if self.path.startswith('/api/'):
+            self.handle_api_request()
+        elif self.path == '/api/config/admin_email':
+            self.send_json_response({'admin_email': ADMIN_EMAIL})
+        else:
+            # Serve static files
+            super().do_GET()
+    
+    def do_PUT(self):
+        if self.path.startswith('/api/'):
+            self.handle_api_request()
+        else:
+            self.send_error(404, "Not Found")
+    
+    def do_DELETE(self):
+        if self.path.startswith('/api/'):
+            self.handle_api_request()
+        else:
+            self.send_error(404, "Not Found")
+    
+    def handle_api_request(self):
+        """Handle API requests for database operations"""
+        try:
+            path_parts = self.path.split('/')
+            if len(path_parts) < 3:
+                self.send_error(400, "Invalid API path")
+                return
+            
+            collection = path_parts[2]
+            
+            if self.command == 'GET':
+                self.handle_get_request(collection, path_parts)
+            elif self.command == 'POST':
+                self.handle_post_request(collection)
+            elif self.command == 'PUT':
+                self.handle_put_request(collection, path_parts)
+            elif self.command == 'DELETE':
+                self.handle_delete_request(collection, path_parts)
+            else:
+                self.send_error(405, "Method Not Allowed")
+                
+        except Exception as e:
+            print(f"❌ API request error: {e}")
+            self.send_error(500, f"Internal Server Error: {str(e)}")
+    
+    def handle_get_request(self, collection, path_parts):
+        """Handle GET requests"""
+        with db_lock:
+            conn = get_db_connection()
+            try:
+                parsed = urllib.parse.urlparse(self.path)
+                query = urllib.parse.parse_qs(parsed.query)
+                
+                # @tweakable handle config endpoint for admin email retrieval
+                if collection == 'config' and len(path_parts) > 3:
+                    config_key = path_parts[3]
+                    if config_key == 'admin_email':
+                        results = {'admin_email': ADMIN_EMAIL}
+                        self.send_json_response(results)
+                        return
+                    else:
+                        self.send_error(404, f"Config key '{config_key}' not found")
+                        return
+                elif collection == 'config':
+                    # Return all config values
+                    results = {
+                        'admin_email': ADMIN_EMAIL,
+                        'smtp_username': SMTP_USERNAME,
+                        'smtp_server': SMTP_SERVER
+                    }
+                    self.send_json_response(results)
+                    return
+                
+                if collection == 'employee':
+                    cursor = conn.execute('SELECT * FROM employees WHERE is_active = 1 ORDER BY created_at DESC')
+                    results = [dict(row) for row in cursor.fetchall()]
+                    
+                elif collection == 'leave_application':
+                    cursor = conn.execute('SELECT * FROM leave_applications ORDER BY created_at DESC')
+                    results = [dict(row) for row in cursor.fetchall()]
+                elif collection == 'holiday':
+                    cursor = conn.execute('SELECT * FROM holidays ORDER BY date')
+                    results = [dict(row) for row in cursor.fetchall()]
+                elif collection == 'notification':
+                    cursor = conn.execute('SELECT * FROM notifications ORDER BY created_at DESC')
+                    results = [dict(row) for row in cursor.fetchall()]
+                elif collection == 'leave_balance':
+                    # Get leave balances with optional employee filter
+                    if 'employee_id' in query:
+                        cursor = conn.execute(
+                            'SELECT * FROM leave_balances WHERE employee_id = ? ORDER BY balance_type, year',
+                            (query['employee_id'][0],)
+                        )
+                    else:
+                        cursor = conn.execute('SELECT * FROM leave_balances ORDER BY employee_id, balance_type')
+                    results = [dict(row) for row in cursor.fetchall()]
+                elif collection == 'leave_balance_history':
+                    # Get balance history with optional filters
+                    query = 'SELECT * FROM leave_balance_history ORDER BY created_at DESC'
+                    cursor = conn.execute(query)
+                    results = [dict(row) for row in cursor.fetchall()]
+                else:
+                    self.send_error(404, f"Collection '{collection}' not found")
+                    return
+                
+                self.send_json_response(results)
+                
+            finally:
+                conn.close()
+    
+    def handle_post_request(self, collection):
+        """Handle POST requests (create new records)"""
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            
+            with db_lock:
+                conn = get_db_connection()
+                try:
+                    record_id = str(uuid.uuid4())
+                    current_time = datetime.now().isoformat()
+                    
+                    if collection == 'employee':
+                        # Enhanced employee validation
+                        if ENABLE_EMPLOYEE_VALIDATION:
+                            first_name = data.get('first_name', '').strip()
+                            surname = data.get('surname', '').strip()
+                            email = data.get('personal_email', '').strip().lower()
+                            
+                            if not first_name or len(first_name) > MAX_FIRSTNAME_LENGTH:
+                                raise ValueError(f"Invalid first name (max {MAX_FIRSTNAME_LENGTH} characters)")
+                            if not surname or len(surname) > MAX_SURNAME_LENGTH:
+                                raise ValueError(f"Invalid surname (max {MAX_SURNAME_LENGTH} characters)")
+                            if not email or '@' not in email:
+                                raise ValueError("Invalid email address")
+                            
+                            # Check email uniqueness
+                            if VALIDATE_EMAIL_UNIQUENESS:
+                                cursor = conn.execute('SELECT id FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
+                                if cursor.fetchone():
+                                    raise ValueError(f"Employee with email {email} already exists")
+                        
+                        conn.execute('''
+                            INSERT INTO employees (id, first_name, surname, personal_email, annual_leave, sick_leave, is_active, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+                        ''', (
+                            record_id,
+                            data.get('first_name', '').strip(),
+                            data.get('surname', '').strip(),
+                            data.get('personal_email', '').strip().lower(),
+                            data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
+                            data.get('sick_leave', DEFAULT_SICK_LEAVE),
+                            current_time,
+                            current_time
+                        ))
+                        
+                        # Initialize leave balances for new employee
+                        if AUTO_CREATE_BALANCE_RECORDS:
+                            try:
+                                initialize_employee_balances(record_id)
+                            except Exception as balance_error:
+                                pass
+                        
+                        if ENABLE_EMPLOYEE_AUDIT:
+                            print(f"📝 Employee created: {data.get('first_name')} {data.get('surname')} ({data.get('personal_email')})")
+                    
+                    elif collection == 'leave_application':
+                        app_id = data.get('application_id', f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}")
+                        conn.execute('''
+                            INSERT INTO leave_applications (
+                                id, application_id, employee_id, employee_name, start_date, end_date,
+                                start_day_type, end_day_type, leave_type, selected_reasons, reason,
+                                total_days, status, date_applied, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            record_id,
+                            app_id,
+                            data.get('employee_id', ''),
+                            data.get('employee_name', ''),
+                            data.get('start_date', ''),
+                            data.get('end_date', ''),
+                            data.get('start_day_type', 'full'),
+                            data.get('end_day_type', 'full'),
+                            data.get('leave_type', ''),
+                            json.dumps(data.get('selected_reasons', [])),
+                            data.get('reason', ''),
+                            data.get('total_days', 0),
+                            data.get('status', 'Pending'),
+                            current_time,
+                            current_time,
+                            current_time
+                        ))
+                    
+                    elif collection == 'holiday':
+                        conn.execute('''
+                            INSERT INTO holidays (id, date, name, created_at)
+                            VALUES (?, ?, ?, ?)
+                        ''', (
+                            record_id,
+                            data.get('date', ''),
+                            data.get('name', ''),
+                            current_time
+                        ))
+                    
+                    elif collection == 'notification':
+                        conn.execute('''
+                            INSERT INTO notifications (id, employee_id, message, read, created_at)
+                            VALUES (?, ?, ?, ?, ?)
+                        ''', (
+                            record_id,
+                            data.get('employee_id', ''),
+                            data.get('message', ''),
+                            data.get('read', 0),
+                            current_time
+                        ))
+                    
+                    else:
+                        self.send_error(404, f"Collection '{collection}' not found")
+                        return
+                    
+                    conn.commit()
+                    
+                    # Return the created record
+                    created_record = dict(data)
+                    created_record['id'] = record_id
+                    created_record['created_at'] = current_time
+                    
+                    self.send_json_response(created_record)
+                    
+                finally:
+                    conn.close()
+                    
+        except Exception as e:
+            self.send_error(500, f"Error creating record: {str(e)}")
+    
+    def handle_put_request(self, collection, path_parts):
+        """Handle PUT requests (update records)"""
+        if len(path_parts) < 4:
+            self.send_error(400, "Record ID required for update")
+            return
+        
+        record_id = path_parts[3]
+        
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            
+            with db_lock:
+                conn = get_db_connection()
+                try:
+                    current_time = datetime.now().isoformat()
+                    
+                    if collection == 'employee':
+                        # Enhanced employee update validation
+                        if ENABLE_EMPLOYEE_VALIDATION:
+                            first_name = data.get('first_name', '').strip()
+                            surname = data.get('surname', '').strip()
+                            email = data.get('personal_email', '').strip().lower()
+                            
+                            if first_name and len(first_name) > MAX_FIRSTNAME_LENGTH:
+                                raise ValueError(f"Invalid first name (max {MAX_FIRSTNAME_LENGTH} characters)")
+                            if surname and len(surname) > MAX_SURNAME_LENGTH:
+                                raise ValueError(f"Invalid surname (max {MAX_SURNAME_LENGTH} characters)")
+                            if email and '@' not in email:
+                                raise ValueError("Invalid email address")
+                            
+                            # Check email uniqueness (excluding current record)
+                            if VALIDATE_EMAIL_UNIQUENESS and email:
+                                cursor = conn.execute('SELECT id FROM employees WHERE personal_email = ? AND id != ? AND is_active = 1', (email, record_id))
+                                if cursor.fetchone():
+                                    raise ValueError(f"Employee with email {email} already exists")
+                        
+                        conn.execute('''
+                            UPDATE employees 
+                            SET first_name=?, surname=?, personal_email=?, annual_leave=?, sick_leave=?, updated_at=?
+                            WHERE id=? AND is_active=1
+                        ''', (
+                            data.get('first_name', '').strip(),
+                            data.get('surname', '').strip(),
+                            data.get('personal_email', '').strip().lower(),
+                            data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
+                            data.get('sick_leave', DEFAULT_SICK_LEAVE),
+                            current_time,
+                            record_id
+                        ))
+                        
+                        # @tweakable: Update remaining leave balances if provided by admin
+                        if 'remaining_privilege_leave' in data or 'remaining_sick_leave' in data:
+                            remaining_pl = data.get('remaining_privilege_leave')
+                            remaining_sl = data.get('remaining_sick_leave')
+                            if remaining_pl is not None and remaining_sl is not None:
+                                update_balances_from_admin_edit(record_id, remaining_pl, remaining_sl)
+                        
+                        if ENABLE_EMPLOYEE_AUDIT:
+                            print(f"📝 Employee updated: {record_id}")
+                    
+                    elif collection == 'leave_application':
+                        # Get current status before update
+                        cursor = conn.execute('SELECT status FROM leave_applications WHERE id = ?', (record_id,))
+                        current_record = cursor.fetchone()
+                        current_status = current_record['status'] if current_record else None
+                        
+                        new_status = data.get('status', 'Pending')
+                        
+                        conn.execute('''
+                            UPDATE leave_applications 
+                            SET status=?, updated_at=?
+                            WHERE id=?
+                        ''', (
+                            new_status,
+                            current_time,
+                            record_id
+                        ))
+                        
+                        # Process balance changes if status changed
+                        if current_status and current_status != new_status:
+                            try:
+                                process_leave_application_balance(record_id, new_status, 'ADMIN')
+                            except Exception as balance_error:
+                                pass
+                                # Don't fail the entire request if balance update fails
+                    
+                    else:
+                        self.send_error(404, f"Collection '{collection}' not found")
+                        return
+                    
+                    if conn.total_changes == 0:
+                        self.send_error(404, "Record not found")
+                        return
+                    
+                    conn.commit()
+                    
+                    # Return updated record
+                    updated_record = dict(data)
+                    updated_record['id'] = record_id
+                    updated_record['updated_at'] = current_time
+                    
+                    self.send_json_response(updated_record)
+                    
+                finally:
+                    conn.close()
+                    
+        except Exception as e:
+            self.send_error(500, f"Error updating record: {str(e)}")
+    
+    def handle_delete_request(self, collection, path_parts):
+        """Handle DELETE requests"""
+        if len(path_parts) < 4:
+            self.send_error(400, "Record ID required for delete")
+            return
+        
+        record_id = path_parts[3]
+        
+        with db_lock:
+            conn = get_db_connection()
+            try:
+                if collection == 'employee':
+                    # Soft delete for employees (maintain data integrity)
+                    cursor = conn.execute('UPDATE employees SET is_active = 0, updated_at = ? WHERE id = ? AND is_active = 1', 
+                                        (datetime.now().isoformat(), record_id))
+                    
+                    if ENABLE_EMPLOYEE_AUDIT:
+                        print(f"📝 Employee soft deleted: {record_id}")
+                
+                elif collection == 'leave_application':
+                    cursor = conn.execute('DELETE FROM leave_applications WHERE id=?', (record_id,))
+                elif collection == 'holiday':
+                    cursor = conn.execute('DELETE FROM holidays WHERE id=?', (record_id,))
+                elif collection == 'notification':
+                    cursor = conn.execute('DELETE FROM notifications WHERE id=?', (record_id,))
+                else:
+                    self.send_error(404, f"Collection '{collection}' not found")
+                    return
+                
+                if conn.total_changes == 0:
+                    self.send_error(404, "Record not found")
+                    return
+                
+                conn.commit()
+                
+                self.send_json_response({"success": True, "deleted_id": record_id})
+                
+            finally:
+                conn.close()
+    
+    def send_json_response(self, data):
+        """Send JSON response"""
+        response_data = json.dumps(data, ensure_ascii=False, indent=2)
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(response_data.encode('utf-8'))))
+        self.end_headers()
+        self.wfile.write(response_data.encode('utf-8'))
+    
+    def handle_email_notification(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            email_data = json.loads(post_data.decode('utf-8'))
+            
+            # Send email
+            success = send_notification_email(
+                email_data['to'],
+                email_data['subject'],
+                email_data['body']
+            )
+            
+            if success:
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'status': 'success'}).encode())
+            else:
+                self.send_error(500, "Email sending failed")
+                
+        except Exception as e:
+            print(f"Error handling email notification: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def handle_bootstrap_employee(self):
+        """Initialize per-employee data/balances on login with enhanced error handling"""
+        # @tweakable timeout for bootstrap operations in seconds
+        BOOTSTRAP_TIMEOUT = 10
+        # @tweakable whether to enable detailed bootstrap logging
+        DETAILED_BOOTSTRAP_LOGGING = True
+        
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length else b'{}'
+            data = json.loads(body.decode('utf-8'))
+            email = (data.get('email') or '').strip().lower()
+            
+            if not email:
+                self.send_error(400, "email is required")
+                return
+                
+            if DETAILED_BOOTSTRAP_LOGGING:
+                print(f"🔄 Bootstrapping employee data for: {email}")
+            
+            with db_lock:
+                conn = get_db_connection()
+                try:
+                    # Find employee with detailed error reporting
+                    cur = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
+                    row = cur.fetchone()
+                    
+                    if not row:
+                        # Check if employee exists but is inactive
+                        inactive_cur = conn.execute('SELECT COUNT(*) as count FROM employees WHERE personal_email = ? AND is_active = 0', (email,))
+                        inactive_count = inactive_cur.fetchone()['count']
+                        
+                        if inactive_count > 0:
+                            error_msg = f"Employee with email {email} exists but is inactive"
+                        else:
+                            error_msg = f"Employee with email {email} not found in database"
+                            
+                        if DETAILED_BOOTSTRAP_LOGGING:
+                            print(f"❌ Bootstrap failed: {error_msg}")
+                        
+                        self.send_error(404, error_msg)
+                        return
+                    
+                    employee = dict(row)
+                    
+                    if DETAILED_BOOTSTRAP_LOGGING:
+                        print(f"✅ Found employee: {employee['first_name']} {employee['surname']} (ID: {employee['id']})")
+                    
+                    # Initialize balances with timeout protection
+                    import threading
+                    balance_init_result = [None]  # Use list for mutable reference
+                    balance_init_error = [None]
+                    
+                    def init_balances():
+                        try:
+                            result = initialize_employee_balances(employee['id'])
+                            balance_init_result[0] = result
+                        except Exception as e:
+                            balance_init_error[0] = e
+                    
+                    balance_thread = threading.Thread(target=init_balances)
+                    balance_thread.start()
+                    balance_thread.join(timeout=BOOTSTRAP_TIMEOUT)
+                    
+                    if balance_thread.is_alive():
+                        # Timeout occurred
+                        raise Exception(f"Balance initialization timed out after {BOOTSTRAP_TIMEOUT} seconds")
+                    
+                    if balance_init_error[0]:
+                        raise balance_init_error[0]
+                    
+                    if not balance_init_result[0]:
+                        raise Exception("Balance initialization returned false")
+                    
+                    # Get balances for response
+                    curb = conn.execute('SELECT * FROM leave_balances WHERE employee_id = ? ORDER BY balance_type, year', (employee['id'],))
+                    balances = [dict(r) for r in curb.fetchall()]
+                    
+                    if DETAILED_BOOTSTRAP_LOGGING:
+                        print(f"✅ Bootstrap completed for {email} with {len(balances)} balance records")
+                    
+                    self.send_json_response({'employee': employee, 'balances': balances})
+                    
+                finally:
+                    conn.close()
+                    
+        except Exception as e:
+            print(f"❌ Bootstrap error for {email if 'email' in locals() else 'unknown'}: {e}")
+            self.send_error(500, f"Bootstrap failed: {str(e)}")
+
+def run_server(port=8080):
+    """Run the HTTP server"""
+    try:
+        # Initialize database using service
+        print("📊 Initializing database...")
+        init_database()
+        
+        with socketserver.TCPServer(("", port), LeaveManagementHandler) as httpd:
+            print(f"Server running at http://localhost:{port}")
+            print("Press Ctrl+C to stop the server")
+            httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+    except OSError as e:
+        if e.errno == 48:
+            print(f"Error: Port {port} is already in use.")
+        else:
+            print(f"Error starting server: {e}")
+
+if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+    run_server(port)
