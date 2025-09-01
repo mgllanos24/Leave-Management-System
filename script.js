@@ -1433,10 +1433,10 @@ async function loadEmployeeSummary() {
         });
 
         summary.forEach(info => {
-            if (info.privilegeAllocated && !info.privilegeRemaining) {
+            if (info.privilegeAllocated && info.privilegeRemaining == null) {
                 info.privilegeRemaining = info.privilegeAllocated - info.privilegeUsed;
             }
-            if (info.sickAllocated && !info.sickRemaining) {
+            if (info.sickAllocated && info.sickRemaining == null) {
                 info.sickRemaining = info.sickAllocated - info.sickUsed;
             }
         });
