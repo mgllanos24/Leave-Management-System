@@ -5,6 +5,7 @@ import urllib.parse
 import sys
 import os
 import uuid
+import logging
 from datetime import datetime  # @tweakable fix datetime import to resolve "module 'datetime' has no attribute 'now'" error
 
 # Import service modules
@@ -503,7 +504,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 
             finally:
                 conn.close()
-    
+
+    def _safe_write(self, data: bytes):
+        """Safely finalize the response by sending headers and body."""
+        try:
+            self.end_headers()
+        except (ConnectionError, BrokenPipeError) as e:
+            logging.warning("Connection lost while sending headers: %s", e)
+            return
+        try:
+            self.wfile.write(data)
+        except (ConnectionError, BrokenPipeError) as e:
+            logging.warning("Connection lost while writing body: %s", e)
+
     def send_json_response(self, data, status=200):
         """Send JSON response with CORS headers"""
         response_data = json.dumps(data, ensure_ascii=False, indent=2)
@@ -511,17 +524,15 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.send_cors_headers()
         self.send_header('Content-Length', str(len(response_data.encode('utf-8'))))
-        self.end_headers()
-        self.wfile.write(response_data.encode('utf-8'))
+        self._safe_write(response_data.encode('utf-8'))
 
     def send_error(self, code, message=None, explain=None):
         """Send error response with CORS headers"""
         self.send_response(code, message)
         self.send_header('Content-Type', 'application/json')
         self.send_cors_headers()
-        self.end_headers()
         error_message = message if message else self.responses.get(code, ('', ''))[0]
-        self.wfile.write(json.dumps({'error': error_message}).encode('utf-8'))
+        self._safe_write(json.dumps({'error': error_message}).encode('utf-8'))
     
     def handle_email_notification(self):
         try:
