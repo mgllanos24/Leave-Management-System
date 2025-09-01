@@ -735,11 +735,16 @@ function showEntrySelection() {
 function showEmployeeLogin() {
     /* @tweakable whether to log navigation to employee login */
     const logNavigation = true;
-    
+
     if (logNavigation) {
         console.log('🔄 Navigating to employee login');
     }
-    
+
+    const employeeForm = document.getElementById('loginEmployeeForm');
+    if (employeeForm) {
+        employeeForm.reset();
+    }
+
     document.getElementById('entryContainer').style.display = 'none';
     document.getElementById('employeeLoginContainer').style.display = 'block';
     document.getElementById('adminLoginContainer').style.display = 'none';
@@ -749,11 +754,16 @@ function showEmployeeLogin() {
 function showAdminLogin() {
     /* @tweakable whether to log navigation to admin login */
     const logNavigation = true;
-    
+
     if (logNavigation) {
         console.log('🔄 Navigating to admin login');
     }
-    
+
+    const adminForm = document.getElementById('loginAdminForm');
+    if (adminForm) {
+        adminForm.reset();
+    }
+
     document.getElementById('entryContainer').style.display = 'none';
     document.getElementById('employeeLoginContainer').style.display = 'none';
     document.getElementById('adminLoginContainer').style.display = 'block';
