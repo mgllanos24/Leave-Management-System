@@ -101,7 +101,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if self.command == 'GET':
                 self.handle_get_request(collection, path_parts, parsed.query)
             elif self.command == 'POST':
-                self.handle_post_request(collection)
+                if collection == 'holiday' and len(path_parts) > 3 and path_parts[3] == 'auto_populate':
+                    self.handle_auto_populate_holidays()
+                else:
+                    self.handle_post_request(collection)
             elif self.command == 'PUT':
                 self.handle_put_request(collection, path_parts)
             elif self.command == 'DELETE':
@@ -607,9 +610,35 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 conn.commit()
                 
                 self.send_json_response({"success": True, "deleted_id": record_id})
-                
+
             finally:
                 conn.close()
+
+    def handle_auto_populate_holidays(self):
+        """Handle automatic holiday population"""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else b''
+            data = json.loads(body.decode('utf-8')) if body else {}
+            holidays = data.get('holidays', [])
+
+            with db_lock:
+                conn = get_db_connection()
+                try:
+                    conn.execute('DELETE FROM holidays')
+                    now = datetime.now().isoformat()
+                    for h in holidays:
+                        conn.execute(
+                            'INSERT INTO holidays (id, date, name, created_at) VALUES (?, ?, ?, ?)',
+                            (str(uuid.uuid4()), h.get('date', ''), h.get('name', ''), now)
+                        )
+                    conn.commit()
+                finally:
+                    conn.close()
+
+            self.send_json_response({'status': 'ok', 'inserted': len(holidays)})
+        except Exception as e:
+            self.send_error(500, f'Failed to auto populate holidays: {e}')
 
     def _safe_write(self, data: bytes):
         """Safely finalize the response by sending headers and body."""

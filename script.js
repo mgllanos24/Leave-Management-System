@@ -1139,7 +1139,17 @@ async function initializeApp() {
         await loadLeaveApplications();
         await loadEmployeeSummary();
         await loadHolidays();
-        
+
+        const populateBtn = document.getElementById('populateHolidaysBtn');
+        if (populateBtn) {
+            populateBtn.addEventListener('click', async () => {
+                const confirmPopulate = confirm('Auto-populate holidays for the next fiscal year? This will replace existing holidays.');
+                if (confirmPopulate) {
+                    await populateNextFiscalYearHolidays();
+                }
+            });
+        }
+
         // Set up form handlers and other functionality
         setupEmployeeManagement();
         setupLeaveApplication();
@@ -1659,10 +1669,86 @@ async function loadLeaveHistory(employeeId) {
 
 async function loadHolidays() {
     try {
+        const tbody = document.getElementById('holidayTableBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+        }
+
         const holidays = await room.collection('holiday').getList();
-        console.log(`Loaded ${holidays.length} holidays`);
+
+        if (tbody) {
+            if (holidays.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="3">No holidays found</td>';
+                tbody.appendChild(row);
+            } else {
+                holidays.sort((a, b) => new Date(a.date) - new Date(b.date));
+                for (const holiday of holidays) {
+                    const row = document.createElement('tr');
+                    const dateCell = document.createElement('td');
+                    dateCell.textContent = holiday.date;
+                    const nameCell = document.createElement('td');
+                    nameCell.textContent = holiday.name;
+                    const actionCell = document.createElement('td');
+                    const delBtn = document.createElement('button');
+                    delBtn.textContent = 'Delete';
+                    delBtn.className = 'btn btn-danger';
+                    delBtn.addEventListener('click', async () => {
+                        if (confirm('Delete this holiday?')) {
+                            await room.collection('holiday').delete(holiday.id);
+                            await loadHolidays();
+                        }
+                    });
+                    actionCell.appendChild(delBtn);
+                    row.appendChild(dateCell);
+                    row.appendChild(nameCell);
+                    row.appendChild(actionCell);
+                    tbody.appendChild(row);
+                }
+            }
+        }
     } catch (error) {
         console.error('Error loading holidays:', error);
+    }
+}
+
+function getLastWeekdayOfMonth(year, month, weekday) {
+    const lastDay = new Date(year, month + 1, 0);
+    const diff = (lastDay.getDay() - weekday + 7) % 7;
+    return new Date(year, month, lastDay.getDate() - diff);
+}
+
+function getFirstWeekdayOfMonth(year, month, weekday) {
+    const firstDay = new Date(year, month, 1);
+    const diff = (weekday - firstDay.getDay() + 7) % 7;
+    return new Date(year, month, 1 + diff);
+}
+
+function formatDate(date) {
+    return date.toISOString().split('T')[0];
+}
+
+async function populateNextFiscalYearHolidays() {
+    const year = new Date().getFullYear() + 1;
+    const holidays = [
+        { date: `${year}-01-01`, name: 'New Years Day' },
+        { date: formatDate(getLastWeekdayOfMonth(year, 4, 1)), name: 'Memorial Day' },
+        { date: `${year}-07-04`, name: 'Independence Day' },
+        { date: formatDate(getFirstWeekdayOfMonth(year, 8, 1)), name: 'Labor Day' },
+        { date: formatDate(getLastWeekdayOfMonth(year, 10, 4)), name: 'Thanksgiving Day' },
+        { date: `${year}-12-25`, name: 'Christmas Day' }
+    ];
+
+    try {
+        await fetch('/api/holiday/auto_populate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ holidays })
+        });
+        await loadHolidays();
+    } catch (error) {
+        console.error('Error populating holidays:', error);
+        alert('Failed to auto-populate holidays');
     }
 }
 
