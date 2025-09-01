@@ -63,15 +63,16 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def handle_api_request(self):
         """Handle API requests for database operations"""
         try:
-            path_parts = self.path.split('/')
+            parsed = urllib.parse.urlparse(self.path)
+            path_parts = parsed.path.split('/')
             if len(path_parts) < 3:
                 self.send_error(400, "Invalid API path")
                 return
-            
+
             collection = path_parts[2]
-            
+
             if self.command == 'GET':
-                self.handle_get_request(collection, path_parts)
+                self.handle_get_request(collection, path_parts, parsed.query)
             elif self.command == 'POST':
                 self.handle_post_request(collection)
             elif self.command == 'PUT':
@@ -85,13 +86,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             print(f"❌ API request error: {e}")
             self.send_error(500, f"Internal Server Error: {str(e)}")
     
-    def handle_get_request(self, collection, path_parts):
+    def handle_get_request(self, collection, path_parts, query_string):
         """Handle GET requests"""
         with db_lock:
             conn = get_db_connection()
             try:
-                parsed = urllib.parse.urlparse(self.path)
-                query = urllib.parse.parse_qs(parsed.query)
+                query = urllib.parse.parse_qs(query_string)
                 
                 # @tweakable handle config endpoint for admin email retrieval
                 if collection == 'config' and len(path_parts) > 3:
