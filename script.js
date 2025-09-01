@@ -962,6 +962,17 @@ async function loginAdmin(username, password) {
     }
 }
 
+async function logoutAdmin() {
+    try {
+        await fetch('/api/logout_admin', {
+            method: 'POST',
+            credentials: 'include'
+        });
+    } catch (error) {
+        console.error('Error logging out admin:', error);
+    }
+}
+
 function showMainApp() {
     document.getElementById('entryContainer').style.display = 'none';
     document.getElementById('employeeLoginContainer').style.display = 'none';
@@ -1016,7 +1027,11 @@ function displayWelcome() {
     }
 }
 
-function logout() {
+async function logout() {
+    if (currentUserType === 'admin') {
+        await logoutAdmin();
+    }
+
     currentUserType = null;
     currentUser = null;
     sessionToken = null;
