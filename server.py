@@ -23,6 +23,7 @@ from services.balance_manager import (
     get_employee_balances,
     update_balances_from_admin_edit,
     process_leave_application_balance,
+    reset_all_balances,
 )
 from services.email_service import (
     send_notification_email,
@@ -197,6 +198,20 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         """Handle POST requests (create new records)"""
         if collection == 'logout_admin':
             self.handle_logout_admin()
+            return
+        if collection == 'reset_balances':
+            cookie_header = self.headers.get('Cookie', '')
+            token = None
+            if cookie_header:
+                cookie = SimpleCookie()
+                cookie.load(cookie_header)
+                if 'admin_token' in cookie:
+                    token = cookie['admin_token'].value
+            if not token or token not in active_admin_tokens:
+                self.send_error(403, "Admin authentication required")
+                return
+            reset_all_balances()
+            self.send_json_response({'status': 'balances reset'})
             return
         try:
             content_length = int(self.headers.get('Content-Length', 0))

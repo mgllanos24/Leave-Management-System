@@ -435,6 +435,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (deleteAllBtn) {
         deleteAllBtn.addEventListener('click', deleteAllEmployees);
     }
+    const resetBtn = document.getElementById('resetBalancesBtn');
+    if (resetBtn) resetBtn.addEventListener('click', resetAllLeaveBalances);
 
     const exportBackupBtn = document.getElementById('exportBackupBtn');
     if (exportBackupBtn) {
@@ -1763,7 +1765,8 @@ async function deleteAllEmployees() {
 async function resetAllLeaveBalances() {
     if (confirm('Are you sure you want to reset all leave balances? This action cannot be undone.')) {
         try {
-            await fetch('/api/leave_balance/reset_all', { method: 'POST' });
+            const resp = await fetch('/api/reset_balances', { method: 'POST' });
+            if (!resp.ok) throw new Error('Request failed');
             await loadEmployeeList();
             await loadEmployeeSummary();
             alert('All leave balances reset successfully');
