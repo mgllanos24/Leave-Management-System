@@ -1404,6 +1404,9 @@ async function loadEmployeeSummary() {
             room.collection('leave_application').getList()
         ]);
 
+        const searchInput = document.getElementById('employeeSearch');
+        const filter = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
         const summary = new Map();
 
         employees.forEach(emp => {
@@ -1477,7 +1480,9 @@ async function loadEmployeeSummary() {
         }
         tbody.innerHTML = '';
 
+        let hasRows = false;
         for (const info of summary.values()) {
+            if (filter && !info.name.toLowerCase().includes(filter)) continue;
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${info.name}</td>
@@ -1490,9 +1495,10 @@ async function loadEmployeeSummary() {
                 <td>${info.activeRequests}</td>
             `;
             tbody.appendChild(row);
+            hasRows = true;
         }
 
-        if (summary.size === 0) {
+        if (!hasRows) {
             const row = document.createElement('tr');
             row.innerHTML = '<td colspan="8">No employee data found</td>';
             tbody.appendChild(row);
@@ -1737,6 +1743,13 @@ document.addEventListener('DOMContentLoaded', function() {
         closeModalBtn.addEventListener('click', function() {
             document.getElementById('successModal').classList.remove('show');
         });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('employeeSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', loadEmployeeSummary);
     }
 });
 
