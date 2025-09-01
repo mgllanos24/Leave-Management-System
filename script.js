@@ -1344,13 +1344,23 @@ async function loadLeaveApplications() {
 }
 
 async function updateApplicationStatus(id, newStatus) {
+    showLoading();
+
+    // Disable all action buttons to prevent duplicate requests
+    const actionButtons = document.querySelectorAll('.approve-btn, .reject-btn');
+    actionButtons.forEach(btn => (btn.disabled = true));
+
     try {
         await room.collection('leave_application').update(id, { status: newStatus });
         await loadLeaveApplications();
         await loadApprovedLeaves();
+        alert('Application status updated successfully');
     } catch (error) {
         console.error('Error updating application status:', error);
-        alert('Failed to update application status');
+        alert(`Failed to update application status: ${error.message}`);
+    } finally {
+        actionButtons.forEach(btn => (btn.disabled = false));
+        hideLoading();
     }
 }
 
