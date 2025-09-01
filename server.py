@@ -222,6 +222,17 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             reset_all_balances()
             self.send_json_response({'status': 'balances reset'})
             return
+        if collection == 'holiday':
+            cookie_header = self.headers.get('Cookie', '')
+            token = None
+            if cookie_header:
+                cookie = SimpleCookie()
+                cookie.load(cookie_header)
+                if 'admin_token' in cookie:
+                    token = cookie['admin_token'].value
+            if not token or token not in active_admin_tokens:
+                self.send_error(403, "Admin authentication required")
+                return
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length) if content_length > 0 else b''
@@ -377,9 +388,21 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         if len(path_parts) < 4:
             self.send_error(400, "Record ID required for update")
             return
-        
+
         record_id = path_parts[3]
-        
+
+        if collection == 'holiday':
+            cookie_header = self.headers.get('Cookie', '')
+            token = None
+            if cookie_header:
+                cookie = SimpleCookie()
+                cookie.load(cookie_header)
+                if 'admin_token' in cookie:
+                    token = cookie['admin_token'].value
+            if not token or token not in active_admin_tokens:
+                self.send_error(403, "Admin authentication required")
+                return
+
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length) if content_length > 0 else b''
@@ -579,9 +602,21 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         if len(path_parts) < 4:
             self.send_error(400, "Record ID required for delete")
             return
-        
+
         record_id = path_parts[3]
-        
+
+        if collection == 'holiday':
+            cookie_header = self.headers.get('Cookie', '')
+            token = None
+            if cookie_header:
+                cookie = SimpleCookie()
+                cookie.load(cookie_header)
+                if 'admin_token' in cookie:
+                    token = cookie['admin_token'].value
+            if not token or token not in active_admin_tokens:
+                self.send_error(403, "Admin authentication required")
+                return
+
         with db_lock:
             conn = get_db_connection()
             try:
