@@ -363,7 +363,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('- DOM Ready State:', document.readyState);
         console.log('- Script Loading Time:', new Date().toISOString());
     }
-    
+
+    initEntryButtons();
+
     // Try to restore authentication state first
     if (AUTO_RESTORE_AUTH && PERSIST_AUTH_STATE) {
         try {
@@ -731,6 +733,25 @@ function showEntrySelection() {
     document.getElementById('adminLoginContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'none';
 }
+
+function initEntryButtons() {
+    const employeeBtn = document.getElementById('employeeEntryBtn');
+    const adminBtn = document.getElementById('adminEntryBtn');
+
+    if (employeeBtn) {
+        employeeBtn.addEventListener('click', showEmployeeLogin);
+    } else {
+        console.error('employeeEntryBtn not found');
+    }
+
+    if (adminBtn) {
+        adminBtn.addEventListener('click', showAdminLogin);
+    } else {
+        console.error('adminEntryBtn not found');
+    }
+}
+
+initEntryButtons();
 
 function showEmployeeLogin() {
     /* @tweakable whether to log navigation to employee login */
@@ -1420,6 +1441,8 @@ function switchTab(tabName) {
     if (tabName === 'check-history' && currentUser) {
         loadLeaveHistory(currentUser.id);
     }
+}
+
 // Utility functions
 async function editEmployee(employeeId) {
     console.log(`Editing employee: ${employeeId}`);
