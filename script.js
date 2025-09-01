@@ -458,6 +458,34 @@ document.addEventListener('DOMContentLoaded', function() {
     if (editModalCancel) {
         editModalCancel.addEventListener('click', closeEditModal);
     }
+
+    const editEmployeeForm = document.getElementById('editEmployeeForm');
+    if (editEmployeeForm) {
+        editEmployeeForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const employeeId = editEmployeeForm.dataset.employeeId;
+            if (!employeeId) return;
+
+            const updatedData = {
+                first_name: document.getElementById('editFirstName').value.trim(),
+                surname: document.getElementById('editSurname').value.trim(),
+                personal_email: document.getElementById('editPersonalEmail').value.trim(),
+                annual_leave: parseFloat(document.getElementById('editAnnualLeave').value),
+                sick_leave: parseFloat(document.getElementById('editSickLeave').value),
+                remaining_privilege_leave: parseFloat(document.getElementById('editRemainingPrivilege').value),
+                remaining_sick_leave: parseFloat(document.getElementById('editRemainingSick').value)
+            };
+
+            try {
+                await room.collection('employee').update(employeeId, updatedData);
+                closeEditModal();
+                await loadEmployeeList();
+                await loadEmployeeSummary();
+            } catch (error) {
+                alert(`Error updating employee: ${error.message}`);
+            }
+        });
+    }
     
     // Add visual debugging indicators to buttons if enabled
     if (addVisualDebugging && enableButtonDebugging) {
@@ -1632,7 +1660,31 @@ function switchTab(tabName) {
 
 // Utility functions
 async function editEmployee(employeeId) {
-    console.log(`Editing employee: ${employeeId}`);
+    try {
+        const [employee, balances] = await Promise.all([
+            room.collection('employee').makeRequest('GET', `/${employeeId}`),
+            room.collection('leave_balance').getList({ employee_id: employeeId })
+        ]);
+
+        document.getElementById('editFirstName').value = employee.first_name || '';
+        document.getElementById('editSurname').value = employee.surname || '';
+        document.getElementById('editPersonalEmail').value = employee.personal_email || '';
+        document.getElementById('editAnnualLeave').value = employee.annual_leave ?? '';
+        document.getElementById('editSickLeave').value = employee.sick_leave ?? '';
+
+        const privilege = balances.find(b => b.balance_type === 'PRIVILEGE');
+        const sick = balances.find(b => b.balance_type === 'SICK');
+        document.getElementById('editRemainingPrivilege').value = privilege ? privilege.remaining_days : 0;
+        document.getElementById('editRemainingSick').value = sick ? sick.remaining_days : 0;
+
+        const form = document.getElementById('editEmployeeForm');
+        form.dataset.employeeId = employeeId;
+
+        document.getElementById('editModal').classList.add('show');
+    } catch (error) {
+        console.error('Error loading employee for edit:', error);
+        alert('Error loading employee details');
+    }
 }
 
 async function deleteEmployee(employeeId) {
