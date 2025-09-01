@@ -352,8 +352,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 if cursor.fetchone():
                                     raise ValueError(f"Employee with email {email} already exists")
                         
-                        conn.execute('''
-                            UPDATE employees 
+                        cursor = conn.execute('''
+                            UPDATE employees
                             SET first_name=?, surname=?, personal_email=?, annual_leave=?, sick_leave=?, updated_at=?
                             WHERE id=? AND is_active=1
                         ''', (
@@ -365,7 +365,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             current_time,
                             record_id
                         ))
-                        
+
+                        if cursor.rowcount == 0:
+                            self.send_error(404, "Record not found")
+                            return
+
                         # @tweakable: Update remaining leave balances if provided by admin
                         if 'remaining_privilege_leave' in data or 'remaining_sick_leave' in data:
                             remaining_pl = data.get('remaining_privilege_leave')
@@ -384,8 +388,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         
                         new_status = data.get('status', 'Pending')
                         
-                        conn.execute('''
-                            UPDATE leave_applications 
+                        cursor = conn.execute('''
+                            UPDATE leave_applications
                             SET status=?, updated_at=?
                             WHERE id=?
                         ''', (
@@ -393,7 +397,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             current_time,
                             record_id
                         ))
-                        
+
+                        if cursor.rowcount == 0:
+                            self.send_error(404, "Record not found")
+                            return
+
                         # Process balance changes if status changed
                         if current_status and current_status != new_status:
                             try:
@@ -420,7 +428,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 ))
 
                     elif collection == 'approved_leave':
-                        conn.execute('''
+                        cursor = conn.execute('''
                             UPDATE approved_leaves
                             SET start_date=?, end_date=?, updated_at=?
                             WHERE id=?
@@ -431,12 +439,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             record_id
                         ))
 
+                        if cursor.rowcount == 0:
+                            self.send_error(404, "Record not found")
+                            return
+
                     else:
                         self.send_error(404, f"Collection '{collection}' not found")
-                        return
-                    
-                    if conn.total_changes == 0:
-                        self.send_error(404, "Record not found")
                         return
                     
                     conn.commit()
