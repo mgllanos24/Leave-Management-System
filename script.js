@@ -935,11 +935,11 @@ function configureTabsForUser() {
 
     // Toggle visibility for employee-specific tabs based on user role
     document.getElementById('tabLeaveRequest').style.display = isAdmin ? 'none' : 'block';
-    document.getElementById('tabCheckHistory').style.display = 'none';
+    document.getElementById('tabCheckHistory').style.display = isAdmin ? 'none' : 'block';
 
     // Also hide the corresponding tab content sections to prevent access
-    document.getElementById('leave-request').style.display = isAdmin ? 'none' : 'block';
-    document.getElementById('check-history').style.display = 'none';
+    document.getElementById('leave-request').style.display = isAdmin ? 'none' : '';
+    document.getElementById('check-history').style.display = isAdmin ? 'none' : '';
 }
 
 function displayWelcome() {
