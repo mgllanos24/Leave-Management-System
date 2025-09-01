@@ -37,9 +37,11 @@ A comprehensive web-based leave management system designed for small to medium o
 ### Step 2: Configuration
 
 #### Email Notifications (Optional but Recommended)
-1. Open `server.py` in a text editor
-2. Replace the email configuration:
+1. Configure your email credentials in `services/email_service.py` or via
+   environment variables.
+2. Replace the default credentials:
    ```python
    SMTP_USERNAME = "your-email@gmail.com"  # Your Gmail address
    SMTP_PASSWORD = "your-app-password"     # Your Gmail App Password
+   ```
 

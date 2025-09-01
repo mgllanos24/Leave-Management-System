@@ -7,9 +7,11 @@ import smtplib
 from email.message import EmailMessage
 
 
-# Default credentials can be provided via environment variables.  These values
-# are only used if explicit credentials are not supplied when calling
+# Default configuration can be provided via environment variables. These values
+# are only used if explicit settings are not supplied when calling
 # ``send_notification_email``.
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "qtaskvacation@gmail.com")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "bicg llyb myff kigu")
 
@@ -18,8 +20,8 @@ def send_notification_email(
     to_addr: str,
     subject: str,
     body: str,
-    SMTP_SERVER: str = "smtp.gmail.com",
-    SMTP_PORT: int = 587,
+    smtp_server: str = SMTP_SERVER,
+    smtp_port: int = SMTP_PORT,
     username: str | None = None,
     password: str | None = None,
 ) -> bool:
@@ -37,7 +39,7 @@ def send_notification_email(
     msg.set_content(body)
 
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as s:
+        with smtplib.SMTP(smtp_server, smtp_port) as s:
             s.starttls()
             s.login(username, password)
             s.send_message(msg)
