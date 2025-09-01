@@ -6,6 +6,7 @@ import sys
 import os
 import uuid
 import logging
+import sqlite3
 from datetime import datetime  # @tweakable fix datetime import to resolve "module 'datetime' has no attribute 'now'" error
 from http.cookies import SimpleCookie
 
@@ -377,70 +378,29 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         record_id = path_parts[3]
         
         try:
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode('utf-8'))
-            
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b''
+            data = json.loads(post_data.decode('utf-8')) if post_data else {}
+
+            if collection == 'employee':
+                update_employee(record_id, data)
+                if 'remaining_privilege_leave' in data or 'remaining_sick_leave' in data:
+                    remaining_pl = data.get('remaining_privilege_leave')
+                    remaining_sl = data.get('remaining_sick_leave')
+                    if remaining_pl is not None and remaining_sl is not None:
+                        update_balances_from_admin_edit(record_id, remaining_pl, remaining_sl)
+                response_payload = dict(data)
+                response_payload['id'] = record_id
+                response_payload['updated_at'] = datetime.now().isoformat()
+                self.send_json_response(response_payload)
+                return
+
             with db_lock:
                 conn = get_db_connection()
                 try:
                     current_time = datetime.now().isoformat()
 
-                    if collection == 'employee':
-                        # Enhanced employee update validation
-                        if ENABLE_EMPLOYEE_VALIDATION:
-                            first_name = data.get('first_name', '').strip()
-                            surname = data.get('surname', '').strip()
-                            email = data.get('personal_email', '').strip().lower()
-                            
-                            if first_name and len(first_name) > MAX_FIRSTNAME_LENGTH:
-                                raise ValueError(f"Invalid first name (max {MAX_FIRSTNAME_LENGTH} characters)")
-                            if surname and len(surname) > MAX_SURNAME_LENGTH:
-                                raise ValueError(f"Invalid surname (max {MAX_SURNAME_LENGTH} characters)")
-                            if email and '@' not in email:
-                                raise ValueError("Invalid email address")
-                            
-                            # Check email uniqueness (excluding current record)
-                            if VALIDATE_EMAIL_UNIQUENESS and email:
-                                cursor = conn.execute('SELECT id FROM employees WHERE personal_email = ? AND id != ? AND is_active = 1', (email, record_id))
-                                if cursor.fetchone():
-                                    raise ValueError(f"Employee with email {email} already exists")
-                        
-                        cursor = conn.execute('''
-                            UPDATE employees
-                            SET first_name=?, surname=?, personal_email=?, annual_leave=?, sick_leave=?, updated_at=?
-                            WHERE id=? AND is_active=1
-                        ''', (
-                            data.get('first_name', '').strip(),
-                            data.get('surname', '').strip(),
-                            data.get('personal_email', '').strip().lower(),
-                            data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
-                            data.get('sick_leave', DEFAULT_SICK_LEAVE),
-                            current_time,
-                            record_id
-                        ))
-
-                        if cursor.rowcount == 0:
-                            self.send_error(404, "Record not found")
-                            return
-
-                        # @tweakable: Update remaining leave balances if provided by admin
-                        if 'remaining_privilege_leave' in data or 'remaining_sick_leave' in data:
-                            remaining_pl = data.get('remaining_privilege_leave')
-                            remaining_sl = data.get('remaining_sick_leave')
-                            if remaining_pl is not None and remaining_sl is not None:
-                                update_balances_from_admin_edit(record_id, remaining_pl, remaining_sl)
-                        
-                        if ENABLE_EMPLOYEE_AUDIT:
-                            print(f"📝 Employee updated: {record_id}")
-
-                        conn.commit()
-
-                        response_payload = dict(data)
-                        response_payload['id'] = record_id
-                        response_payload['updated_at'] = current_time
-
-                    elif collection == 'leave_application':
+                    if collection == 'leave_application':
                         # Get current status before update
                         cursor = conn.execute('SELECT status FROM leave_applications WHERE id = ?', (record_id,))
                         current_record = cursor.fetchone()
@@ -604,6 +564,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 finally:
                     conn.close()
                     
+        except ValueError as e:
+            self.send_error(400, str(e))
+        except sqlite3.Error as e:
+            self.send_error(500, f"Database error: {e}")
         except Exception as e:
             self.send_error(500, f"Error updating record: {str(e)}")
     
