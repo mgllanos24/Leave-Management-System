@@ -34,7 +34,7 @@
             <button id="backToEntryFromEmployee" class="back-btn">← Back</button>
         </div>
         <div class="login-form active">
-            <form id="loginEmployeeForm">
+            <form id="loginEmployeeForm" autocomplete="off">
                 <input type="email" id="loginEmployeeEmail" placeholder="Enter your email address" autocomplete="off" required />
                 <button type="submit" class="btn-login">Login</button>
             </form>
@@ -48,9 +48,9 @@
             <button id="backToEntryFromAdmin" class="back-btn">← Back</button>
         </div>
         <div class="login-form active">
-            <form id="loginAdminForm">
+            <form id="loginAdminForm" autocomplete="off">
                 <input type="text" id="loginAdminUsername" placeholder="Username" autocomplete="off" required />
-                <input type="password" id="loginAdminPassword" placeholder="Password" autocomplete="off" required />
+                <input type="password" id="loginAdminPassword" placeholder="Password" autocomplete="new-password" required />
                 <button type="submit" class="btn-login">Login</button>
             </form>
         </div>
