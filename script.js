@@ -1323,16 +1323,7 @@ async function loadLeaveApplications() {
 
 async function updateApplicationStatus(id, newStatus) {
     try {
-        const response = await fetch(`/api/leave_application/${encodeURIComponent(id)}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
+        await room.collection('leave_application').update(id, { status: newStatus });
         await loadLeaveApplications();
     } catch (error) {
         console.error('Error updating application status:', error);
