@@ -1271,9 +1271,72 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
 async function loadLeaveApplications() {
     try {
         const applications = await room.collection('leave_application').getList();
-        console.log(`Loaded ${applications.length} leave applications`);
+
+        const tbody = document.getElementById('applicationsTableBody');
+        if (!tbody) {
+            console.warn('applicationsTableBody element not found');
+            return;
+        }
+        tbody.innerHTML = '';
+
+        applications.forEach(app => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${app.application_id || app.id}</td>
+                <td>${app.employee_name || app.employee_id}</td>
+                <td>${app.leave_type}</td>
+                <td>${app.start_date}</td>
+                <td>${app.end_date}</td>
+                <td>${app.total_days}</td>
+                <td>${app.status}</td>
+                <td>${app.date_applied || ''}</td>
+                <td>
+                    <button class="approve-btn">Approve</button>
+                    <button class="reject-btn">Reject</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+
+            const approveBtn = row.querySelector('.approve-btn');
+            if (approveBtn) {
+                approveBtn.addEventListener('click', () =>
+                    updateApplicationStatus(app.id, 'Approved')
+                );
+            }
+            const rejectBtn = row.querySelector('.reject-btn');
+            if (rejectBtn) {
+                rejectBtn.addEventListener('click', () =>
+                    updateApplicationStatus(app.id, 'Rejected')
+                );
+            }
+        });
+
+        if (applications.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="9">No leave applications found</td>';
+            tbody.appendChild(row);
+        }
     } catch (error) {
         console.error('Error loading leave applications:', error);
+    }
+}
+
+async function updateApplicationStatus(id, newStatus) {
+    try {
+        const response = await fetch(`/api/leave_application/${encodeURIComponent(id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        await loadLeaveApplications();
+    } catch (error) {
+        console.error('Error updating application status:', error);
+        alert('Failed to update application status');
     }
 }
 
@@ -1458,3 +1521,4 @@ window.closeEditModal = closeEditModal;
 window.filterApplications = filterApplications;
 window.exportDatabaseBackup = exportDatabaseBackup;
 window.importDatabaseBackup = importDatabaseBackup;
+window.updateApplicationStatus = updateApplicationStatus;
