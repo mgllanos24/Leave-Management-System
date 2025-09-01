@@ -1251,10 +1251,19 @@ async function loadHolidays() {
 function switchTab(tabName) {
     /* @tweakable whether to log tab switching for debugging */
     const logTabSwitching = true;
-    
+
     if (logTabSwitching) {
         console.log(`🔄 Switching to tab: ${tabName}`);
     }
+
+    // Map hyphenated tab names to their camel-cased button IDs
+    const tabButtonIds = {
+        'leave-request': 'tabLeaveRequest',
+        'check-history': 'tabCheckHistory',
+        'employee-management': 'tabEmployeeManagement',
+        'application-status': 'tabApplicationStatus',
+        'holiday-dates': 'tabHolidayDates'
+    };
     
     // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(tab => {
@@ -1273,9 +1282,12 @@ function switchTab(tabName) {
     }
     
     // Activate corresponding tab button
-    const targetButton = document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1).replace('-', '')}`);
-    if (targetButton) {
-        targetButton.classList.add('active');
+    const targetButtonId = tabButtonIds[tabName];
+    if (targetButtonId) {
+        const targetButton = document.getElementById(targetButtonId);
+        if (targetButton) {
+            targetButton.classList.add('active');
+        }
     }
 }
 
