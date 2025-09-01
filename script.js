@@ -237,6 +237,8 @@ const room = window.room;
 // Authentication globals
 let currentUserType = null;
 let currentUser = null;
+// Cached leave applications for filtering/summary
+let cachedApplications = [];
 
 /* @tweakable localStorage keys for authentication persistence */
 const AUTH_TYPE_KEY = 'elms_auth_type';
@@ -1014,7 +1016,7 @@ async function initializeApp() {
         
         // Load initial data
         await loadEmployeeList();
-        await loadLeaveApplications();
+        await loadApplications();
         await loadHolidays();
         
         // Set up form handlers and other functionality
@@ -1268,15 +1270,6 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
     return 0;
 }
 
-async function loadLeaveApplications() {
-    try {
-        const applications = await room.collection('leave_application').getList();
-        console.log(`Loaded ${applications.length} leave applications`);
-    } catch (error) {
-        console.error('Error loading leave applications:', error);
-    }
-}
-
 async function loadLeaveHistory(employeeId) {
     try {
         const apps = await room
@@ -1317,6 +1310,108 @@ async function loadHolidays() {
         console.log(`Loaded ${holidays.length} holidays`);
     } catch (error) {
         console.error('Error loading holidays:', error);
+    }
+}
+
+// Load and render leave applications for admin view
+async function loadApplications() {
+    try {
+        const apps = await room.collection('leave_application').getList();
+        cachedApplications = apps || [];
+        renderApplicationsTable(cachedApplications);
+        await updateEmployeeSummary();
+    } catch (error) {
+        console.error('Error loading applications:', error);
+    }
+}
+
+function renderApplicationsTable(apps) {
+    const tbody = document.getElementById('applicationsTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    apps.forEach(app => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${app.application_id || app.id}</td>
+            <td>${app.employee_name}</td>
+            <td>${app.leave_type}</td>
+            <td>${app.start_date}</td>
+            <td>${app.end_date}</td>
+            <td>${app.total_days}</td>
+            <td>${app.status}</td>
+            <td>${app.date_applied || ''}</td>
+            <td class="action-buttons">
+                <button class="btn btn-secondary approve-btn">Approve</button>
+                <button class="btn btn-danger reject-btn">Reject</button>
+            </td>
+        `;
+
+        row.querySelector('.approve-btn').addEventListener('click', () => updateApplicationStatus(app.id, 'Approved'));
+        row.querySelector('.reject-btn').addEventListener('click', () => updateApplicationStatus(app.id, 'Rejected'));
+
+        tbody.appendChild(row);
+    });
+
+    if (apps.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="9">No applications found</td>';
+        tbody.appendChild(row);
+    }
+}
+
+async function updateApplicationStatus(appId, status) {
+    try {
+        await room.collection('leave_application').update(appId, { status });
+        await loadApplications();
+    } catch (error) {
+        alert(`Error updating application: ${error.message}`);
+    }
+}
+
+async function updateEmployeeSummary() {
+    try {
+        const employees = await room.collection('employee').getList();
+        const balances = await LeaveBalanceAPI.getEmployeeBalances();
+        const tbody = document.getElementById('employeeStatusTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        employees.forEach(emp => {
+            const empBalances = balances.filter(b => b.employee_id === emp.id);
+            const privilege = empBalances.find(b => b.balance_type === 'PRIVILEGE') || {};
+            const sick = empBalances.find(b => b.balance_type === 'SICK') || {};
+            const active = cachedApplications.filter(a => a.employee_id === emp.id && a.status === 'Pending').length;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${emp.first_name} ${emp.surname}</td>
+                <td>${privilege.allocated_days || 0}</td>
+                <td>${privilege.used_days || 0}</td>
+                <td>${privilege.remaining_days || 0}</td>
+                <td>${sick.allocated_days || 0}</td>
+                <td>${sick.used_days || 0}</td>
+                <td>${sick.remaining_days || 0}</td>
+                <td>${active}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error updating employee summary:', error);
+    }
+}
+
+function filterApplications(status) {
+    const buttons = document.querySelectorAll('.filter-btn');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    const activeBtn = Array.from(buttons).find(btn => btn.dataset.status === status);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    if (status === 'all') {
+        renderApplicationsTable(cachedApplications);
+    } else {
+        const filtered = cachedApplications.filter(app => app.status === status);
+        renderApplicationsTable(filtered);
     }
 }
 
@@ -1366,10 +1461,11 @@ function switchTab(tabName) {
     if (tabName === 'check-history' && currentUser) {
         loadLeaveHistory(currentUser.id);
     }
-}
 
-function filterApplications(status) {
-    console.log(`Filtering applications by status: ${status}`);
+    // Load applications when viewing admin application status tab
+    if (tabName === 'application-status') {
+        loadApplications();
+    }
 }
 
 function exportDatabaseBackup() {
@@ -1434,9 +1530,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Placeholder implementations for future features
-function filterApplications(status) {
-    console.warn('filterApplications is not implemented yet:', status);
-}
 
 function exportDatabaseBackup() {
     console.warn('exportDatabaseBackup is not implemented yet.');
