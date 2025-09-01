@@ -429,7 +429,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             remaining_pl = data.get('remaining_privilege_leave')
                             remaining_sl = data.get('remaining_sick_leave')
                             if remaining_pl is not None and remaining_sl is not None:
-                                update_balances_from_admin_edit(record_id, remaining_pl, remaining_sl)
+                                result = update_balances_from_admin_edit(record_id, remaining_pl, remaining_sl)
+                                if not result.get("success"):
+                                    logging.error("Balance update failed for %s: %s", record_id, result.get("error"))
+                                    self.send_error(500, result.get("error"))
+                                    return
                         
                         if ENABLE_EMPLOYEE_AUDIT:
                             print(f"📝 Employee updated: {record_id}")

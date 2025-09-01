@@ -7,6 +7,7 @@ from .database_service import get_db_connection, db_lock
 from datetime import datetime
 import uuid
 import time
+import logging
 
 # Moved from server.py - balance management functions
 # @tweakable balance management configuration
@@ -398,15 +399,17 @@ def update_balances_from_admin_edit(employee_id, new_remaining_pl, new_remaining
     """
     # @tweakable: Whether to allow admins to directly edit remaining leave balances.
     if not ADMIN_CAN_EDIT_REMAINING_LEAVE:
-        return
+        return {"success": False, "error": "Admin edits disabled"}
 
     with db_lock:
         conn = get_db_connection()
+        operation = "initialize"
         try:
             current_time = datetime.now().isoformat()
             current_year = datetime.now().year
 
             # --- Update Privilege Leave ---
+            operation = "fetch privilege leave"
             cursor_pl = conn.execute(
                 'SELECT id, remaining_days, used_days, allocated_days FROM leave_balances WHERE employee_id = ? AND balance_type = "PRIVILEGE" AND year = ?',
                 (employee_id, current_year)
@@ -415,13 +418,14 @@ def update_balances_from_admin_edit(employee_id, new_remaining_pl, new_remaining
 
             if current_pl and float(current_pl['remaining_days']) != float(new_remaining_pl):
                 new_used_pl = current_pl['allocated_days'] - float(new_remaining_pl)
-
+                operation = "update privilege leave"
                 conn.execute(
                     'UPDATE leave_balances SET remaining_days = ?, used_days = ?, last_updated = ? WHERE id = ?',
                     (new_remaining_pl, new_used_pl, current_time, current_pl['id'])
                 )
 
             # --- Update Sick Leave ---
+            operation = "fetch sick leave"
             cursor_sl = conn.execute(
                 'SELECT id, remaining_days, used_days, allocated_days FROM leave_balances WHERE employee_id = ? AND balance_type = "SICK" AND year = ?',
                 (employee_id, current_year)
@@ -430,16 +434,18 @@ def update_balances_from_admin_edit(employee_id, new_remaining_pl, new_remaining
 
             if current_sl and float(current_sl['remaining_days']) != float(new_remaining_sl):
                 new_used_sl = current_sl['allocated_days'] - float(new_remaining_sl)
-
+                operation = "update sick leave"
                 conn.execute(
                     'UPDATE leave_balances SET remaining_days = ?, used_days = ?, last_updated = ? WHERE id = ?',
                     (new_remaining_sl, new_used_sl, current_time, current_sl['id'])
                 )
 
             conn.commit()
+            return {"success": True}
         except Exception as e:
             conn.rollback()
-            raise e
+            logging.error("Failed to %s for employee %s: %s", operation, employee_id, e)
+            return {"success": False, "error": f"Failed to {operation}: {e}"}
         finally:
             conn.close()
 
