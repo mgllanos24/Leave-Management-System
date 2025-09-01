@@ -885,6 +885,42 @@ async function updateEmployeeInfo() {
         }
         idPreviewEl.textContent = previewId;
     }
+
+    // Update leave balance display for logged in employee
+    if (currentUser && currentUser.id) {
+        await updateLeaveBalanceDisplay();
+    }
+}
+
+// Fetch and render remaining leave balances for the current employee
+async function updateLeaveBalanceDisplay() {
+    const container = document.getElementById('leaveBalanceDisplay');
+    if (!currentUser || !container) {
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/leave_balance?employee_id=${currentUser.id}`);
+        if (!resp.ok) throw new Error('Failed to fetch leave balances');
+        const balances = await resp.json();
+
+        const priv = balances.find(b => b.balance_type === 'PRIVILEGE');
+        const sick = balances.find(b => b.balance_type === 'SICK');
+
+        const privEl = document.getElementById('privilegeLeaveBalance');
+        const sickEl = document.getElementById('sickLeaveBalance');
+        if (privEl) {
+            privEl.textContent = priv ? `${priv.remaining_days} days` : '-- days';
+        }
+        if (sickEl) {
+            sickEl.textContent = sick ? `${sick.remaining_days} days` : '-- days';
+        }
+
+        container.style.display = 'block';
+    } catch (err) {
+        console.error('Error loading leave balances:', err);
+        container.style.display = 'none';
+    }
 }
 
 async function loginEmployee(email) {
