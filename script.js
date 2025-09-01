@@ -380,7 +380,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('employeeLoginContainer').style.display = 'none';
                 document.getElementById('adminLoginContainer').style.display = 'none';
                 document.getElementById('appContainer').style.display = 'block';
-                
+
+                // Ensure employee info fields reflect restored user
+                updateEmployeeInfo();
+
                 // Configure and initialize app
                 configureTabsForUser();
                 displayWelcome();
@@ -828,12 +831,16 @@ function generatePreviewApplicationId() {
 
 async function updateEmployeeInfo() {
     const nameEl = document.getElementById('employeeDisplayName');
-    if (nameEl && currentUser) {
+    if (!nameEl) {
+        console.warn('employeeDisplayName element not found');
+    } else if (currentUser) {
         nameEl.textContent = `${currentUser.first_name} ${currentUser.surname}`;
     }
 
     const idPreviewEl = document.getElementById('applicationIdPreview');
-    if (idPreviewEl) {
+    if (!idPreviewEl) {
+        console.warn('applicationIdPreview element not found');
+    } else {
         let previewId = generatePreviewApplicationId();
         try {
             const resp = await fetch('/api/next_application_id');
@@ -919,7 +926,10 @@ function showMainApp() {
     document.getElementById('employeeLoginContainer').style.display = 'none';
     document.getElementById('adminLoginContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'block';
-    
+
+    // Ensure user-specific fields are updated whenever the main app is shown
+    updateEmployeeInfo();
+
     configureTabsForUser();
     displayWelcome();
     initializeApp();
