@@ -17,6 +17,7 @@ A comprehensive web-based leave management system designed for small to medium o
 - **Status Tracking**: View application status and history
 - **Real-time Notifications**: Get notified when applications are approved or rejected
 - **Balance Checking**: Automatic validation against available leave balance
+- **Application ID Preview**: Retrieve the next unique application ID via `/api/next_application_id`
 
 ### 🔐 For Administrators
 - **Employee Management**: Add, edit, and manage employee records
