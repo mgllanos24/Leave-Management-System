@@ -13,7 +13,9 @@ import time
 AUTO_UPDATE_BALANCES = True
 PREVENT_NEGATIVE_BALANCES = True
 ENABLE_BALANCE_AUDIT = True
-PRIVILEGE_LEAVE_TYPES = {'Annual Leave', 'Vacation / Annual Leave', 'Personal Leave'}
+# Checkbox values that map to privilege leave
+# These correspond to the `value` attributes in index.html
+PRIVILEGE_LEAVE_TYPES = {'personal', 'vacation-annual'}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
 DEFAULT_PRIVILEGE_LEAVE = 15
 DEFAULT_SICK_LEAVE = 7
@@ -230,7 +232,13 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
             leave_type = application['leave_type']
             total_days = float(application['total_days'])
 
-            balance_type = 'PRIVILEGE' if leave_type in PRIVILEGE_LEAVE_TYPES else 'SICK'
+            # `leave_type` may contain multiple comma-separated codes
+            leave_tokens = [t.strip() for t in leave_type.split(',') if t.strip()]
+            balance_type = (
+                'PRIVILEGE'
+                if any(t in PRIVILEGE_LEAVE_TYPES for t in leave_tokens)
+                else 'SICK'
+            )
 
             cursor = conn.execute(
                 'SELECT id FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',

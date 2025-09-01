@@ -1268,8 +1268,9 @@ async function submitLeaveApplication(event) {
         
         const formData = new FormData(event.target);
         const leaveTypes = Array.from(document.querySelectorAll('input[name="leaveType"]:checked'))
-            .map(cb => cb.value);
-        
+            // Use checkbox values as canonical leave type codes
+            .map(cb => cb.value.trim());
+
     const applicationData = {
         employee_id: currentUser.id,
         employee_name: `${currentUser.first_name} ${currentUser.surname}`,
@@ -1277,7 +1278,8 @@ async function submitLeaveApplication(event) {
         end_date: formData.get('endDate'),
         start_day_type: formData.get('startDayType'),
         end_day_type: formData.get('endDayType'),
-        leave_type: leaveTypes.join(', '),
+        // Store comma-separated canonical codes for backend processing
+        leave_type: leaveTypes.join(','),
         selected_reasons: leaveTypes,
         reason: formData.get('reason'),
         total_days: calculateTotalDays(
