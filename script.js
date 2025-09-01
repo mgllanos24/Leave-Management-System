@@ -333,7 +333,14 @@ window.LeaveBalanceAPI = {
         const balances = await this.getEmployeeBalances(employeeId);
         const bal = balances.find(b => b.balance_type === balanceType);
         if (!bal) throw new Error(`Balance not found for ${balanceType}`);
-        return await room.collection('leave_balance').update(bal.id, { remaining_days: parseFloat(remaining) });
+
+        const result = await room.collection('leave_balance').update(bal.id, { remaining_days: parseFloat(remaining) });
+
+        // Clear cached balances and refresh employee list
+        this.clearEmployeeBalanceCache(employeeId);
+        await loadEmployeeList();
+
+        return result;
     }
 };
 
@@ -1141,8 +1148,25 @@ async function handleEmployeeFormSubmit() {
 
 async function loadEmployeeList() {
     try {
-        const employees = await room.collection('employee').getList();
-        loadEmployeeTable(employees);
+        // Fetch employees and all leave balance records in parallel
+        const [employees, balances] = await Promise.all([
+            room.collection('employee').getList(),
+            room.collection('leave_balance').getList()
+        ]);
+
+        // Merge balance information with each employee
+        const mergedEmployees = employees.map(emp => {
+            const empBalances = balances.filter(b => b.employee_id === emp.id);
+            const privilege = empBalances.find(b => b.balance_type === 'PRIVILEGE');
+            const sick = empBalances.find(b => b.balance_type === 'SICK');
+            return {
+                ...emp,
+                privilege_remaining: privilege ? privilege.remaining_days : 0,
+                sick_remaining: sick ? sick.remaining_days : 0
+            };
+        });
+
+        loadEmployeeTable(mergedEmployees);
         populateEmployeeDropdown(employees);
     } catch (error) {
         console.error('Error loading employees:', error);
@@ -1152,14 +1176,14 @@ async function loadEmployeeList() {
 function loadEmployeeTable(employees) {
     const tbody = document.getElementById('employeeTableBody');
     tbody.innerHTML = '';
-    
+
     employees.forEach(employee => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${employee.first_name} ${employee.surname}</td>
             <td>${employee.personal_email}</td>
-            <td>${employee.annual_leave}</td>
-            <td>${employee.sick_leave}</td>
+            <td>${employee.privilege_remaining}</td>
+            <td>${employee.sick_remaining}</td>
             <td class="action-buttons">
                 <button class="btn btn-secondary" onclick="editEmployee('${employee.id}')">Edit</button>
                 <button class="btn btn-danger" onclick="deleteEmployee('${employee.id}')">Delete</button>
@@ -1508,6 +1532,7 @@ async function updateApplicationStatus(id, newStatus) {
         await room.collection('leave_application').update(id, { status: newStatus });
         await loadLeaveApplications();
         await loadEmployeeSummary();
+        await loadEmployeeList();
         alert('Application status updated successfully');
     } catch (error) {
         const requestUrl = `leave_application/${id}`;
