@@ -641,21 +641,14 @@ function setupCriticalFormHandlers() {
                     surname: formData.get('editSurname'),
                     personal_email: formData.get('editPersonalEmail'),
                     annual_leave: parseInt(formData.get('editAnnualLeave')) || 0,
-                    sick_leave: parseInt(formData.get('editSickLeave')) || 0
+                    sick_leave: parseInt(formData.get('editSickLeave')) || 0,
+                    remaining_privilege_leave:
+                        parseFloat(formData.get('editRemainingPrivilege')) || 0,
+                    remaining_sick_leave:
+                        parseFloat(formData.get('editRemainingSick')) || 0
                 };
 
                 await room.collection('employee').update(employeeId, updatedData);
-
-                await LeaveBalanceAPI.setRemainingDays(
-                    employeeId,
-                    'PRIVILEGE',
-                    parseFloat(formData.get('editRemainingPrivilege') || 0)
-                );
-                await LeaveBalanceAPI.setRemainingDays(
-                    employeeId,
-                    'SICK',
-                    parseFloat(formData.get('editRemainingSick') || 0)
-                );
 
                 await loadEmployeeList();
                 await loadEmployeeSummary();
