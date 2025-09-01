@@ -16,7 +16,8 @@ MAX_DB_RETRIES = 3
 DB_CONNECTION_TIMEOUT = 30
 
 # Database lock for thread safety
-db_lock = threading.Lock()
+# Use RLock to allow the same thread to re-acquire the lock safely
+db_lock = threading.RLock()
 
 def get_db_connection():
     """Get database connection with retry logic"""

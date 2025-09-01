@@ -196,7 +196,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 try:
                     record_id = str(uuid.uuid4())
                     current_time = datetime.now().isoformat()
-                    
+
                     if collection == 'employee':
                         # Enhanced employee validation
                         if ENABLE_EMPLOYEE_VALIDATION:
@@ -230,14 +230,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             current_time,
                             current_time
                         ))
-                        
-                        # Initialize leave balances for new employee
-                        if AUTO_CREATE_BALANCE_RECORDS:
-                            try:
-                                initialize_employee_balances(record_id)
-                            except Exception as balance_error:
-                                pass
-                        
+
                         if ENABLE_EMPLOYEE_AUDIT:
                             print(f"📝 Employee created: {data.get('first_name')} {data.get('surname')} ({data.get('personal_email')})")
                     
@@ -307,16 +300,23 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         return
                     
                     conn.commit()
-                    
-                    # Return the created record
-                    created_record = dict(data)
-                    created_record['id'] = record_id
-                    created_record['created_at'] = current_time
-                    
-                    self.send_json_response(created_record)
-                    
+
                 finally:
                     conn.close()
+
+            # Initialize leave balances for new employee after releasing the lock
+            if collection == 'employee' and AUTO_CREATE_BALANCE_RECORDS:
+                try:
+                    initialize_employee_balances(record_id)
+                except Exception as balance_error:
+                    pass
+
+            # Return the created record
+            created_record = dict(data)
+            created_record['id'] = record_id
+            created_record['created_at'] = current_time
+
+            self.send_json_response(created_record)
                     
         except Exception as e:
             self.send_error(500, f"Error creating record: {str(e)}")
