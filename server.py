@@ -36,6 +36,8 @@ from services.email_service import (
 
 # @tweakable server configuration
 ADMIN_EMAIL = "mgllanos@gmail.com"
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin123"
 
 # @tweakable employee management configuration - define missing constants
 AUTO_CREATE_BALANCE_RECORDS = True
@@ -196,6 +198,9 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_post_request(self, collection):
         """Handle POST requests (create new records)"""
+        if collection == 'login_admin':
+            self.handle_login_admin()
+            return
         if collection == 'logout_admin':
             self.handle_logout_admin()
             return
@@ -670,6 +675,29 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_cors_headers()
         error_message = message if message else self.responses.get(code, ('', ''))[0]
         self._safe_write(json.dumps({'error': error_message}).encode('utf-8'))
+
+    def handle_login_admin(self):
+        """Validate admin credentials and set auth cookie"""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length else b'{}'
+            data = json.loads(body.decode('utf-8'))
+            username = data.get('username', '')
+            password = data.get('password', '')
+
+            if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+                token = uuid.uuid4().hex
+                active_admin_tokens.add(token)
+                self.send_response(200)
+                self.send_cors_headers()
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Set-Cookie', f'admin_token={token}; Path=/')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True}).encode('utf-8'))
+            else:
+                self.send_error(401, 'Invalid credentials')
+        except Exception as e:
+            self.send_error(500, f'Login failed: {str(e)}')
 
     def handle_logout_admin(self):
         """Handle admin logout by clearing token and cookie"""
