@@ -731,15 +731,18 @@ function restoreAuthenticationState() {
         const savedUser = sessionStorage.getItem(AUTH_USER_KEY);
         const savedToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
 
-        if (savedType && savedUser && savedToken) {
-            currentUserType = savedType;
-            currentUser = JSON.parse(savedUser);
-            sessionToken = savedToken;
+        if (savedType && savedUser) {
+            const canRestore = savedType === 'admin' || savedToken;
+            if (canRestore) {
+                currentUserType = savedType;
+                currentUser = JSON.parse(savedUser);
+                sessionToken = savedToken;
 
-            if (debugAuthRestore) {
-                console.log('✅ Authentication state restored:', { type: currentUserType, user: currentUser });
+                if (debugAuthRestore) {
+                    console.log('✅ Authentication state restored:', { type: currentUserType, user: currentUser });
+                }
+                showMainApp();
             }
-            showMainApp();
         }
     } catch (error) {
         console.error('Error restoring auth state:', error);
