@@ -441,6 +441,68 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
                         conn.commit()
 
+                        # Fetch leave and employee details for notification emails
+                        try:
+                            cursor = conn.execute(
+                                'SELECT employee_id, employee_name, start_date, end_date, total_days FROM leave_applications WHERE id = ?',
+                                (record_id,)
+                            )
+                            app_info = cursor.fetchone()
+                            if app_info:
+                                employee_id = app_info['employee_id']
+                                cursor = conn.execute(
+                                    'SELECT personal_email FROM employees WHERE id = ?',
+                                    (employee_id,)
+                                )
+                                emp = cursor.fetchone()
+                                employee_email = emp['personal_email'] if emp else None
+
+                                start_date = app_info['start_date']
+                                end_date = app_info['end_date']
+                                total_days = app_info['total_days']
+                                employee_name = app_info['employee_name']
+                                status_word = 'approved' if new_status == 'Approved' else 'rejected'
+
+                                manager_subject = f"Leave application {status_word}: {employee_name}"
+                                manager_body = (
+                                    f"Leave application for {employee_name} from {start_date} to {end_date} "
+                                    f"({total_days} days) has been {status_word}."
+                                )
+                                employee_subject = f"Your leave application has been {status_word}"
+                                employee_body = (
+                                    f"Your leave application from {start_date} to {end_date} "
+                                    f"({total_days} days) has been {status_word}."
+                                )
+
+                                try:
+                                    send_notification_email(
+                                        ADMIN_EMAIL,
+                                        manager_subject,
+                                        manager_body,
+                                        SMTP_SERVER,
+                                        SMTP_PORT,
+                                        SMTP_USERNAME,
+                                        SMTP_PASSWORD,
+                                    )
+                                except Exception as email_err:
+                                    print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
+
+                                if employee_email:
+                                    try:
+                                        send_notification_email(
+                                            employee_email,
+                                            employee_subject,
+                                            employee_body,
+                                            SMTP_SERVER,
+                                            SMTP_PORT,
+                                            SMTP_USERNAME,
+                                            SMTP_PASSWORD,
+                                        )
+                                    except Exception as email_err:
+                                        print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
+                        except Exception as prep_err:
+                            print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
+
                     elif collection == 'approved_leave':
                         cursor = conn.execute('''
                             UPDATE approved_leaves
