@@ -898,14 +898,15 @@ function configureTabsForUser() {
     document.getElementById('tabEmployeeManagement').style.display = isAdmin ? 'block' : 'none';
     document.getElementById('tabApplicationStatus').style.display = isAdmin ? 'block' : 'none';
     document.getElementById('tabHolidayDates').style.display = isAdmin ? 'block' : 'none';
+    document.getElementById('adminSection').style.display = isAdmin ? 'block' : 'none';
 
     // Toggle visibility for employee-specific tabs based on user role
     document.getElementById('tabLeaveRequest').style.display = isAdmin ? 'none' : 'block';
-    document.getElementById('tabCheckHistory').style.display = isAdmin ? 'none' : 'block';
+    document.getElementById('tabCheckHistory').style.display = 'none';
 
     // Also hide the corresponding tab content sections to prevent access
     document.getElementById('leave-request').style.display = isAdmin ? 'none' : 'block';
-    document.getElementById('check-history').style.display = isAdmin ? 'none' : 'block';
+    document.getElementById('check-history').style.display = 'none';
 }
 
 function displayWelcome() {
