@@ -250,8 +250,8 @@ const AUTH_TYPE_KEY = 'elms_auth_type';
 const AUTH_USER_KEY = 'elms_auth_user';
 
 /* @tweakable authentication configuration */
-const PERSIST_AUTH_STATE = true;
-const AUTO_RESTORE_AUTH = true;
+const PERSIST_AUTH_STATE = false;
+const AUTO_RESTORE_AUTH = false;
 const CLEAR_AUTH_ON_LOGOUT_ONLY = true;
 const AUTH_SESSION_TIMEOUT = 0;
 
@@ -372,44 +372,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     initEntryButtons();
-
-    // Try to restore authentication state first
-    if (AUTO_RESTORE_AUTH && PERSIST_AUTH_STATE) {
-        try {
-            restoreAuthenticationState();
-            if (currentUserType && currentUser) {
-                if (debugLoginFlow) {
-                    console.log('✅ Authentication state restored from localStorage');
-                    console.log('- User Type:', currentUserType);
-                    console.log('- User:', currentUser.first_name || currentUser.username);
-                }
-                
-                // Hide entry/login containers and show main app
-                document.getElementById('entryContainer').style.display = 'none';
-                document.getElementById('employeeLoginContainer').style.display = 'none';
-                document.getElementById('adminLoginContainer').style.display = 'none';
-                document.getElementById('appContainer').style.display = 'block';
-
-                // Ensure employee info fields reflect restored user
-                updateEmployeeInfo();
-
-                // Configure and initialize app
-                configureTabsForUser();
-                displayWelcome();
-                setTimeout(() => {
-                    initializeApp();
-                }, 100);
-                
-                if (debugLoginFlow) {
-                    console.log('🎉 App restored with saved authentication');
-                }
-                return; // Skip normal entry point flow
-            }
-        } catch (error) {
-            console.error('Error restoring authentication state:', error);
-            clearPersistedAuthState();
-        }
-    }
+    // Authentication persistence disabled by default; skip state restoration
     
     // Enhanced DOM state logging
     if (logDOMState) {
