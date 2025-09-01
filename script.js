@@ -57,7 +57,8 @@ class BackendCollection {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    signal: controller.signal
+                    signal: controller.signal,
+                    credentials: 'include'
                 };
 
                 if (sessionToken) {
@@ -896,7 +897,8 @@ async function updateEmployeeInfo() {
         try {
             // Request a server-generated ID for consistency with stored applications
             const resp = await fetch('/api/next_application_id', {
-                headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}
+                headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+                credentials: 'include'
             });
             if (resp.ok) {
                 const data = await resp.json();
@@ -923,7 +925,8 @@ async function updateLeaveBalanceDisplay() {
 
     try {
         const resp = await fetch(`/api/leave_balance?employee_id=${currentUser.id}`, {
-            headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}
+            headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+            credentials: 'include'
         });
         if (!resp.ok) throw new Error('Failed to fetch leave balances');
         const balances = await resp.json();
@@ -957,7 +960,8 @@ async function loginEmployee(email) {
         const response = await fetch('/api/bootstrap_employee', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email })
+            body: JSON.stringify({ email: email }),
+            credentials: 'include'
         });
         
         if (!response.ok) {
@@ -987,28 +991,29 @@ async function loginEmployee(email) {
 }
 
 async function loginAdmin(username, password) {
-    /* @tweakable admin login credentials */
-    const validAdminUsername = 'admin';
-    const validAdminPassword = 'admin123';
-    
     try {
         showLoading();
-        
-        if (username === validAdminUsername && password === validAdminPassword) {
-            currentUserType = 'admin';
-            currentUser = { username: username, first_name: 'Administrator', email: 'admin@company.com' };
 
-            sessionToken = 'admin-token';
-            sessionStorage.setItem(AUTH_TYPE_KEY, currentUserType);
-            sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
-            sessionStorage.setItem(AUTH_TOKEN_KEY, sessionToken);
-            
-            hideLoading();
-            showMainApp();
-        } else {
+        const resp = await fetch('/api/login_admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ username, password })
+        });
+
+        if (!resp.ok) {
             throw new Error('Invalid credentials');
         }
-        
+
+        currentUserType = 'admin';
+        currentUser = { username: username, first_name: 'Administrator', email: 'admin@company.com' };
+        sessionToken = null;
+        sessionStorage.setItem(AUTH_TYPE_KEY, currentUserType);
+        sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+        sessionStorage.removeItem(AUTH_TOKEN_KEY);
+
+        hideLoading();
+        showMainApp();
     } catch (error) {
         hideLoading();
         alert(`Login failed: ${error.message}`);
@@ -1765,7 +1770,10 @@ async function deleteAllEmployees() {
 async function resetAllLeaveBalances() {
     if (confirm('Are you sure you want to reset all leave balances? This action cannot be undone.')) {
         try {
-            const resp = await fetch('/api/reset_balances', { method: 'POST' });
+            const resp = await fetch('/api/reset_balances', {
+                method: 'POST',
+                credentials: 'include'
+            });
             if (!resp.ok) throw new Error('Request failed');
             await loadEmployeeList();
             await loadEmployeeSummary();
