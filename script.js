@@ -1339,7 +1339,10 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
 
 async function loadLeaveApplications() {
     try {
-        const applications = await room.collection('leave_application').getList();
+        const applications = await room
+            .collection('leave_application')
+            .filter({ status: 'Pending' })
+            .getList();
 
         const tbody = document.getElementById('applicationsTableBody');
         if (!tbody) {
@@ -1384,8 +1387,6 @@ async function loadLeaveApplications() {
             row.innerHTML = '<td colspan="8">No leave applications found</td>';
             tbody.appendChild(row);
         }
-
-        await loadApprovedLeaves();
     } catch (error) {
         console.error('Error loading leave applications:', error);
     }
