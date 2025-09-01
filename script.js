@@ -1660,6 +1660,45 @@ async function loadLeaveHistory(employeeId) {
 async function loadHolidays() {
     try {
         const holidays = await room.collection('holiday').getList();
+        const tbody = document.getElementById('holidayTableBody');
+
+        if (!tbody) {
+            console.warn('Holiday table body element not found');
+            return;
+        }
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        holidays.forEach(holiday => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${holiday.date}</td>
+                <td>${holiday.name}</td>
+                <td><button class="btn btn-danger btn-sm delete-holiday" data-id="${holiday.id}">Delete</button></td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        // Handle deletion of holidays
+        tbody.querySelectorAll('.delete-holiday').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.getAttribute('data-id');
+                try {
+                    await room.collection('holiday').delete(id);
+                    await loadHolidays();
+                } catch (err) {
+                    console.error('Error deleting holiday:', err);
+                }
+            });
+        });
+
+        if (holidays.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="3">No holidays found</td>';
+            tbody.appendChild(row);
+        }
+
         console.log(`Loaded ${holidays.length} holidays`);
     } catch (error) {
         console.error('Error loading holidays:', error);
