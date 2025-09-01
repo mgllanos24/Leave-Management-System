@@ -23,13 +23,14 @@ from services.balance_manager import (
     update_balances_from_admin_edit,
     process_leave_application_balance,
 )
-from services.email_service import send_notification_email
+from services.email_service import (
+    send_notification_email,
+    SMTP_SERVER,
+    SMTP_PORT,
+    SMTP_USERNAME,
+)
 
 # @tweakable server configuration
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USERNAME = "qtaskvacation@gmail.com"
-SMTP_PASSWORD = "bicg llyb myff kigu"
 ADMIN_EMAIL = "mgllanos@gmail.com"
 
 # @tweakable employee management configuration - define missing constants
@@ -130,7 +131,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     results = {
                         'admin_email': ADMIN_EMAIL,
                         'smtp_username': SMTP_USERNAME,
-                        'smtp_server': SMTP_SERVER
+                        'smtp_server': SMTP_SERVER,
+                        'smtp_port': SMTP_PORT,
                     }
                     self.send_json_response(results)
                     return
