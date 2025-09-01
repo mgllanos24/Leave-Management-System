@@ -15,7 +15,9 @@ PREVENT_NEGATIVE_BALANCES = False
 ENABLE_BALANCE_AUDIT = True
 # Checkbox values that map to privilege leave
 # These correspond to the `value` attributes in index.html
-PRIVILEGE_LEAVE_TYPES = {'personal', 'vacation-annual'}
+# Store privilege leave types as lowercase values to allow
+# case-insensitive matching when processing leave types
+PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual'}}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
 DEFAULT_PRIVILEGE_LEAVE = 15
 DEFAULT_SICK_LEAVE = 7
@@ -232,8 +234,9 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
             leave_type = application['leave_type']
             total_days = float(application['total_days'])
 
-            # `leave_type` may contain multiple comma-separated codes
-            leave_tokens = [t.strip() for t in leave_type.split(',') if t.strip()]
+            # `leave_type` may contain multiple comma-separated codes. Normalize tokens
+            # to lowercase to ensure case-insensitive matching against configured types.
+            leave_tokens = [t.strip().lower() for t in leave_type.split(',') if t.strip()]
             balance_type = (
                 'PRIVILEGE'
                 if any(t in PRIVILEGE_LEAVE_TYPES for t in leave_tokens)
