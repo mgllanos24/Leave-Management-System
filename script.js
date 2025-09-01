@@ -48,9 +48,11 @@ class BackendCollection {
         const url = `${this.database.baseUrl}/${this.name}${path}`;
         
         for (let attempt = 1; attempt <= this.database.maxRetries; attempt++) {
+            let controller;
+            let timeoutId;
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), this.database.requestTimeout);
+                controller = new AbortController();
+                timeoutId = setTimeout(() => controller.abort(), this.database.requestTimeout);
 
                 const options = {
                     method: method,
@@ -90,6 +92,15 @@ class BackendCollection {
                 return result;
                 
             } catch (error) {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+
+                if (error.name === 'AbortError') {
+                    console.error(`⏱️ ${method} ${url} timed out after ${this.database.requestTimeout}ms`);
+                    error = new Error(`Request timed out after ${this.database.requestTimeout}ms`);
+                }
+
                 if (attempt === this.database.maxRetries) {
                     console.error(`❌ ${method} ${url} failed after ${attempt} attempts:`, error);
                     throw error;
