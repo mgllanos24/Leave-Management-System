@@ -678,6 +678,32 @@ function setupCriticalFormHandlers() {
             console.log('✅ Edit employee form submit handler attached immediately');
         }
     }
+
+    // Set up holiday form handler immediately
+    const holidayForm = document.getElementById('holidayForm');
+    if (holidayForm) {
+        holidayForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const date = document.getElementById('holidayDate').value;
+            const name = document.getElementById('holidayName').value.trim();
+
+            try {
+                await room.collection('holiday').create({ date, name });
+                await loadHolidays();
+                holidayForm.reset();
+                alert('Holiday added successfully');
+            } catch (error) {
+                console.error('Error adding holiday:', error);
+                alert(`Error adding holiday: ${error.message}`);
+            }
+        });
+
+        if (debugImmediateSetup) {
+            console.log('✅ Holiday form submit handler attached immediately');
+        }
+    }
     
     if (debugImmediateSetup) {
         console.log('🎉 Critical form handlers setup completed');
@@ -1661,6 +1687,34 @@ async function loadHolidays() {
     try {
         const holidays = await room.collection('holiday').getList();
         console.log(`Loaded ${holidays.length} holidays`);
+
+        const tbody = document.getElementById('holidayTableBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+
+            holidays.forEach(h => {
+                const row = document.createElement('tr');
+
+                const dateCell = document.createElement('td');
+                dateCell.textContent = h.date;
+                row.appendChild(dateCell);
+
+                const nameCell = document.createElement('td');
+                nameCell.textContent = h.name;
+                row.appendChild(nameCell);
+
+                const actionsCell = document.createElement('td');
+                row.appendChild(actionsCell);
+
+                tbody.appendChild(row);
+            });
+
+            if (holidays.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="3">No holidays found</td>';
+                tbody.appendChild(row);
+            }
+        }
     } catch (error) {
         console.error('Error loading holidays:', error);
     }
