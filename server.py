@@ -379,7 +379,9 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         
                         if ENABLE_EMPLOYEE_AUDIT:
                             print(f"📝 Employee updated: {record_id}")
-                    
+
+                        conn.commit()
+
                     elif collection == 'leave_application':
                         # Get current status before update
                         cursor = conn.execute('SELECT status FROM leave_applications WHERE id = ?', (record_id,))
@@ -401,6 +403,9 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         if cursor.rowcount == 0:
                             self.send_error(404, "Record not found")
                             return
+
+                        # Commit status update before processing balances
+                        conn.commit()
 
                         # Process balance changes if status changed
                         if current_status and current_status != new_status:
@@ -427,6 +432,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     current_time
                                 ))
 
+                        conn.commit()
+
                     elif collection == 'approved_leave':
                         cursor = conn.execute('''
                             UPDATE approved_leaves
@@ -443,11 +450,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             self.send_error(404, "Record not found")
                             return
 
+                        conn.commit()
+
                     else:
                         self.send_error(404, f"Collection '{collection}' not found")
                         return
-                    
-                    conn.commit()
+
                     
                     # Return updated record
                     updated_record = dict(data)
