@@ -528,36 +528,6 @@ tr:hover {
     100% { transform: rotate(360deg); }
 }
 
-/* Status Filters */
-.status-filters {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
-.filter-btn {
-    padding: 8px 16px;
-    border: 2px solid var(--border-color);
-    background: var(--surface);
-    color: var(--text-primary);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-.filter-btn:hover {
-    background: var(--background);
-    border-color: var(--primary-color);
-}
-
-.filter-btn.active {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
 
 /* Status badges */
 .status-badge {
