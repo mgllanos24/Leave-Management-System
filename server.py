@@ -15,7 +15,13 @@ from services.employee_service import (
     ENABLE_EMPLOYEE_VALIDATION, VALIDATE_EMAIL_UNIQUENESS, MAX_FIRSTNAME_LENGTH, 
     MAX_SURNAME_LENGTH, DEFAULT_PRIVILEGE_LEAVE, DEFAULT_SICK_LEAVE, ENABLE_EMPLOYEE_AUDIT
 )
-from services.balance_manager import initialize_employee_balances, update_leave_balance, get_employee_balances, update_balances_from_admin_edit
+from services.balance_manager import (
+    initialize_employee_balances,
+    update_leave_balance,
+    get_employee_balances,
+    update_balances_from_admin_edit,
+    process_leave_application_balance,
+)
 from services.email_service import send_notification_email
 
 # @tweakable server configuration
@@ -368,7 +374,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             try:
                                 process_leave_application_balance(record_id, new_status, 'ADMIN')
                             except Exception as balance_error:
-                                pass
+                                print(f"⚠️ Balance processing error for {record_id}: {balance_error}")
                                 # Don't fail the entire request if balance update fails
                     
                     else:

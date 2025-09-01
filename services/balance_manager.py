@@ -201,6 +201,71 @@ def update_leave_balance(employee_id, balance_type, change_amount, reason, appli
     finally:
         conn.close()
 
+def process_leave_application_balance(application_id, new_status, changed_by='SYSTEM'):
+    """Adjust leave balances when an application's status changes."""
+    conn = get_db_connection()
+    try:
+        # Fetch application details
+        cursor = conn.execute(
+            'SELECT employee_id, leave_type, total_days FROM leave_applications WHERE id = ?',
+            (application_id,),
+        )
+        application = cursor.fetchone()
+        if not application:
+            raise ValueError(f"Leave application {application_id} not found")
+
+        employee_id = application['employee_id']
+        leave_type = application['leave_type']
+        total_days = float(application['total_days'])
+
+        # Determine which balance to adjust
+        balance_type = 'PRIVILEGE' if leave_type in PRIVILEGE_LEAVE_TYPES else 'SICK'
+
+        # Ensure balance exists for employee
+        current_year = datetime.now().year
+        cursor = conn.execute(
+            'SELECT id FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',
+            (employee_id, balance_type, current_year),
+        )
+        if not cursor.fetchone():
+            initialize_employee_balances(employee_id, current_year)
+
+        # Check latest balance action for this application
+        cursor = conn.execute(
+            'SELECT change_type FROM leave_balance_history WHERE application_id = ? ORDER BY created_at DESC LIMIT 1',
+            (application_id,),
+        )
+        last_action = cursor.fetchone()
+    finally:
+        conn.close()
+
+    reason = f"Leave application status changed to {new_status}"
+
+    if new_status == 'Approved':
+        # Deduct days only if not already deducted
+        if not last_action or last_action['change_type'] != 'DEDUCTION':
+            update_leave_balance(
+                employee_id,
+                balance_type,
+                total_days,
+                reason,
+                application_id=application_id,
+                changed_by=changed_by,
+            )
+    else:
+        # Restore days if previously deducted
+        if last_action and last_action['change_type'] == 'DEDUCTION':
+            update_leave_balance(
+                employee_id,
+                balance_type,
+                -total_days,
+                reason,
+                application_id=application_id,
+                changed_by=changed_by,
+            )
+
+    return True
+
 def get_employee_balances(employee_id=None):
     """Get employee balances with optional filtering"""
     conn = get_db_connection()
