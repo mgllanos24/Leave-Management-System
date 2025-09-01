@@ -329,18 +329,22 @@ window.LeaveBalanceAPI = {
         return kind === 'sick' ? '#065f46' : '#2563eb';
     },
 
-    async setRemainingDays(/* @tweakable employee id */ employeeId, /* @tweakable balance type */ balanceType, /* @tweakable new remaining days */ remaining) {
-        const balances = await this.getEmployeeBalances(employeeId);
-        const bal = balances.find(b => b.balance_type === balanceType);
-        if (!bal) throw new Error(`Balance not found for ${balanceType}`);
-
-        const result = await room.collection('leave_balance').update(bal.id, { remaining_days: parseFloat(remaining) });
+    async setRemainingDays(/* @tweakable employee id */ employeeId, /* @tweakable updated balances */ updates) {
+        const response = await fetch(`/api/employee/${employeeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
 
         // Clear cached balances and refresh employee list
         this.clearEmployeeBalanceCache(employeeId);
         await loadEmployeeList();
 
-        return result;
+        return response.json();
     }
 };
 
@@ -646,16 +650,10 @@ function setupCriticalFormHandlers() {
 
                 await room.collection('employee').update(employeeId, updatedData);
 
-                await LeaveBalanceAPI.setRemainingDays(
-                    employeeId,
-                    'PRIVILEGE',
-                    parseFloat(formData.get('editRemainingPrivilege') || 0)
-                );
-                await LeaveBalanceAPI.setRemainingDays(
-                    employeeId,
-                    'SICK',
-                    parseFloat(formData.get('editRemainingSick') || 0)
-                );
+                await LeaveBalanceAPI.setRemainingDays(employeeId, {
+                    remaining_privilege_leave: parseFloat(formData.get('editRemainingPrivilege') || 0),
+                    remaining_sick_leave: parseFloat(formData.get('editRemainingSick') || 0)
+                });
 
                 await loadEmployeeList();
                 await loadEmployeeSummary();
