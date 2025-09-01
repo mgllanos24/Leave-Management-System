@@ -356,7 +356,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         cursor = conn.execute('SELECT status FROM leave_applications WHERE id = ?', (record_id,))
                         current_record = cursor.fetchone()
                         current_status = current_record['status'] if current_record else None
-                        
+
                         new_status = data.get('status', 'Pending')
                         
                         conn.execute('''
@@ -376,6 +376,43 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             except Exception as balance_error:
                                 print(f"⚠️ Balance processing error for {record_id}: {balance_error}")
                                 # Don't fail the entire request if balance update fails
+
+                        # Notify employee and admin of status change
+                        try:
+                            cursor = conn.execute(
+                                '''
+                                SELECT e.personal_email
+                                FROM leave_applications la
+                                JOIN employees e ON la.employee_id = e.id
+                                WHERE la.id = ?
+                                ''',
+                                (record_id,)
+                            )
+                            email_row = cursor.fetchone()
+                            if email_row and email_row['personal_email']:
+                                employee_email = email_row['personal_email']
+                                subject = f"Leave application {new_status}"
+                                body = f"Your leave application has been {new_status.lower()}."
+                                send_notification_email(
+                                    employee_email,
+                                    subject,
+                                    body,
+                                    SMTP_SERVER,
+                                    SMTP_PORT,
+                                    SMTP_USERNAME,
+                                    SMTP_PASSWORD,
+                                )
+                                send_notification_email(
+                                    ADMIN_EMAIL,
+                                    subject,
+                                    f"Employee {employee_email}: {body}",
+                                    SMTP_SERVER,
+                                    SMTP_PORT,
+                                    SMTP_USERNAME,
+                                    SMTP_PASSWORD,
+                                )
+                        except Exception as email_error:
+                            print(f"⚠️ Email notification failed for {record_id}: {email_error}")
                     
                     else:
                         self.send_error(404, f"Collection '{collection}' not found")
@@ -386,12 +423,13 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         return
                     
                     conn.commit()
-                    
+
                     # Return updated record
                     updated_record = dict(data)
                     updated_record['id'] = record_id
                     updated_record['updated_at'] = current_time
-                    
+                    updated_record['success'] = True
+
                     self.send_json_response(updated_record)
                     
                 finally:
