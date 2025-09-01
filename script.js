@@ -1015,9 +1015,18 @@ function configureTabsForUser() {
     document.getElementById('tabLeaveRequest').style.display = isAdmin ? 'none' : 'block';
     document.getElementById('tabCheckHistory').style.display = isAdmin ? 'none' : 'block';
 
-    // Also hide the corresponding tab content sections to prevent access
+    // Hide tab content sections that shouldn't be visible for the current role
+    document.getElementById('employee-management').style.display = isAdmin ? '' : 'none';
+    document.getElementById('application-status').style.display = isAdmin ? '' : 'none';
+    document.getElementById('holiday-dates').style.display = isAdmin ? '' : 'none';
     document.getElementById('leave-request').style.display = isAdmin ? 'none' : '';
     document.getElementById('check-history').style.display = isAdmin ? 'none' : '';
+
+    // Ensure the active tab is one the user can access
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && activeTab.style.display === 'none') {
+        switchTab(isAdmin ? 'employee-management' : 'leave-request');
+    }
 }
 
 function displayWelcome() {
