@@ -51,7 +51,7 @@ class BackendCollection {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), this.database.requestTimeout);
-                
+
                 const options = {
                     method: method,
                     headers: {
@@ -59,6 +59,10 @@ class BackendCollection {
                     },
                     signal: controller.signal
                 };
+
+                if (sessionToken) {
+                    options.headers['Authorization'] = `Bearer ${sessionToken}`;
+                }
                 
                 if (data) {
                     options.body = JSON.stringify(data);
@@ -244,16 +248,12 @@ const room = window.room;
 // Authentication globals
 let currentUserType = null;
 let currentUser = null;
+let sessionToken = null;
 
-/* @tweakable localStorage keys for authentication persistence */
+/* @tweakable sessionStorage keys for authentication persistence */
 const AUTH_TYPE_KEY = 'elms_auth_type';
 const AUTH_USER_KEY = 'elms_auth_user';
-
-/* @tweakable authentication configuration */
-const PERSIST_AUTH_STATE = false;
-const AUTO_RESTORE_AUTH = false;
-const CLEAR_AUTH_ON_LOGOUT_ONLY = true;
-const AUTH_SESSION_TIMEOUT = 0;
+const AUTH_TOKEN_KEY = 'elms_session_token';
 
 /* @tweakable whether to enable detailed employee form submission debugging */
 const enableEmployeeFormDebugging = true;
@@ -372,7 +372,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     initEntryButtons();
-    // Authentication persistence disabled by default; skip state restoration
+    restoreAuthenticationState();
     
     // Enhanced DOM state logging
     if (logDOMState) {
@@ -661,20 +661,20 @@ function initializeLocalDatabase() {
 function restoreAuthenticationState() {
     /* @tweakable authentication state restoration debugging */
     const debugAuthRestore = true;
-    
-    if (!PERSIST_AUTH_STATE) return;
-    
     try {
-        const savedType = localStorage.getItem(AUTH_TYPE_KEY);
-        const savedUser = localStorage.getItem(AUTH_USER_KEY);
-        
-        if (savedType && savedUser) {
+        const savedType = sessionStorage.getItem(AUTH_TYPE_KEY);
+        const savedUser = sessionStorage.getItem(AUTH_USER_KEY);
+        const savedToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
+
+        if (savedType && savedUser && savedToken) {
             currentUserType = savedType;
             currentUser = JSON.parse(savedUser);
-            
+            sessionToken = savedToken;
+
             if (debugAuthRestore) {
                 console.log('✅ Authentication state restored:', { type: currentUserType, user: currentUser });
             }
+            showMainApp();
         }
     } catch (error) {
         console.error('Error restoring auth state:', error);
@@ -683,12 +683,13 @@ function restoreAuthenticationState() {
 }
 
 function clearPersistedAuthState() {
-    /* @tweakable whether to clear all auth-related localStorage items */
+    /* @tweakable whether to clear all auth-related sessionStorage items */
     const clearAllAuthData = true;
-    
+
     if (clearAllAuthData) {
-        localStorage.removeItem(AUTH_TYPE_KEY);
-        localStorage.removeItem(AUTH_USER_KEY);
+        sessionStorage.removeItem(AUTH_TYPE_KEY);
+        sessionStorage.removeItem(AUTH_USER_KEY);
+        sessionStorage.removeItem(AUTH_TOKEN_KEY);
     }
 }
 
@@ -841,7 +842,9 @@ async function updateEmployeeInfo() {
         let previewId = generatePreviewApplicationId();
         try {
             // Request a server-generated ID for consistency with stored applications
-            const resp = await fetch('/api/next_application_id');
+            const resp = await fetch('/api/next_application_id', {
+                headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}
+            });
             if (resp.ok) {
                 const data = await resp.json();
                 previewId = data.application_id || previewId;
@@ -866,7 +869,9 @@ async function updateLeaveBalanceDisplay() {
     }
 
     try {
-        const resp = await fetch(`/api/leave_balance?employee_id=${currentUser.id}`);
+        const resp = await fetch(`/api/leave_balance?employee_id=${currentUser.id}`, {
+            headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}
+        });
         if (!resp.ok) throw new Error('Failed to fetch leave balances');
         const balances = await resp.json();
 
@@ -910,11 +915,13 @@ async function loginEmployee(email) {
 
         currentUserType = 'employee';
         currentUser = data.employee;
+        sessionToken = data.token || data.sessionToken || null;
         await updateEmployeeInfo();
 
-        if (PERSIST_AUTH_STATE) {
-            localStorage.setItem(AUTH_TYPE_KEY, currentUserType);
-            localStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+        sessionStorage.setItem(AUTH_TYPE_KEY, currentUserType);
+        sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+        if (sessionToken) {
+            sessionStorage.setItem(AUTH_TOKEN_KEY, sessionToken);
         }
         
         hideLoading();
@@ -937,11 +944,11 @@ async function loginAdmin(username, password) {
         if (username === validAdminUsername && password === validAdminPassword) {
             currentUserType = 'admin';
             currentUser = { username: username, first_name: 'Administrator', email: 'admin@company.com' };
-            
-            if (PERSIST_AUTH_STATE) {
-                localStorage.setItem(AUTH_TYPE_KEY, currentUserType);
-                localStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
-            }
+
+            sessionToken = 'admin-token';
+            sessionStorage.setItem(AUTH_TYPE_KEY, currentUserType);
+            sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+            sessionStorage.setItem(AUTH_TOKEN_KEY, sessionToken);
             
             hideLoading();
             showMainApp();
@@ -1012,11 +1019,9 @@ function displayWelcome() {
 function logout() {
     currentUserType = null;
     currentUser = null;
-    
-    if (PERSIST_AUTH_STATE) {
-        clearPersistedAuthState();
-    }
-    
+    sessionToken = null;
+    clearPersistedAuthState();
+
     showEntrySelection();
 }
 
