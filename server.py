@@ -25,9 +25,11 @@ from services.balance_manager import (
 )
 from services.email_service import (
     send_notification_email,
+    generate_ics_content,
     SMTP_SERVER,
     SMTP_PORT,
     SMTP_USERNAME,
+    SMTP_PASSWORD,
 )
 
 # @tweakable server configuration
@@ -493,6 +495,18 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     f"({total_days} days) has been {status_word}."
                                 )
 
+                                ics_content = None
+                                if new_status == 'Approved':
+                                    ics_content = generate_ics_content(
+                                        start_date,
+                                        end_date,
+                                        summary=f"Leave for {employee_name}",
+                                        description=(
+                                            f"Approved leave from {start_date} to {end_date} "
+                                            f"({total_days} days)"
+                                        ),
+                                    )
+
                                 try:
                                     send_notification_email(
                                         ADMIN_EMAIL,
@@ -502,6 +516,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                         SMTP_PORT,
                                         SMTP_USERNAME,
                                         SMTP_PASSWORD,
+                                        ics_content=ics_content,
                                     )
                                 except Exception as email_err:
                                     print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
@@ -516,6 +531,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                             SMTP_PORT,
                                             SMTP_USERNAME,
                                             SMTP_PASSWORD,
+                                            ics_content=ics_content,
                                         )
                                     except Exception as email_err:
                                         print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
