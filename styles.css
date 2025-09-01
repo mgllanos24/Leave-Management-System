@@ -1108,3 +1108,11 @@ tr:hover {
     font-size: 0.8rem;
     font-weight: 500;
 }
+
+.calendar-event {
+    margin: 5px 0;
+}
+
+.calendar-event button {
+    margin-left: 5px;
+}
