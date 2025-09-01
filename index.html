@@ -333,32 +333,9 @@
         <div id="application-status" class="tab-content">
             <div class="admin-panel">
                 <div class="section">
-                    <h2>Employee Leave Summary</h2>
-                    <div class="table-container">
-                        <table id="employeeStatusTable">
-                            <thead>
-                                <tr>
-                                    <th>Employee</th>
-                                    <th>Privilege Allocated</th>
-                                    <th>Privilege Used</th>
-                                    <th>Privilege Remaining</th>
-                                    <th>Sick Allocated</th>
-                                    <th>Sick Used</th>
-                                    <th>Sick Remaining</th>
-                                    <th>Active Requests</th>
-                                </tr>
-                            </thead>
-                            <tbody id="employeeStatusTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="section">
                     <h2>Leave Application Status</h2>
                     <div class="status-filters">
-                        <button class="filter-btn active" data-status="all">All</button>
-                        <button class="filter-btn" data-status="Pending">Pending</button>
-                        <button class="filter-btn" data-status="Approved">Approved</button>
-                        <button class="filter-btn" data-status="Rejected">Rejected</button>
+                        <button class="filter-btn active" data-status="Pending">Pending</button>
                     </div>
                     <div class="table-container">
                         <table id="applicationsTable">
@@ -379,9 +356,25 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="section">
-                        <h2>Approved Leave Calendar</h2>
-                        <div id="leaveCalendar"></div>
+                </div>
+                <div class="section">
+                    <h2>Employee Leave Summary</h2>
+                    <div class="table-container">
+                        <table id="employeeStatusTable">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Privilege Allocated</th>
+                                    <th>Privilege Used</th>
+                                    <th>Privilege Remaining</th>
+                                    <th>Sick Allocated</th>
+                                    <th>Sick Used</th>
+                                    <th>Sick Remaining</th>
+                                    <th>Active Requests</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employeeStatusTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
