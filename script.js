@@ -1366,20 +1366,6 @@ function switchTab(tabName) {
     if (tabName === 'check-history' && currentUser) {
         loadLeaveHistory(currentUser.id);
     }
-}
-
-function filterApplications(status) {
-    console.log(`Filtering applications by status: ${status}`);
-}
-
-function exportDatabaseBackup() {
-    console.log('Export database backup triggered (not implemented)');
-}
-
-function importDatabaseBackup() {
-    console.log('Import database backup triggered (not implemented)');
-}
-
 // Utility functions
 async function editEmployee(employeeId) {
     console.log(`Editing employee: ${employeeId}`);
@@ -1433,9 +1419,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Placeholder implementations for future features
+let currentApplicationStatus = 'all';
+
 function filterApplications(status) {
-    console.warn('filterApplications is not implemented yet:', status);
+    currentApplicationStatus = status;
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.status === status);
+    });
+
+    document.querySelectorAll('#applicationsTableBody tr').forEach(row => {
+        const rowStatus = row.dataset.status;
+        const showRow = status === 'all' || rowStatus === status;
+        row.style.display = showRow ? '' : 'none';
+    });
 }
 
 function exportDatabaseBackup() {
