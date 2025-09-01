@@ -598,7 +598,7 @@ function setupCriticalFormHandlers() {
         }
     }
     
-    // Set up vacation form handler immediately  
+    // Set up vacation form handler immediately
     const vacationForm = document.getElementById('vacationForm');
     if (vacationForm) {
         vacationForm.addEventListener('submit', async function(e) {
@@ -618,6 +618,57 @@ function setupCriticalFormHandlers() {
 
         if (debugImmediateSetup) {
             console.log('✅ Vacation form submit handler attached immediately');
+        }
+    }
+
+    // Set up edit employee form handler immediately
+    const editEmployeeForm = document.getElementById('editEmployeeForm');
+    if (editEmployeeForm) {
+        editEmployeeForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (debugImmediateSetup) {
+                console.log('✅ Edit employee form submitted via immediate handler');
+            }
+
+            try {
+                const formData = new FormData(editEmployeeForm);
+                const employeeId = editEmployeeForm.dataset.employeeId;
+
+                const updatedData = {
+                    first_name: formData.get('editFirstName'),
+                    surname: formData.get('editSurname'),
+                    personal_email: formData.get('editPersonalEmail'),
+                    annual_leave: parseInt(formData.get('editAnnualLeave')) || 0,
+                    sick_leave: parseInt(formData.get('editSickLeave')) || 0
+                };
+
+                await room.collection('employee').update(employeeId, updatedData);
+
+                await LeaveBalanceAPI.setRemainingDays(
+                    employeeId,
+                    'PRIVILEGE',
+                    parseFloat(formData.get('editRemainingPrivilege') || 0)
+                );
+                await LeaveBalanceAPI.setRemainingDays(
+                    employeeId,
+                    'SICK',
+                    parseFloat(formData.get('editRemainingSick') || 0)
+                );
+
+                await loadEmployeeList();
+                await loadEmployeeSummary();
+                closeEditModal();
+                alert('Employee updated successfully');
+            } catch (error) {
+                console.error('Error updating employee:', error);
+                alert(`Error updating employee: ${error.message}`);
+            }
+        });
+
+        if (debugImmediateSetup) {
+            console.log('✅ Edit employee form submit handler attached immediately');
         }
     }
     
@@ -1657,7 +1708,34 @@ function switchTab(tabName) {
 
 // Utility functions
 async function editEmployee(employeeId) {
-    console.log(`Editing employee: ${employeeId}`);
+    try {
+        const employees = await room.collection('employee').getList();
+        const employee = employees.find(e => e.id === employeeId);
+        if (!employee) {
+            alert('Employee not found');
+            return;
+        }
+
+        const form = document.getElementById('editEmployeeForm');
+        form.dataset.employeeId = employeeId;
+
+        document.getElementById('editFirstName').value = employee.first_name || '';
+        document.getElementById('editSurname').value = employee.surname || '';
+        document.getElementById('editPersonalEmail').value = employee.personal_email || '';
+        document.getElementById('editAnnualLeave').value = employee.annual_leave || 0;
+        document.getElementById('editSickLeave').value = employee.sick_leave || 0;
+
+        const balances = await LeaveBalanceAPI.getEmployeeBalances(employeeId);
+        const priv = balances.find(b => b.balance_type === 'PRIVILEGE');
+        const sick = balances.find(b => b.balance_type === 'SICK');
+        document.getElementById('editRemainingPrivilege').value = priv ? priv.remaining_days : 0;
+        document.getElementById('editRemainingSick').value = sick ? sick.remaining_days : 0;
+
+        document.getElementById('editModal').classList.add('show');
+    } catch (error) {
+        console.error('Error editing employee:', error);
+        alert(`Error editing employee: ${error.message}`);
+    }
 }
 
 async function deleteEmployee(employeeId) {
@@ -1685,6 +1763,19 @@ async function deleteAllEmployees() {
             alert('All employees deleted successfully');
         } catch (error) {
             alert(`Error deleting employees: ${error.message}`);
+        }
+    }
+}
+
+async function resetAllLeaveBalances() {
+    if (confirm('Are you sure you want to reset all leave balances? This action cannot be undone.')) {
+        try {
+            await fetch('/api/leave_balance/reset_all', { method: 'POST' });
+            await loadEmployeeList();
+            await loadEmployeeSummary();
+            alert('All leave balances reset successfully');
+        } catch (error) {
+            alert(`Error resetting leave balances: ${error.message}`);
         }
     }
 }
@@ -1730,6 +1821,7 @@ window.switchTab = switchTab;
 window.editEmployee = editEmployee;
 window.deleteEmployee = deleteEmployee;
 window.deleteAllEmployees = deleteAllEmployees;
+window.resetAllLeaveBalances = resetAllLeaveBalances;
 window.closeErrorModal = closeErrorModal;
 window.closeEditModal = closeEditModal;
 window.exportDatabaseBackup = exportDatabaseBackup;
