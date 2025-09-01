@@ -459,10 +459,6 @@ document.addEventListener('DOMContentLoaded', function() {
         deleteAllBtn.addEventListener('click', deleteAllEmployees);
     }
 
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => filterApplications(btn.dataset.status));
-    });
-
     const exportBackupBtn = document.getElementById('exportBackupBtn');
     if (exportBackupBtn) {
         exportBackupBtn.addEventListener('click', exportDatabaseBackup);
@@ -1625,22 +1621,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-let currentApplicationStatus = 'all';
-
-function filterApplications(status) {
-    currentApplicationStatus = status;
-
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.status === status);
-    });
-
-    document.querySelectorAll('#applicationsTableBody tr').forEach(row => {
-        const rowStatus = row.dataset.status;
-        const showRow = status === 'all' || rowStatus === status;
-        row.style.display = showRow ? '' : 'none';
-    });
-}
-
 function exportDatabaseBackup() {
     console.warn('exportDatabaseBackup is not implemented yet.');
 }
@@ -1658,7 +1638,6 @@ window.deleteEmployee = deleteEmployee;
 window.deleteAllEmployees = deleteAllEmployees;
 window.closeErrorModal = closeErrorModal;
 window.closeEditModal = closeEditModal;
-window.filterApplications = filterApplications;
 window.exportDatabaseBackup = exportDatabaseBackup;
 window.importDatabaseBackup = importDatabaseBackup;
 window.updateApplicationStatus = updateApplicationStatus;
