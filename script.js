@@ -1352,7 +1352,6 @@ async function loadLeaveApplications() {
             tbody.appendChild(row);
         }
 
-        await loadApprovedLeaves();
     } catch (error) {
         console.error('Error loading leave applications:', error);
     }
@@ -1488,7 +1487,6 @@ async function updateApplicationStatus(id, newStatus) {
     try {
         await room.collection('leave_application').update(id, { status: newStatus });
         await loadLeaveApplications();
-        await loadApprovedLeaves();
         await loadEmployeeSummary();
         alert('Application status updated successfully');
     } catch (error) {
@@ -1519,57 +1517,6 @@ async function updateApplicationStatus(id, newStatus) {
     }
 }
 
-async function loadApprovedLeaves() {
-    try {
-        const events = await room.collection('approved_leave').getList();
-        renderLeaveCalendar(events);
-    } catch (error) {
-        console.error('Error loading approved leaves:', error);
-    }
-}
-
-function renderLeaveCalendar(events) {
-    const calendar = document.getElementById('leaveCalendar');
-    if (!calendar) return;
-    calendar.innerHTML = '';
-
-    events.forEach(ev => {
-        const item = document.createElement('div');
-        item.className = 'calendar-event';
-        item.innerHTML = `
-            <span>${ev.employee_id}: ${ev.start_date} - ${ev.end_date}</span>
-            <button class="edit-event">Edit</button>
-            <button class="delete-event">Remove</button>
-        `;
-        calendar.appendChild(item);
-
-        const editBtn = item.querySelector('.edit-event');
-        if (editBtn) {
-            editBtn.addEventListener('click', async () => {
-                const newStart = prompt('New start date', ev.start_date);
-                const newEnd = prompt('New end date', ev.end_date);
-                if (newStart && newEnd) {
-                    await room.collection('approved_leave').update(ev.id, { start_date: newStart, end_date: newEnd });
-                    await loadApprovedLeaves();
-                }
-            });
-        }
-
-        const deleteBtn = item.querySelector('.delete-event');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', async () => {
-                if (confirm('Remove this event?')) {
-                    await room.collection('approved_leave').delete(ev.id);
-                    await loadApprovedLeaves();
-                }
-            });
-        }
-    });
-
-    if (events.length === 0) {
-        calendar.textContent = 'No approved leave events';
-    }
-}
 
 async function loadLeaveHistory(employeeId) {
     try {

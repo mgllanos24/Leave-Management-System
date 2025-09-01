@@ -1079,14 +1079,6 @@ tr:hover {
     font-weight: 500;
 }
 
-.calendar-event {
-    margin: 5px 0;
-}
-
-.calendar-event button {
-    margin-left: 5px;
-}
-
 .remaining-alert {
     color: var(--error-color); /* #dc2626 */
 }

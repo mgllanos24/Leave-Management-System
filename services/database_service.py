@@ -114,18 +114,6 @@ def _create_leave_tables(conn):
         )
     ''')
 
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS approved_leaves (
-            id TEXT PRIMARY KEY,
-            employee_id TEXT NOT NULL,
-            start_date TEXT NOT NULL,
-            end_date TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE
-        )
-    ''')
-
 def _create_balance_tables(conn):
     """Create balance tracking tables"""
     conn.execute('''
@@ -189,9 +177,6 @@ def _create_indexes(conn):
     conn.execute('CREATE INDEX IF NOT EXISTS idx_balance_history_employee ON leave_balance_history(employee_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_balance_history_date ON leave_balance_history(created_at)')
 
-    # Approved leave indexes
-    conn.execute('CREATE INDEX IF NOT EXISTS idx_approved_leaves_employee ON approved_leaves(employee_id)')
-    conn.execute('CREATE INDEX IF NOT EXISTS idx_approved_leaves_dates ON approved_leaves(start_date, end_date)')
 
 def _todo():
     """Placeholder to keep the module importable."""

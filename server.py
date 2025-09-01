@@ -162,9 +162,6 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 elif collection == 'holiday':
                     cursor = conn.execute('SELECT * FROM holidays ORDER BY date')
                     results = [dict(row) for row in cursor.fetchall()]
-                elif collection == 'approved_leave':
-                    cursor = conn.execute('SELECT * FROM approved_leaves ORDER BY start_date')
-                    results = [dict(row) for row in cursor.fetchall()]
                 elif collection == 'notification':
                     cursor = conn.execute('SELECT * FROM notifications ORDER BY created_at DESC')
                     results = [dict(row) for row in cursor.fetchall()]
@@ -277,18 +274,6 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             record_id,
                             data.get('date', ''),
                             data.get('name', ''),
-                            current_time
-                        ))
-                    elif collection == 'approved_leave':
-                        conn.execute('''
-                            INSERT INTO approved_leaves (id, employee_id, start_date, end_date, created_at, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        ''', (
-                            record_id,
-                            data.get('employee_id', ''),
-                            data.get('start_date', ''),
-                            data.get('end_date', ''),
-                            current_time,
                             current_time
                         ))
                     elif collection == 'notification':
@@ -457,23 +442,6 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 print(f"⚠️ Balance processing error for {record_id}: {balance_error}")
                                 # Don't fail the entire request if balance update fails
 
-                        if new_status == 'Approved' and current_status != 'Approved':
-                            cursor = conn.execute('SELECT employee_id, start_date, end_date FROM leave_applications WHERE id = ?', (record_id,))
-                            app_info = cursor.fetchone()
-                            if app_info:
-                                event_id = str(uuid.uuid4())
-                                conn.execute('''
-                                    INSERT INTO approved_leaves (id, employee_id, start_date, end_date, created_at, updated_at)
-                                    VALUES (?, ?, ?, ?, ?, ?)
-                                ''', (
-                                    event_id,
-                                    app_info['employee_id'],
-                                    app_info['start_date'],
-                                    app_info['end_date'],
-                                    current_time,
-                                    current_time
-                                ))
-
                         conn.commit()
 
                         # Fetch leave and employee details for notification emails
@@ -552,24 +520,6 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         except Exception as prep_err:
                             print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
 
-                    elif collection == 'approved_leave':
-                        cursor = conn.execute('''
-                            UPDATE approved_leaves
-                            SET start_date=?, end_date=?, updated_at=?
-                            WHERE id=?
-                        ''', (
-                            data.get('start_date', ''),
-                            data.get('end_date', ''),
-                            current_time,
-                            record_id
-                        ))
-
-                        if cursor.rowcount == 0:
-                            self.send_error(404, "Record not found")
-                            return
-
-                        conn.commit()
-
                     else:
                         self.send_error(404, f"Collection '{collection}' not found")
                         return
@@ -611,8 +561,6 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     cursor = conn.execute('DELETE FROM leave_applications WHERE id=?', (record_id,))
                 elif collection == 'holiday':
                     cursor = conn.execute('DELETE FROM holidays WHERE id=?', (record_id,))
-                elif collection == 'approved_leave':
-                    cursor = conn.execute('DELETE FROM approved_leaves WHERE id=?', (record_id,))
                 elif collection == 'notification':
                     cursor = conn.execute('DELETE FROM notifications WHERE id=?', (record_id,))
                 else:
