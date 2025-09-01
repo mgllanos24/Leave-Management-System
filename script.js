@@ -1271,9 +1271,41 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
 async function loadLeaveApplications() {
     try {
         const applications = await room.collection('leave_application').getList();
+
+        const tbody = document.getElementById('applicationsTableBody');
+        tbody.innerHTML = '';
+
+        applications.forEach(app => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${app.application_id || app.id}</td>
+                <td>${app.employee_name || ''}</td>
+                <td>${app.leave_type}</td>
+                <td>${app.start_date}</td>
+                <td>${app.end_date}</td>
+                <td>${app.total_days}</td>
+                <td>${app.status}</td>
+                <td>${app.date_applied || ''}</td>
+                <td class="action-buttons">
+                    <button class="btn btn-secondary" onclick="updateApplicationStatus('${app.id}', 'Approved')">Approve</button>
+                    <button class="btn btn-danger" onclick="updateApplicationStatus('${app.id}', 'Rejected')">Reject</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
         console.log(`Loaded ${applications.length} leave applications`);
     } catch (error) {
         console.error('Error loading leave applications:', error);
+    }
+}
+
+async function updateApplicationStatus(id, status) {
+    try {
+        await room.collection('leave_application').update(id, { status });
+        await loadLeaveApplications();
+    } catch (error) {
+        console.error(`Error updating application ${id}:`, error);
     }
 }
 
