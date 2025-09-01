@@ -7,6 +7,7 @@ import os
 import uuid
 import logging
 from datetime import datetime  # @tweakable fix datetime import to resolve "module 'datetime' has no attribute 'now'" error
+from http.cookies import SimpleCookie
 
 # Import service modules
 from services.database_service import init_database, get_db_connection, db_lock
@@ -37,6 +38,9 @@ ADMIN_EMAIL = "mgllanos@gmail.com"
 
 # @tweakable employee management configuration - define missing constants
 AUTO_CREATE_BALANCE_RECORDS = True
+
+# Track active admin session tokens
+active_admin_tokens = set()
 
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def send_cors_headers(self):
@@ -191,10 +195,13 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_post_request(self, collection):
         """Handle POST requests (create new records)"""
+        if collection == 'logout_admin':
+            self.handle_logout_admin()
+            return
         try:
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode('utf-8'))
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b''
+            data = json.loads(post_data.decode('utf-8')) if post_data else {}
             
             with db_lock:
                 conn = get_db_connection()
@@ -606,6 +613,27 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_cors_headers()
         error_message = message if message else self.responses.get(code, ('', ''))[0]
         self._safe_write(json.dumps({'error': error_message}).encode('utf-8'))
+
+    def handle_logout_admin(self):
+        """Handle admin logout by clearing token and cookie"""
+        cookie_header = self.headers.get('Cookie', '')
+        token = None
+        if cookie_header:
+            cookie = SimpleCookie()
+            cookie.load(cookie_header)
+            if 'admin_token' in cookie:
+                token = cookie['admin_token'].value
+
+        if token and token in active_admin_tokens:
+            active_admin_tokens.discard(token)
+
+        self.send_response(200)
+        self.send_cors_headers()
+        self.send_header('Content-Type', 'application/json')
+        # Clear the admin token cookie
+        self.send_header('Set-Cookie', 'admin_token=; Path=/; Max-Age=0')
+        self.end_headers()
+        self.wfile.write(json.dumps({'success': True}).encode('utf-8'))
     
     def handle_bootstrap_employee(self):
         """Initialize per-employee data/balances on login with enhanced error handling"""
