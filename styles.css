@@ -567,6 +567,7 @@ tr:hover {
     font-weight: 500;
 }
 
+
 .status-pending {
     background: #fef3c7;
     color: #92400e;
@@ -1107,12 +1108,4 @@ tr:hover {
     border-radius: 4px;
     font-size: 0.8rem;
     font-weight: 500;
-}
-
-.calendar-event {
-    margin: 5px 0;
-}
-
-.calendar-event button {
-    margin-left: 5px;
 }
