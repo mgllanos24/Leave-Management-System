@@ -28,6 +28,7 @@ from services.email_service import (
     SMTP_SERVER,
     SMTP_PORT,
     SMTP_USERNAME,
+    SMTP_PASSWORD,
 )
 
 # @tweakable server configuration
@@ -323,7 +324,15 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     f"Reason: {data.get('reason', '')}"
                 )
                 try:
-                    if send_notification_email(admin_email, subject, body):
+                    if send_notification_email(
+                        admin_email,
+                        subject,
+                        body,
+                        SMTP_SERVER,
+                        SMTP_PORT,
+                        SMTP_USERNAME,
+                        SMTP_PASSWORD,
+                    ):
                         logging.info("Notification email sent to %s", admin_email)
                     else:
                         logging.error("Failed to send notification email to %s", admin_email)
