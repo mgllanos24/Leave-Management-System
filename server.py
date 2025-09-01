@@ -6,6 +6,8 @@ import sys
 import os
 import uuid
 import logging
+import hashlib
+from http import cookies
 from datetime import datetime  # @tweakable fix datetime import to resolve "module 'datetime' has no attribute 'now'" error
 
 # Import service modules
@@ -34,6 +36,20 @@ from services.email_service import (
 
 # @tweakable server configuration
 ADMIN_EMAIL = "mgllanos@gmail.com"
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+DEFAULT_ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+ADMIN_PASSWORD_HASH = os.environ.get(
+    'ADMIN_PASSWORD_HASH', hashlib.sha256(DEFAULT_ADMIN_PASSWORD.encode()).hexdigest()
+)
+active_admin_tokens = set()
+ADMIN_ONLY_COLLECTIONS = {
+    'employee',
+    'leave_application',
+    'holiday',
+    'notification',
+    'leave_balance',
+    'leave_balance_history',
+}
 
 # @tweakable employee management configuration - define missing constants
 AUTO_CREATE_BALANCE_RECORDS = True
@@ -45,13 +61,32 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
+    def is_admin_authenticated(self):
+        """Check if request has a valid admin session token"""
+        cookie_header = self.headers.get('Cookie')
+        if not cookie_header:
+            return False
+        cookie = cookies.SimpleCookie(cookie_header)
+        token = cookie.get('admin_token')
+        if not token:
+            return False
+        return token.value in active_admin_tokens
+
+    def require_admin(self):
+        if not self.is_admin_authenticated():
+            self.send_error(401, "Unauthorized")
+            return False
+        return True
+
     def do_OPTIONS(self):
         """Handle CORS preflight requests"""
         self.send_response(200)
         self.send_cors_headers()
         self.end_headers()
     def do_POST(self):
-        if self.path == '/api/bootstrap_employee':
+        if self.path == '/api/login_admin':
+            self.handle_login_admin()
+        elif self.path == '/api/bootstrap_employee':
             self.handle_bootstrap_employee()
         elif self.path.startswith('/api/'):
             self.handle_api_request()
@@ -89,6 +124,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             collection = path_parts[2]
+
+            if collection in ADMIN_ONLY_COLLECTIONS:
+                if not self.require_admin():
+                    return
 
             if self.command == 'GET':
                 self.handle_get_request(collection, path_parts, parsed.query)
@@ -606,6 +645,33 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_cors_headers()
         error_message = message if message else self.responses.get(code, ('', ''))[0]
         self._safe_write(json.dumps({'error': error_message}).encode('utf-8'))
+
+    def handle_login_admin(self):
+        """Validate admin credentials and issue session token"""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length else b'{}'
+            data = json.loads(body.decode('utf-8'))
+            username = (data.get('username') or '').strip()
+            password = data.get('password') or ''
+
+            if (
+                username == ADMIN_USERNAME
+                and hashlib.sha256(password.encode()).hexdigest() == ADMIN_PASSWORD_HASH
+            ):
+                token = uuid.uuid4().hex
+                active_admin_tokens.add(token)
+                response = json.dumps({'token': token})
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Set-Cookie', f'admin_token={token}; HttpOnly; Path=/')
+                self.send_cors_headers()
+                self.send_header('Content-Length', str(len(response.encode('utf-8'))))
+                self._safe_write(response.encode('utf-8'))
+            else:
+                self.send_error(401, 'Invalid credentials')
+        except Exception as e:
+            self.send_error(400, f'Bad Request: {e}')
     
     def handle_bootstrap_employee(self):
         """Initialize per-employee data/balances on login with enhanced error handling"""
