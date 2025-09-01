@@ -595,6 +595,20 @@ tr:hover {
     border-radius: 4px;
 }
 
+.approve-btn {
+    background: var(--success-color);
+    color: #fff;
+    border: 2px solid var(--success-color);
+    cursor: pointer;
+}
+
+.reject-btn {
+    background: var(--error-color);
+    color: #fff;
+    border: 2px solid var(--error-color);
+    cursor: pointer;
+}
+
 /* Notification Styles */
 .notifications-section {
     margin-bottom: 30px;

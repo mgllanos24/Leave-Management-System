@@ -1310,8 +1310,7 @@ async function loadLeaveApplications() {
                 <td>${app.end_date}</td>
                 <td>${app.total_days}</td>
                 <td>${app.status}</td>
-                <td>${app.date_applied || ''}</td>
-                <td>
+                <td class="application-actions">
                     <button class="approve-btn">Approve</button>
                     <button class="reject-btn">Reject</button>
                 </td>
@@ -1334,7 +1333,7 @@ async function loadLeaveApplications() {
 
         if (applications.length === 0) {
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="9">No leave applications found</td>';
+            row.innerHTML = '<td colspan="8">No leave applications found</td>';
             tbody.appendChild(row);
         }
     } catch (error) {
@@ -1370,15 +1369,13 @@ async function loadLeaveHistory(employeeId) {
                 <td>${app.end_date}</td>
                 <td>${app.total_days}</td>
                 <td>${app.status}</td>
-                <td>${app.date_applied || ''}</td>
-                <td>—</td>
             `;
             tbody.appendChild(row);
         });
 
         if (apps.length === 0) {
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="8">No leave applications found</td>';
+            row.innerHTML = '<td colspan="6">No leave applications found</td>';
             tbody.appendChild(row);
         }
     } catch (error) {
