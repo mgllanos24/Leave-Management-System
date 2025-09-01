@@ -1408,7 +1408,9 @@ async function loadEmployeeSummary() {
             const info = summary.get(app.employee_id);
             if (!info) return;
 
-            const types = (app.leave_type || '').split(',').map(t => t.trim().toUpperCase());
+            const types = (app.leave_type || '')
+                .split(',')
+                .map(t => t.trim().toLowerCase());
             const days = parseFloat(app.total_days) || 0;
 
             if (app.status === 'Pending') {
@@ -1417,10 +1419,13 @@ async function loadEmployeeSummary() {
             }
 
             if (app.status === 'Approved') {
+                const privilegeTypes = ['privilege', 'pl', 'vacation-annual', 'personal'];
+                const sickTypes = ['sick', 'sl'];
+
                 types.forEach(t => {
-                    if (t === 'PRIVILEGE' || t === 'PL') {
+                    if (privilegeTypes.includes(t)) {
                         info.privilegeUsed += days;
-                    } else if (t === 'SICK' || t === 'SL') {
+                    } else if (sickTypes.includes(t)) {
                         info.sickUsed += days;
                     }
                 });
