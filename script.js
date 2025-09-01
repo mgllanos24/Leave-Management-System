@@ -1082,6 +1082,7 @@ async function initializeApp() {
         // Load initial data
         await loadEmployeeList();
         await loadLeaveApplications();
+        await loadEmployeeSummary();
         await loadHolidays();
         
         // Set up form handlers and other functionality
@@ -1391,6 +1392,113 @@ async function loadLeaveApplications() {
     }
 }
 
+// Load summary of employee leave usage and balances
+async function loadEmployeeSummary() {
+    try {
+        const [employees, balances, applications] = await Promise.all([
+            room.collection('employee').getList(),
+            room.collection('leave_balance').getList(),
+            room.collection('leave_application').getList()
+        ]);
+
+        const summary = new Map();
+
+        employees.forEach(emp => {
+            const name = emp.first_name
+                ? `${emp.first_name} ${emp.surname || ''}`.trim()
+                : emp.employee_name || emp.username || emp.email || emp.id;
+            summary.set(emp.id, {
+                name,
+                privilegeAllocated: 0,
+                privilegeUsed: 0,
+                privilegeRemaining: 0,
+                sickAllocated: 0,
+                sickUsed: 0,
+                sickRemaining: 0,
+                activeRequests: 0
+            });
+        });
+
+        balances.forEach(bal => {
+            const info = summary.get(bal.employee_id);
+            if (!info) return;
+            const allocated = (parseFloat(bal.allocated_days) || 0) +
+                (parseFloat(bal.carryforward_days) || 0);
+            const remaining = parseFloat(bal.remaining_days) || 0;
+
+            if (bal.balance_type === 'PRIVILEGE') {
+                info.privilegeAllocated = allocated;
+                info.privilegeRemaining = remaining;
+            } else if (bal.balance_type === 'SICK') {
+                info.sickAllocated = allocated;
+                info.sickRemaining = remaining;
+            }
+        });
+
+        applications.forEach(app => {
+            const info = summary.get(app.employee_id);
+            if (!info) return;
+
+            const types = (app.leave_type || '').split(',').map(t => t.trim().toUpperCase());
+            const days = parseFloat(app.total_days) || 0;
+
+            if (app.status === 'Pending') {
+                info.activeRequests += 1;
+                return;
+            }
+
+            if (app.status === 'Approved') {
+                types.forEach(t => {
+                    if (t === 'PRIVILEGE' || t === 'PL') {
+                        info.privilegeUsed += days;
+                    } else if (t === 'SICK' || t === 'SL') {
+                        info.sickUsed += days;
+                    }
+                });
+            }
+        });
+
+        summary.forEach(info => {
+            if (info.privilegeAllocated && !info.privilegeRemaining) {
+                info.privilegeRemaining = info.privilegeAllocated - info.privilegeUsed;
+            }
+            if (info.sickAllocated && !info.sickRemaining) {
+                info.sickRemaining = info.sickAllocated - info.sickUsed;
+            }
+        });
+
+        const tbody = document.getElementById('employeeStatusTableBody');
+        if (!tbody) {
+            console.warn('employeeStatusTableBody element not found');
+            return;
+        }
+        tbody.innerHTML = '';
+
+        for (const info of summary.values()) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${info.name}</td>
+                <td>${info.privilegeAllocated}</td>
+                <td>${info.privilegeUsed}</td>
+                <td>${info.privilegeRemaining}</td>
+                <td>${info.sickAllocated}</td>
+                <td>${info.sickUsed}</td>
+                <td>${info.sickRemaining}</td>
+                <td>${info.activeRequests}</td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        if (summary.size === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="8">No employee data found</td>';
+            tbody.appendChild(row);
+        }
+    } catch (error) {
+        console.error('Error loading employee summary:', error);
+    }
+}
+
 async function updateApplicationStatus(id, newStatus) {
     showLoading();
 
@@ -1402,6 +1510,7 @@ async function updateApplicationStatus(id, newStatus) {
         await room.collection('leave_application').update(id, { status: newStatus });
         await loadLeaveApplications();
         await loadApprovedLeaves();
+        await loadEmployeeSummary();
         alert('Application status updated successfully');
     } catch (error) {
         const requestUrl = `leave_application/${id}`;
@@ -1566,9 +1675,12 @@ function switchTab(tabName) {
         }
     }
 
-    // Load leave history when user views the history tab
+    // Load tab-specific data when needed
     if (tabName === 'check-history' && currentUser) {
         loadLeaveHistory(currentUser.id);
+    } else if (tabName === 'application-status') {
+        loadEmployeeSummary();
+        loadLeaveApplications();
     }
 }
 
@@ -1662,3 +1774,4 @@ window.filterApplications = filterApplications;
 window.exportDatabaseBackup = exportDatabaseBackup;
 window.importDatabaseBackup = importDatabaseBackup;
 window.updateApplicationStatus = updateApplicationStatus;
+window.loadEmployeeSummary = loadEmployeeSummary;
