@@ -303,6 +303,91 @@ def get_employee_balances(employee_id=None):
         finally:
             conn.close()
 
+# Reset all balances for active employees
+def reset_all_balances(year=None):
+    """Reset leave balances for all active employees"""
+    if year is None:
+        year = datetime.now().year
+
+    current_time = datetime.now().isoformat()
+
+    with db_lock:
+        conn = get_db_connection()
+        try:
+            cursor = conn.execute('SELECT id FROM employees WHERE is_active = 1')
+            employees = [row['id'] for row in cursor.fetchall()]
+
+            for emp_id in employees:
+                for balance_type, allocation in (
+                    ('PRIVILEGE', DEFAULT_PRIVILEGE_LEAVE),
+                    ('SICK', DEFAULT_SICK_LEAVE),
+                ):
+                    prev_cursor = conn.execute(
+                        'SELECT remaining_days FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',
+                        (emp_id, balance_type, year),
+                    )
+                    prev_row = prev_cursor.fetchone()
+                    previous = prev_row['remaining_days'] if prev_row else 0
+
+                    conn.execute(
+                        '''
+                        INSERT INTO leave_balances
+                        (id, employee_id, balance_type, allocated_days, used_days, remaining_days,
+                         carryforward_days, year, last_updated, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                        ON CONFLICT(employee_id, balance_type, year) DO UPDATE SET
+                            allocated_days=excluded.allocated_days,
+                            used_days=excluded.used_days,
+                            remaining_days=excluded.remaining_days,
+                            carryforward_days=excluded.carryforward_days,
+                            last_updated=excluded.last_updated
+                        ''',
+                        (
+                            str(uuid.uuid4()),
+                            emp_id,
+                            balance_type,
+                            allocation,
+                            0,
+                            allocation,
+                            year,
+                            current_time,
+                            current_time,
+                        ),
+                    )
+
+                    if ENABLE_BALANCE_AUDIT:
+                        conn.execute(
+                            '''
+                            INSERT INTO leave_balance_history
+                            (id, employee_id, balance_type, change_type, change_amount,
+                             previous_balance, new_balance, reason, application_id,
+                             changed_by, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ''',
+                            (
+                                str(uuid.uuid4()),
+                                emp_id,
+                                balance_type,
+                                'RESET',
+                                allocation,
+                                previous,
+                                allocation,
+                                'Yearly balance reset',
+                                None,
+                                'SYSTEM',
+                                current_time,
+                            ),
+                        )
+
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
+    return True
+
 # @tweakable: The name of the person or system making manual balance edits.
 MANUAL_EDIT_ACTOR_NAME = "Admin"
 
