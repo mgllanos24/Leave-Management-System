@@ -48,9 +48,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
     def do_POST(self):
-        if self.path == '/send-notification':
-            self.handle_email_notification()
-        elif self.path == '/api/bootstrap_employee':
+        if self.path == '/api/bootstrap_employee':
             self.handle_bootstrap_employee()
         elif self.path.startswith('/api/'):
             self.handle_api_request()
@@ -310,6 +308,25 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     initialize_employee_balances(record_id)
                 except Exception as balance_error:
                     pass
+
+            # Send notification email for newly submitted leave applications
+            if collection == 'leave_application':
+                admin_email = ADMIN_EMAIL
+                subject = "New Leave Request Submitted"
+                body = (
+                    f"Employee: {data.get('employee_name', 'Unknown')}\n"
+                    f"Leave type: {data.get('leave_type', '')}\n"
+                    f"Dates: {data.get('start_date', '')} to {data.get('end_date', '')}\n"
+                    f"Total days: {data.get('total_days', 0)}\n"
+                    f"Reason: {data.get('reason', '')}"
+                )
+                try:
+                    if send_notification_email(admin_email, subject, body):
+                        logging.info("Notification email sent to %s", admin_email)
+                    else:
+                        logging.error("Failed to send notification email to %s", admin_email)
+                except Exception as email_error:
+                    logging.error("Error sending notification email: %s", email_error)
 
             # Return the created record
             created_record = dict(data)
@@ -609,32 +626,6 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_cors_headers()
         error_message = message if message else self.responses.get(code, ('', ''))[0]
         self._safe_write(json.dumps({'error': error_message}).encode('utf-8'))
-    
-    def handle_email_notification(self):
-        try:
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            email_data = json.loads(post_data.decode('utf-8'))
-            
-            # Send email
-            success = send_notification_email(
-                email_data['to'],
-                email_data['subject'],
-                email_data['body']
-            )
-            
-            if success:
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.send_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({'status': 'success'}).encode())
-            else:
-                self.send_error(500, "Email sending failed")
-                
-        except Exception as e:
-            print(f"Error handling email notification: {e}")
-            self.send_error(500, "Internal Server Error")
     
     def handle_bootstrap_employee(self):
         """Initialize per-employee data/balances on login with enhanced error handling"""
