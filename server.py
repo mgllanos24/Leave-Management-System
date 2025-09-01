@@ -53,6 +53,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/api/bootstrap_employee':
             self.handle_bootstrap_employee()
+        elif self.path == '/api/login_admin':
+            self.handle_login_admin()
         elif self.path.startswith('/api/'):
             self.handle_api_request()
         else:
@@ -606,6 +608,27 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         self.send_cors_headers()
         error_message = message if message else self.responses.get(code, ('', ''))[0]
         self._safe_write(json.dumps({'error': error_message}).encode('utf-8'))
+
+    def handle_login_admin(self):
+        """Handle admin login requests and return a success message without a token."""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length else b'{}'
+            data = json.loads(body.decode('utf-8'))
+
+            username = data.get('username', '').strip()
+            password = data.get('password', '').strip()
+
+            valid_username = 'admin'
+            valid_password = 'admin123'
+
+            if username == valid_username and password == valid_password:
+                self.send_json_response({'message': 'Login successful'})
+            else:
+                self.send_error(401, 'Invalid credentials')
+
+        except Exception as e:
+            self.send_error(500, f'Login failed: {str(e)}')
     
     def handle_bootstrap_employee(self):
         """Initialize per-employee data/balances on login with enhanced error handling"""

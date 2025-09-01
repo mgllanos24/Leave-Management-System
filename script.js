@@ -934,28 +934,31 @@ async function loginEmployee(email) {
 }
 
 async function loginAdmin(username, password) {
-    /* @tweakable admin login credentials */
-    const validAdminUsername = 'admin';
-    const validAdminPassword = 'admin123';
-    
     try {
         showLoading();
-        
-        if (username === validAdminUsername && password === validAdminPassword) {
-            currentUserType = 'admin';
-            currentUser = { username: username, first_name: 'Administrator', email: 'admin@company.com' };
 
-            sessionToken = 'admin-token';
-            sessionStorage.setItem(AUTH_TYPE_KEY, currentUserType);
-            sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
-            sessionStorage.setItem(AUTH_TOKEN_KEY, sessionToken);
-            
-            hideLoading();
-            showMainApp();
-        } else {
-            throw new Error('Invalid credentials');
+        const response = await fetch('/api/login_admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Login failed: ${response.status}`);
         }
-        
+
+        await response.json();
+
+        currentUserType = 'admin';
+        currentUser = { username: username, first_name: 'Administrator', email: 'admin@company.com' };
+        sessionToken = null;
+
+        sessionStorage.setItem(AUTH_TYPE_KEY, currentUserType);
+        sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+
+        hideLoading();
+        showMainApp();
+
     } catch (error) {
         hideLoading();
         alert(`Login failed: ${error.message}`);
