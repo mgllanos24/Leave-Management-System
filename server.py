@@ -365,7 +365,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 conn = get_db_connection()
                 try:
                     current_time = datetime.now().isoformat()
-                    
+
                     if collection == 'employee':
                         # Enhanced employee update validation
                         if ENABLE_EMPLOYEE_VALIDATION:
@@ -415,6 +415,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             print(f"📝 Employee updated: {record_id}")
 
                         conn.commit()
+
+                        response_payload = dict(data)
+                        response_payload['id'] = record_id
+                        response_payload['updated_at'] = current_time
 
                     elif collection == 'leave_application':
                         # Get current status before update
@@ -527,18 +531,56 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         except Exception as prep_err:
                             print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
 
+                        response_payload = dict(data)
+                        response_payload['id'] = record_id
+                        response_payload['updated_at'] = current_time
+
+                    elif collection == 'leave_balance':
+                        remaining_days = data.get('remaining_days')
+                        if remaining_days is None:
+                            self.send_error(400, "remaining_days is required")
+                            return
+
+                        cursor = conn.execute(
+                            'SELECT allocated_days FROM leave_balances WHERE id = ?',
+                            (record_id,),
+                        )
+                        record = cursor.fetchone()
+                        if not record:
+                            self.send_error(404, "Record not found")
+                            return
+
+                        allocated_days = record['allocated_days']
+                        used_days = allocated_days - float(remaining_days)
+
+                        cursor = conn.execute(
+                            'UPDATE leave_balances SET remaining_days = ?, used_days = ?, last_updated = ? WHERE id = ?',
+                            (remaining_days, used_days, current_time, record_id),
+                        )
+
+                        if cursor.rowcount == 0:
+                            self.send_error(404, "Record not found")
+                            return
+
+                        conn.commit()
+
+                        cursor = conn.execute(
+                            'SELECT * FROM leave_balances WHERE id = ?', (record_id,)
+                        )
+                        updated = cursor.fetchone()
+                        response_payload = dict(updated) if updated else {
+                            'id': record_id,
+                            'remaining_days': remaining_days,
+                            'used_days': used_days,
+                            'last_updated': current_time,
+                        }
+
                     else:
                         self.send_error(404, f"Collection '{collection}' not found")
                         return
 
-                    
-                    # Return updated record
-                    updated_record = dict(data)
-                    updated_record['id'] = record_id
-                    updated_record['updated_at'] = current_time
-                    
-                    self.send_json_response(updated_record)
-                    
+                    self.send_json_response(response_payload)
+
                 finally:
                     conn.close()
                     
