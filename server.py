@@ -377,7 +377,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         record_id = path_parts[3]
         
         try:
-            content_length = int(self.headers['Content-Length'])
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length <= 0:
+                self.send_error(400, "Content-Length header missing or zero")
+                return
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode('utf-8'))
             
