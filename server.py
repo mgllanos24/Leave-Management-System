@@ -577,89 +577,70 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def handle_bootstrap_employee(self):
         """Initialize per-employee data/balances on login with enhanced error handling"""
         # @tweakable timeout for bootstrap operations in seconds
-        BOOTSTRAP_TIMEOUT = 10
         # @tweakable whether to enable detailed bootstrap logging
         DETAILED_BOOTSTRAP_LOGGING = True
-        
+
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length) if content_length else b'{}'
             data = json.loads(body.decode('utf-8'))
             email = (data.get('email') or '').strip().lower()
-            
+
             if not email:
                 self.send_error(400, "email is required")
                 return
-                
+
             if DETAILED_BOOTSTRAP_LOGGING:
                 print(f"🔄 Bootstrapping employee data for: {email}")
-            
+
+            # Find employee without holding the DB lock
+            conn = get_db_connection()
+            try:
+                cur = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
+                row = cur.fetchone()
+
+                if not row:
+                    # Check if employee exists but is inactive
+                    inactive_cur = conn.execute('SELECT COUNT(*) as count FROM employees WHERE personal_email = ? AND is_active = 0', (email,))
+                    inactive_count = inactive_cur.fetchone()['count']
+
+                    if inactive_count > 0:
+                        error_msg = f"Employee with email {email} exists but is inactive"
+                    else:
+                        error_msg = f"Employee with email {email} not found in database"
+
+                    if DETAILED_BOOTSTRAP_LOGGING:
+                        print(f"❌ Bootstrap failed: {error_msg}")
+
+                    self.send_error(404, error_msg)
+                    return
+
+                employee = dict(row)
+            finally:
+                conn.close()
+
+            if DETAILED_BOOTSTRAP_LOGGING:
+                print(f"✅ Found employee: {employee['first_name']} {employee['surname']} (ID: {employee['id']})")
+
+            # Initialize balances synchronously
+            balance_initialized = initialize_employee_balances(employee['id'])
+            if not balance_initialized:
+                raise Exception("Balance initialization returned false")
+
+            # Query balances for response while holding the DB lock
             with db_lock:
                 conn = get_db_connection()
                 try:
-                    # Find employee with detailed error reporting
-                    cur = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
-                    row = cur.fetchone()
-                    
-                    if not row:
-                        # Check if employee exists but is inactive
-                        inactive_cur = conn.execute('SELECT COUNT(*) as count FROM employees WHERE personal_email = ? AND is_active = 0', (email,))
-                        inactive_count = inactive_cur.fetchone()['count']
-                        
-                        if inactive_count > 0:
-                            error_msg = f"Employee with email {email} exists but is inactive"
-                        else:
-                            error_msg = f"Employee with email {email} not found in database"
-                            
-                        if DETAILED_BOOTSTRAP_LOGGING:
-                            print(f"❌ Bootstrap failed: {error_msg}")
-                        
-                        self.send_error(404, error_msg)
-                        return
-                    
-                    employee = dict(row)
-                    
-                    if DETAILED_BOOTSTRAP_LOGGING:
-                        print(f"✅ Found employee: {employee['first_name']} {employee['surname']} (ID: {employee['id']})")
-                    
-                    # Initialize balances with timeout protection
-                    import threading
-                    balance_init_result = [None]  # Use list for mutable reference
-                    balance_init_error = [None]
-                    
-                    def init_balances():
-                        try:
-                            result = initialize_employee_balances(employee['id'])
-                            balance_init_result[0] = result
-                        except Exception as e:
-                            balance_init_error[0] = e
-                    
-                    balance_thread = threading.Thread(target=init_balances)
-                    balance_thread.start()
-                    balance_thread.join(timeout=BOOTSTRAP_TIMEOUT)
-                    
-                    if balance_thread.is_alive():
-                        # Timeout occurred
-                        raise Exception(f"Balance initialization timed out after {BOOTSTRAP_TIMEOUT} seconds")
-                    
-                    if balance_init_error[0]:
-                        raise balance_init_error[0]
-                    
-                    if not balance_init_result[0]:
-                        raise Exception("Balance initialization returned false")
-                    
-                    # Get balances for response
                     curb = conn.execute('SELECT * FROM leave_balances WHERE employee_id = ? ORDER BY balance_type, year', (employee['id'],))
                     balances = [dict(r) for r in curb.fetchall()]
-                    
-                    if DETAILED_BOOTSTRAP_LOGGING:
-                        print(f"✅ Bootstrap completed for {email} with {len(balances)} balance records")
-                    
-                    self.send_json_response({'employee': employee, 'balances': balances})
-                    
                 finally:
                     conn.close()
-                    
+
+            if DETAILED_BOOTSTRAP_LOGGING:
+                print(f"✅ Bootstrap completed for {email} with {len(balances)} balance records")
+
+            self.send_json_response({'employee': employee, 'balances': balances})
+
         except Exception as e:
             print(f"❌ Bootstrap error for {email if 'email' in locals() else 'unknown'}: {e}")
             self.send_error(500, f"Bootstrap failed: {str(e)}")
