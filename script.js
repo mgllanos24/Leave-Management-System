@@ -96,22 +96,29 @@ class BackendCollection {
         }
     }
 
-    async getList() {
+    async getList(params = {}) {
+        const queryString = new URLSearchParams(params).toString();
         try {
-            // Check cache validity
+            // Check cache validity for unfiltered requests
             const now = Date.now();
-            if (this.cachedData.length > 0 && now - this.lastFetchTime < this.cacheTimeout) {
+            if (!queryString && this.cachedData.length > 0 && now - this.lastFetchTime < this.cacheTimeout) {
                 return this.applyFilters(this.cachedData);
             }
-            
-            const data = await this.makeRequest('GET');
-            this.cachedData = data || [];
-            this.lastFetchTime = now;
-            
-            return this.applyFilters(this.cachedData);
+
+            const data = await this.makeRequest('GET', queryString ? `?${queryString}` : '');
+            if (!queryString) {
+                this.cachedData = data || [];
+                this.lastFetchTime = now;
+                return this.applyFilters(this.cachedData);
+            }
+
+            return this.applyFilters(data || []);
         } catch (error) {
             console.error(`Error fetching ${this.name}:`, error);
-            return this.applyFilters(this.cachedData); // Return cached data on error
+            if (!queryString) {
+                return this.applyFilters(this.cachedData); // Return cached data on error for unfiltered requests
+            }
+            return this.applyFilters([]);
         }
     }
 
@@ -1340,7 +1347,7 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
 
 async function loadLeaveApplications() {
     try {
-        const applications = await room.collection('leave_application').getList();
+        const applications = await room.collection('leave_application').getList({ status: 'Pending' });
 
         const tbody = document.getElementById('applicationsTableBody');
         if (!tbody) {
