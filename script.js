@@ -633,7 +633,11 @@ function setupCriticalFormHandlers() {
             
             await submitLeaveApplication(e);
         });
-        
+
+        vacationForm.addEventListener('reset', function() {
+            updateEmployeeInfo();
+        });
+
         if (debugImmediateSetup) {
             console.log('✅ Vacation form submit handler attached immediately');
         }
@@ -816,6 +820,34 @@ async function setupLoginHandlers() {
     }
 }
 
+function generatePreviewApplicationId() {
+    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase();
+    return `APP-${datePart}-${randomPart}`;
+}
+
+async function updateEmployeeInfo() {
+    const nameEl = document.getElementById('employeeDisplayName');
+    if (nameEl && currentUser) {
+        nameEl.textContent = `${currentUser.first_name} ${currentUser.surname}`;
+    }
+
+    const idPreviewEl = document.getElementById('applicationIdPreview');
+    if (idPreviewEl) {
+        let previewId = generatePreviewApplicationId();
+        try {
+            const resp = await fetch('/api/next_application_id');
+            if (resp.ok) {
+                const data = await resp.json();
+                previewId = data.application_id || previewId;
+            }
+        } catch (err) {
+            // Use generated previewId on error or if endpoint not available
+        }
+        idPreviewEl.textContent = previewId;
+    }
+}
+
 async function loginEmployee(email) {
     /* @tweakable employee login timeout in milliseconds */
     const loginTimeout = 5000;
@@ -834,10 +866,11 @@ async function loginEmployee(email) {
         }
         
         const data = await response.json();
-        
+
         currentUserType = 'employee';
         currentUser = data.employee;
-        
+        await updateEmployeeInfo();
+
         if (PERSIST_AUTH_STATE) {
             localStorage.setItem(AUTH_TYPE_KEY, currentUserType);
             localStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
@@ -1166,14 +1199,15 @@ async function submitLeaveApplication(event) {
         };
         
         const result = await room.collection('leave_application').create(applicationData);
-        
+
         // Show success modal
         document.getElementById('requestId').textContent = result.application_id || result.id;
         document.getElementById('successModal').classList.add('show');
-        
+
         // Reset form
         event.target.reset();
         calculateLeaveDuration();
+        await updateEmployeeInfo();
         
     } catch (error) {
         alert(`Error submitting leave request: ${error.message}`);
