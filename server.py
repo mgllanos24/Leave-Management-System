@@ -35,6 +35,17 @@ ADMIN_EMAIL = "mgllanos@gmail.com"
 AUTO_CREATE_BALANCE_RECORDS = True
 
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
+    def send_cors_headers(self):
+        """Add CORS headers to the response"""
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests"""
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
     def do_POST(self):
         if self.path == '/send-notification':
             self.handle_email_notification()
@@ -485,14 +496,24 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             finally:
                 conn.close()
     
-    def send_json_response(self, data):
-        """Send JSON response"""
+    def send_json_response(self, data, status=200):
+        """Send JSON response with CORS headers"""
         response_data = json.dumps(data, ensure_ascii=False, indent=2)
-        self.send_response(200)
+        self.send_response(status)
         self.send_header('Content-Type', 'application/json')
+        self.send_cors_headers()
         self.send_header('Content-Length', str(len(response_data.encode('utf-8'))))
         self.end_headers()
         self.wfile.write(response_data.encode('utf-8'))
+
+    def send_error(self, code, message=None, explain=None):
+        """Send error response with CORS headers"""
+        self.send_response(code, message)
+        self.send_header('Content-Type', 'application/json')
+        self.send_cors_headers()
+        self.end_headers()
+        error_message = message if message else self.responses.get(code, ('', ''))[0]
+        self.wfile.write(json.dumps({'error': error_message}).encode('utf-8'))
     
     def handle_email_notification(self):
         try:
@@ -510,6 +531,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if success:
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
+                self.send_cors_headers()
                 self.end_headers()
                 self.wfile.write(json.dumps({'status': 'success'}).encode())
             else:
