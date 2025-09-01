@@ -1356,8 +1356,27 @@ async function updateApplicationStatus(id, newStatus) {
         await loadApprovedLeaves();
         alert('Application status updated successfully');
     } catch (error) {
-        console.error('Error updating application status:', error);
-        alert(`Failed to update application status: ${error.message}`);
+        const requestUrl = `leave_application/${id}`;
+        const status = error?.response?.status || error.status;
+        let responseBody = '';
+
+        if (error?.response) {
+            try {
+                responseBody = await error.response.text();
+            } catch (e) {
+                responseBody = error?.response?.body || e.message;
+            }
+        } else {
+            responseBody = error.message;
+        }
+
+        console.error('Error updating application status:', {
+            requestUrl,
+            status,
+            responseBody,
+            originalError: error,
+        });
+        alert(`Failed to update application status for ID ${id}. ${status ? `Status: ${status}.` : ''}`);
     } finally {
         actionButtons.forEach(btn => (btn.disabled = false));
         hideLoading();
