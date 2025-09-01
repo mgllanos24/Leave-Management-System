@@ -11,7 +11,7 @@ import time
 # Moved from server.py - balance management functions
 # @tweakable balance management configuration
 AUTO_UPDATE_BALANCES = True
-PREVENT_NEGATIVE_BALANCES = True
+PREVENT_NEGATIVE_BALANCES = False
 ENABLE_BALANCE_AUDIT = True
 # Checkbox values that map to privilege leave
 # These correspond to the `value` attributes in index.html
