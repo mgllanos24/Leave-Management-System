@@ -1452,14 +1452,16 @@ async function loadEmployeeSummary() {
         for (const info of summary.values()) {
             if (filter && !info.name.toLowerCase().includes(filter)) continue;
             const row = document.createElement('tr');
+            const pClass = info.privilegeRemaining <= 0 ? "remaining-alert" : "";
+            const sClass = info.sickRemaining <= 0 ? "remaining-alert" : "";
             row.innerHTML = `
                 <td>${info.name}</td>
                 <td>${info.privilegeAllocated}</td>
                 <td>${info.privilegeUsed}</td>
-                <td>${info.privilegeRemaining}</td>
+                <td class="${pClass}">${info.privilegeRemaining}</td>
                 <td>${info.sickAllocated}</td>
                 <td>${info.sickUsed}</td>
-                <td>${info.sickRemaining}</td>
+                <td class="${sClass}">${info.sickRemaining}</td>
                 <td>${info.activeRequests}</td>
             `;
             tbody.appendChild(row);
