@@ -118,7 +118,14 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     results = [dict(row) for row in cursor.fetchall()]
                     
                 elif collection == 'leave_application':
-                    cursor = conn.execute('SELECT * FROM leave_applications ORDER BY created_at DESC')
+                    # Get leave applications with optional employee filter
+                    if 'employee_id' in query:
+                        cursor = conn.execute(
+                            'SELECT * FROM leave_applications WHERE employee_id = ? ORDER BY created_at DESC',
+                            (query['employee_id'][0],)
+                        )
+                    else:
+                        cursor = conn.execute('SELECT * FROM leave_applications ORDER BY created_at DESC')
                     results = [dict(row) for row in cursor.fetchall()]
                 elif collection == 'holiday':
                     cursor = conn.execute('SELECT * FROM holidays ORDER BY date')

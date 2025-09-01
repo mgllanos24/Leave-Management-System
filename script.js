@@ -1239,6 +1239,40 @@ async function loadLeaveApplications() {
     }
 }
 
+async function loadLeaveHistory(employeeId) {
+    try {
+        const apps = await room
+            .collection('leave_application')
+            .makeRequest('GET', `?employee_id=${encodeURIComponent(employeeId)}`);
+
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = '';
+
+        apps.forEach(app => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${app.application_id || app.id}</td>
+                <td>${app.leave_type}</td>
+                <td>${app.start_date}</td>
+                <td>${app.end_date}</td>
+                <td>${app.total_days}</td>
+                <td>${app.status}</td>
+                <td>${app.date_applied || ''}</td>
+                <td>—</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        if (apps.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="8">No leave applications found</td>';
+            tbody.appendChild(row);
+        }
+    } catch (error) {
+        console.error('Error loading leave history:', error);
+    }
+}
+
 async function loadHolidays() {
     try {
         const holidays = await room.collection('holiday').getList();
@@ -1276,6 +1310,11 @@ function switchTab(tabName) {
     const targetButton = document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1).replace('-', '')}`);
     if (targetButton) {
         targetButton.classList.add('active');
+    }
+
+    // Load leave history when user views the history tab
+    if (tabName === 'check-history' && currentUser) {
+        loadLeaveHistory(currentUser.id);
     }
 }
 
