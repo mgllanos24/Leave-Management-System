@@ -1143,13 +1143,17 @@ function setupLeaveApplication() {
 function setupDateCalculation() {
     /* @tweakable whether to enable automatic date calculation */
     const enableAutoCalculation = true;
-    
+
     const startDate = document.getElementById('startDate');
     const endDate = document.getElementById('endDate');
-    
+    const startDayRadios = document.querySelectorAll('input[name="startDayType"]');
+    const endDayRadios = document.querySelectorAll('input[name="endDayType"]');
+
     if (startDate && endDate && enableAutoCalculation) {
         startDate.addEventListener('change', calculateLeaveDuration);
         endDate.addEventListener('change', calculateLeaveDuration);
+        startDayRadios.forEach(radio => radio.addEventListener('change', calculateLeaveDuration));
+        endDayRadios.forEach(radio => radio.addEventListener('change', calculateLeaveDuration));
     }
 }
 
@@ -1157,14 +1161,18 @@ function calculateLeaveDuration() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
     const durationText = document.getElementById('durationText');
-    
+    const startDayType = document.querySelector('input[name="startDayType"]:checked')?.value || 'full';
+    const endDayType = document.querySelector('input[name="endDayType"]:checked')?.value || 'full';
+
     if (startDate && endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
-        
+
         if (end >= start) {
-            const timeDiff = end.getTime() - start.getTime();
-            const dayDiff = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+            const msInDay = 1000 * 3600 * 24;
+            let dayDiff = (end.getTime() - start.getTime()) / msInDay + 1;
+            if (startDayType !== 'full') dayDiff -= 0.5;
+            if (endDayType !== 'full') dayDiff -= 0.5;
             durationText.textContent = `Duration: ${dayDiff} day(s)`;
         } else {
             durationText.textContent = 'End date must be after start date';
@@ -1204,19 +1212,24 @@ async function submitLeaveApplication(event) {
         const leaveTypes = Array.from(document.querySelectorAll('input[name="leaveType"]:checked'))
             .map(cb => cb.value);
         
-        const applicationData = {
-            employee_id: currentUser.id,
-            employee_name: `${currentUser.first_name} ${currentUser.surname}`,
-            start_date: formData.get('startDate'),
-            end_date: formData.get('endDate'),
-            start_day_type: formData.get('startDayType'),
-            end_day_type: formData.get('endDayType'),
-            leave_type: leaveTypes.join(', '),
-            selected_reasons: leaveTypes,
-            reason: formData.get('reason'),
-            total_days: calculateTotalDays(formData.get('startDate'), formData.get('endDate')),
-            status: 'Pending'
-        };
+    const applicationData = {
+        employee_id: currentUser.id,
+        employee_name: `${currentUser.first_name} ${currentUser.surname}`,
+        start_date: formData.get('startDate'),
+        end_date: formData.get('endDate'),
+        start_day_type: formData.get('startDayType'),
+        end_day_type: formData.get('endDayType'),
+        leave_type: leaveTypes.join(', '),
+        selected_reasons: leaveTypes,
+        reason: formData.get('reason'),
+        total_days: calculateTotalDays(
+            formData.get('startDate'),
+            formData.get('endDate'),
+            formData.get('startDayType'),
+            formData.get('endDayType')
+        ),
+        status: 'Pending'
+    };
         
         const result = await room.collection('leave_application').create(applicationData);
 
@@ -1236,17 +1249,22 @@ async function submitLeaveApplication(event) {
     }
 }
 
-function calculateTotalDays(startDate, endDate) {
+function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
     if (!startDate || !endDate) return 0;
-    
+
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
     if (end >= start) {
-        const timeDiff = end.getTime() - start.getTime();
-        return Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+        const msInDay = 1000 * 3600 * 24;
+        let dayDiff = (end.getTime() - start.getTime()) / msInDay + 1;
+        const startType = startDayType || document.querySelector('input[name="startDayType"]:checked')?.value || 'full';
+        const endType = endDayType || document.querySelector('input[name="endDayType"]:checked')?.value || 'full';
+        if (startType !== 'full') dayDiff -= 0.5;
+        if (endType !== 'full') dayDiff -= 0.5;
+        return dayDiff;
     }
-    
+
     return 0;
 }
 
