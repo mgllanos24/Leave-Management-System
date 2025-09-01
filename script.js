@@ -1320,13 +1320,13 @@ async function loadLeaveApplications() {
             const approveBtn = row.querySelector('.approve-btn');
             if (approveBtn) {
                 approveBtn.addEventListener('click', () =>
-                    updateApplicationStatus(app.id, 'Approved')
+                    updateApplicationStatus(app.id ?? app.application_id, 'Approved')
                 );
             }
             const rejectBtn = row.querySelector('.reject-btn');
             if (rejectBtn) {
                 rejectBtn.addEventListener('click', () =>
-                    updateApplicationStatus(app.id, 'Rejected')
+                    updateApplicationStatus(app.id ?? app.application_id, 'Rejected')
                 );
             }
         });
