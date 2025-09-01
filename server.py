@@ -671,7 +671,7 @@ def run_server(port=8080):
         print("📊 Initializing database...")
         init_database()
         
-        with socketserver.TCPServer(("", port), LeaveManagementHandler) as httpd:
+        with socketserver.ThreadingTCPServer(("", port), LeaveManagementHandler) as httpd:
             print(f"Server running at http://localhost:{port}")
             print("Press Ctrl+C to stop the server")
             httpd.serve_forever()
