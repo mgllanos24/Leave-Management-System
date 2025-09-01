@@ -48,7 +48,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
         """Add CORS headers to the response"""
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
     def do_OPTIONS(self):
         """Handle CORS preflight requests"""
