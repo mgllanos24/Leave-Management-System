@@ -874,6 +874,7 @@ async function updateEmployeeInfo() {
     } else {
         let previewId = generatePreviewApplicationId();
         try {
+            // Request a server-generated ID for consistency with stored applications
             const resp = await fetch('/api/next_application_id');
             if (resp.ok) {
                 const data = await resp.json();

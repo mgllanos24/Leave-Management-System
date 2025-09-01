@@ -106,6 +106,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_get_request(self, collection, path_parts, query_string):
         """Handle GET requests"""
+        if collection == 'next_application_id':
+            # Generate unique application ID similar to creation logic
+            next_id = f"APP-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+            self.send_json_response({'application_id': next_id})
+            return
+
         with db_lock:
             conn = get_db_connection()
             try:
