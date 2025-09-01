@@ -87,23 +87,24 @@
                         <span id="employeeDisplayName">Please log in first</span>
                         <small id="applicationIdPreview" style="display: block; color: #64748b; margin-top: 5px;">Application ID will be generated upon submission</small>
                     </div>
-                    <!-- Leave Balance Display -->
-                    <div id="leaveBalanceDisplay" class="leave-balance-display" style="display: none;">
-                        <h3>📊 Available Leave Balance</h3>
-                        <div class="balance-row">
-                            <div class="balance-item privilege-leave">
-                                <span class="balance-label">🏖️ Privilege Leave (PL):</span>
-                                <span class="balance-value" id="privilegeLeaveBalance">-- days</span>
-                            </div>
-                            <div class="balance-item sick-leave">
-                                <span class="balance-label">🤒 Sick Leave (SL):</span>
-                                <span class="balance-value" id="sickLeaveBalance">-- days</span>
-                            </div>
-                        </div>
-                        <small class="balance-note" id="balanceUpdateNote">Balance updates automatically when leave requests are approved.</small>
-                    </div>
                 </div>
             </section>
+
+            <!-- Leave Balance Display moved above Vacation Dates -->
+            <div id="leaveBalanceDisplay" class="leave-balance-display" style="display: none;">
+                <h3>📊 Available Leave Balance</h3>
+                <div class="balance-row">
+                    <div class="balance-item privilege-leave">
+                        <span class="balance-label">🏖️ Privilege Leave (PL):</span>
+                        <span class="balance-value" id="privilegeLeaveBalance">-- days</span>
+                    </div>
+                    <div class="balance-item sick-leave">
+                        <span class="balance-label">🤒 Sick Leave (SL):</span>
+                        <span class="balance-value" id="sickLeaveBalance">-- days</span>
+                    </div>
+                </div>
+                <small class="balance-note" id="balanceUpdateNote">Balance updates automatically when leave requests are approved.</small>
+            </div>
 
             <form id="vacationForm" class="vacation-form">
                 <!-- Date Selection Section -->
