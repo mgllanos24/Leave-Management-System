@@ -234,12 +234,11 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
             leave_type = application['leave_type']
             total_days = float(application['total_days'])
 
-            # `leave_type` may contain multiple comma-separated codes. Normalize tokens
-            # to lowercase to ensure case-insensitive matching against configured types.
-            leave_tokens = [t.strip().lower() for t in leave_type.split(',') if t.strip()]
+            # Normalize the single leave type to lowercase for matching
+            leave_token = (leave_type or '').strip().lower()
             balance_type = (
                 'PRIVILEGE'
-                if any(t in PRIVILEGE_LEAVE_TYPES for t in leave_tokens)
+                if leave_token in PRIVILEGE_LEAVE_TYPES
                 else 'SICK'
             )
 

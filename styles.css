@@ -127,7 +127,7 @@ header p {
     margin-bottom: 20px;
 }
 
-.checkbox-label {
+.option-label {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -137,11 +137,10 @@ header p {
     transition: background-color 0.2s ease;
 }
 
-.checkbox-label:hover {
+.option-label:hover {
     background-color: var(--background);
 }
-
-.checkbox-label input[type="checkbox"] {
+.option-label input[type="radio"] {
     width: 18px;
     height: 18px;
     accent-color: var(--primary-color);
@@ -153,7 +152,7 @@ header p {
     color: var(--text-primary);
 }
 
-.checkbox-label input[type="checkbox"]:checked + .checkmark {
+.option-label input[type="radio"]:checked + .checkmark {
     color: var(--primary-color);
     font-weight: 600;
 }

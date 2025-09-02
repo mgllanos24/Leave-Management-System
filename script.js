@@ -1371,14 +1371,14 @@ function calculateLeaveDuration() {
 }
 
 function setupLeaveTypeHandling() {
-    const checkboxes = document.querySelectorAll('input[name="leaveType"]');
+    const radios = document.querySelectorAll('input[name="leaveType"]');
     const reasonTextarea = document.getElementById('reason');
     const reasonNote = document.getElementById('reasonNote');
-    
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
-            
+
+    radios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            const anyChecked = Array.from(radios).some(rb => rb.checked);
+
             if (anyChecked) {
                 reasonTextarea.disabled = false;
                 reasonNote.textContent = 'Please provide details about your leave request.';
@@ -1397,9 +1397,7 @@ async function submitLeaveApplication(event) {
         showLoading();
         
         const formData = new FormData(event.target);
-        const leaveTypes = Array.from(document.querySelectorAll('input[name="leaveType"]:checked'))
-            // Use checkbox values as canonical leave type codes
-            .map(cb => cb.value.trim());
+        const selectedLeaveType = formData.get('leaveType');
 
     const applicationData = {
         employee_id: currentUser.id,
@@ -1408,9 +1406,8 @@ async function submitLeaveApplication(event) {
         end_date: formData.get('endDate'),
         start_day_type: formData.get('startDayType'),
         end_day_type: formData.get('endDayType'),
-        // Store comma-separated canonical codes for backend processing
-        leave_type: leaveTypes.join(','),
-        selected_reasons: leaveTypes,
+        leave_type: selectedLeaveType,
+        selected_reasons: selectedLeaveType ? [selectedLeaveType] : [],
         reason: formData.get('reason'),
         total_days: calculateTotalDays(
             formData.get('startDate'),
@@ -1573,9 +1570,7 @@ async function loadEmployeeSummary() {
             const info = summary.get(app.employee_id);
             if (!info) return;
 
-            const types = (app.leave_type || '')
-                .split(',')
-                .map(t => t.trim().toLowerCase());
+            const type = (app.leave_type || '').trim().toLowerCase();
             const days = parseFloat(app.total_days) || 0;
 
             if (app.status === 'Pending') {
@@ -1587,13 +1582,11 @@ async function loadEmployeeSummary() {
                 const privilegeTypes = ['privilege', 'pl', 'vacation-annual', 'personal'];
                 const sickTypes = ['sick', 'sl'];
 
-                types.forEach(t => {
-                    if (privilegeTypes.includes(t)) {
-                        info.privilegeUsed += days;
-                    } else if (sickTypes.includes(t)) {
-                        info.sickUsed += days;
-                    }
-                });
+                if (privilegeTypes.includes(type)) {
+                    info.privilegeUsed += days;
+                } else if (sickTypes.includes(type)) {
+                    info.sickUsed += days;
+                }
             }
         });
 
