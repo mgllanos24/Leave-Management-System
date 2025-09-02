@@ -265,6 +265,9 @@ let currentUserType = null;
 let currentUser = null;
 let sessionToken = null;
 
+// Track whether holiday form handlers have been initialized
+let holidayFormInitialized = false;
+
 /* @tweakable sessionStorage keys for authentication persistence */
 const AUTH_TYPE_KEY = 'elms_auth_type';
 const AUTH_USER_KEY = 'elms_auth_user';
@@ -1291,6 +1294,14 @@ function setupHolidayManagement() {
         console.log('🔧 Setting up holiday management handlers...');
     }
 
+    // Only attach handlers once
+    if (holidayFormInitialized) {
+        if (debugHolidaySetup) {
+            console.log('ℹ️ Holiday form handlers already initialized');
+        }
+        return;
+    }
+
     const holidayForm = document.getElementById('holidayForm');
     if (holidayForm) {
         holidayForm.addEventListener('submit', async function(e) {
@@ -1308,6 +1319,8 @@ function setupHolidayManagement() {
                 alert('Failed to add holiday: ' + (error.message || 'Unknown error'));
             }
         });
+
+        holidayFormInitialized = true;
 
         if (debugHolidaySetup) {
             console.log('✅ Holiday form submit handler attached');
