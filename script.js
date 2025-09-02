@@ -450,16 +450,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const resetBtn = document.getElementById('resetBalancesBtn');
     if (resetBtn) resetBtn.addEventListener('click', resetAllLeaveBalances);
 
-    const exportBackupBtn = document.getElementById('exportBackupBtn');
-    if (exportBackupBtn) {
-        exportBackupBtn.addEventListener('click', exportDatabaseBackup);
-    }
-
-    const importBackupBtn = document.getElementById('importBackupBtn');
-    if (importBackupBtn) {
-        importBackupBtn.addEventListener('click', importDatabaseBackup);
-    }
-
     const errorModalClose = document.getElementById('errorModalClose');
     if (errorModalClose) {
         errorModalClose.addEventListener('click', closeErrorModal);
@@ -1910,14 +1900,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function exportDatabaseBackup() {
-    console.warn('exportDatabaseBackup is not implemented yet.');
-}
-
-function importDatabaseBackup() {
-    console.warn('importDatabaseBackup is not implemented yet.');
-}
-
 // Expose functions for inline handlers
 window.showEmployeeLogin = showEmployeeLogin;
 window.showAdminLogin = showAdminLogin;
@@ -1928,7 +1910,5 @@ window.deleteAllEmployees = deleteAllEmployees;
 window.resetAllLeaveBalances = resetAllLeaveBalances;
 window.closeErrorModal = closeErrorModal;
 window.closeEditModal = closeEditModal;
-window.exportDatabaseBackup = exportDatabaseBackup;
-window.importDatabaseBackup = importDatabaseBackup;
 window.updateApplicationStatus = updateApplicationStatus;
 window.loadEmployeeSummary = loadEmployeeSummary;
