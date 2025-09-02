@@ -1155,6 +1155,7 @@ async function initializeApp() {
 
         // Set up form handlers and other functionality
         setupEmployeeManagement();
+        setupHolidayManagement();
         setupLeaveApplication();
         setupDateCalculation();
         setupLeaveTypeHandling();
@@ -1286,6 +1287,42 @@ function setupEmployeeManagement() {
     
     if (debugEmployeeSetup) {
         console.log('✅ Employee management setup completed');
+    }
+}
+
+function setupHolidayManagement() {
+    /* @tweakable whether to enable holiday management setup debugging */
+    const debugHolidaySetup = true;
+
+    if (debugHolidaySetup) {
+        console.log('🔧 Setting up holiday management handlers...');
+    }
+
+    const holidayForm = document.getElementById('holidayForm');
+    if (holidayForm) {
+        holidayForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const date = document.getElementById('holidayDate').value;
+            const name = document.getElementById('holidayName').value;
+
+            try {
+                await room.collection('holiday').create({ date, name });
+                holidayForm.reset();
+                await loadHolidays();
+            } catch (error) {
+                console.error('Error adding holiday:', error);
+                alert('Failed to add holiday: ' + (error.message || 'Unknown error'));
+            }
+        });
+
+        if (debugHolidaySetup) {
+            console.log('✅ Holiday form submit handler attached');
+        }
+    }
+
+    if (debugHolidaySetup) {
+        console.log('✅ Holiday management setup completed');
     }
 }
 
