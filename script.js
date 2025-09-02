@@ -1445,7 +1445,9 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
     const current = new Date(start);
     while (current <= end) {
         const iso = current.toISOString().split('T')[0];
-        if (!holidayDates.has(iso)) {
+        const day = current.getDay();
+        // Skip weekends (Saturday=6, Sunday=0)
+        if (day !== 0 && day !== 6 && !holidayDates.has(iso)) {
             total += 1;
             if (current.getTime() === start.getTime() && startType !== 'full') {
                 total -= 0.5;

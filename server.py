@@ -7,7 +7,7 @@ import os
 import uuid
 import logging
 import sqlite3
-from datetime import datetime  # @tweakable fix datetime import to resolve "module 'datetime' has no attribute 'now'" error
+from datetime import datetime, timedelta  # @tweakable include timedelta for date calculations
 from http.cookies import SimpleCookie
 
 # Import service modules
@@ -45,6 +45,36 @@ AUTO_CREATE_BALANCE_RECORDS = True
 
 # Track active admin session tokens
 active_admin_tokens = set()
+
+def calculate_total_days(start_date, end_date, start_day_type='full', end_day_type='full', holidays=None):
+    """Compute total leave days excluding weekends and specified holidays."""
+    if not start_date or not end_date:
+        return 0
+
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return 0
+
+    if end < start:
+        return 0
+
+    holidays = holidays or set()
+
+    total = 0
+    current = start
+    while current <= end:
+        # weekday(): Monday=0, Sunday=6
+        if current.weekday() < 5 and current.isoformat() not in holidays:
+            total += 1
+            if current == start and start_day_type != 'full':
+                total -= 0.5
+            if current == end and end_day_type != 'full':
+                total -= 0.5
+        current += timedelta(days=1)
+
+    return total
 
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def send_cors_headers(self):
@@ -283,6 +313,18 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     
                     elif collection == 'leave_application':
                         app_id = data.get('application_id', f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}")
+
+                        # Recalculate total days server-side ignoring client-provided value
+                        cursor = conn.execute('SELECT date FROM holidays')
+                        holidays = {row['date'] for row in cursor.fetchall()}
+                        total_days = calculate_total_days(
+                            data.get('start_date', ''),
+                            data.get('end_date', ''),
+                            data.get('start_day_type', 'full'),
+                            data.get('end_day_type', 'full'),
+                            holidays,
+                        )
+
                         conn.execute('''
                             INSERT INTO leave_applications (
                                 id, application_id, employee_id, employee_name, start_date, end_date,
@@ -301,12 +343,15 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             data.get('leave_type', ''),
                             json.dumps(data.get('selected_reasons', [])),
                             data.get('reason', ''),
-                            data.get('total_days', 0),
+                            total_days,
                             data.get('status', 'Pending'),
                             current_time,
                             current_time,
                             current_time
                         ))
+
+                        # Update data with server-calculated total days
+                        data['total_days'] = total_days
                     
                     elif collection == 'holiday':
                         conn.execute('''
