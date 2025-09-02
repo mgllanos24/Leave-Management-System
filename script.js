@@ -257,6 +257,9 @@ if (USE_BACKEND_DATABASE) {
 }
 const room = window.room;
 
+// Global cache for holiday dates (ISO YYYY-MM-DD)
+const holidayDates = new Set();
+
 // Authentication globals
 let currentUserType = null;
 let currentUser = null;
@@ -1349,10 +1352,7 @@ function calculateLeaveDuration() {
         const end = new Date(endDate);
 
         if (end >= start) {
-            const msInDay = 1000 * 3600 * 24;
-            let dayDiff = (end.getTime() - start.getTime()) / msInDay + 1;
-            if (startDayType !== 'full') dayDiff -= 0.5;
-            if (endDayType !== 'full') dayDiff -= 0.5;
+            const dayDiff = calculateTotalDays(startDate, endDate, startDayType, endDayType);
             durationText.textContent = `Duration: ${dayDiff} day(s)`;
         } else {
             durationText.textContent = 'End date must be after start date';
@@ -1436,18 +1436,28 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
+    if (end < start) return 0;
 
-    if (end >= start) {
-        const msInDay = 1000 * 3600 * 24;
-        let dayDiff = (end.getTime() - start.getTime()) / msInDay + 1;
-        const startType = startDayType || document.querySelector('input[name="startDayType"]:checked')?.value || 'full';
-        const endType = endDayType || document.querySelector('input[name="endDayType"]:checked')?.value || 'full';
-        if (startType !== 'full') dayDiff -= 0.5;
-        if (endType !== 'full') dayDiff -= 0.5;
-        return dayDiff;
+    const startType = startDayType || document.querySelector('input[name="startDayType"]:checked')?.value || 'full';
+    const endType = endDayType || document.querySelector('input[name="endDayType"]:checked')?.value || 'full';
+
+    let total = 0;
+    const current = new Date(start);
+    while (current <= end) {
+        const iso = current.toISOString().split('T')[0];
+        if (!holidayDates.has(iso)) {
+            total += 1;
+            if (current.getTime() === start.getTime() && startType !== 'full') {
+                total -= 0.5;
+            }
+            if (current.getTime() === end.getTime() && endType !== 'full') {
+                total -= 0.5;
+            }
+        }
+        current.setDate(current.getDate() + 1);
     }
 
-    return 0;
+    return total;
 }
 
 async function loadLeaveApplications() {
@@ -1705,6 +1715,14 @@ async function loadHolidays() {
         }
 
         const holidays = await room.collection('holiday').getList();
+
+        // Populate global holiday date cache
+        holidayDates.clear();
+        for (const h of holidays) {
+            if (h.date) {
+                holidayDates.add(h.date);
+            }
+        }
 
         if (tbody) {
             if (holidays.length === 0) {
