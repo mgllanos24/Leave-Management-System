@@ -448,11 +448,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tabHolidayDates) {
         tabHolidayDates.addEventListener('click', () => switchTab('holiday-dates'));
     }
-
-    const deleteAllBtn = document.getElementById('deleteAllBtn');
-    if (deleteAllBtn) {
-        deleteAllBtn.addEventListener('click', deleteAllEmployees);
-    }
     const resetBtn = document.getElementById('resetBalancesBtn');
     if (resetBtn) resetBtn.addEventListener('click', resetAllLeaveBalances);
 
@@ -1910,23 +1905,6 @@ async function deleteEmployee(employeeId) {
     }
 }
 
-async function deleteAllEmployees() {
-    if (confirm('Are you sure you want to delete ALL employees? This action cannot be undone.')) {
-        try {
-            const employees = await room.collection('employee').getList();
-            
-            for (const employee of employees) {
-                await room.collection('employee').delete(employee.id);
-            }
-            
-            await loadEmployeeList();
-            alert('All employees deleted successfully');
-        } catch (error) {
-            alert(`Error deleting employees: ${error.message}`);
-        }
-    }
-}
-
 async function resetAllLeaveBalances() {
     if (confirm('Are you sure you want to reset all leave balances? This action cannot be undone.')) {
         try {
@@ -1976,7 +1954,6 @@ window.showAdminLogin = showAdminLogin;
 window.switchTab = switchTab;
 window.editEmployee = editEmployee;
 window.deleteEmployee = deleteEmployee;
-window.deleteAllEmployees = deleteAllEmployees;
 window.resetAllLeaveBalances = resetAllLeaveBalances;
 window.closeErrorModal = closeErrorModal;
 window.closeEditModal = closeEditModal;
