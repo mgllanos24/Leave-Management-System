@@ -1759,13 +1759,15 @@ async function loadLeaveHistory(employeeId) {
     }
 }
 
-async function loadAdminLeaveHistory() {
+async function loadAdminLeaveHistory(sortOrder = 'az') {
     const container = document.getElementById('weeklyHistory');
     if (!container) return;
     container.innerHTML = '';
     try {
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
-        apps.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+        apps.sort((a, b) => sortOrder === 'za'
+            ? b.employee_name.localeCompare(a.employee_name)
+            : a.employee_name.localeCompare(b.employee_name));
 
         const groups = {};
         apps.forEach(app => {
@@ -1958,7 +1960,8 @@ function switchTab(tabName) {
         loadEmployeeSummary();
         loadLeaveApplications();
     } else if (tabName === 'admin-history') {
-        loadAdminLeaveHistory();
+        const sort = document.getElementById('historySort')?.value;
+        loadAdminLeaveHistory(sort);
     }
 }
 
@@ -2057,6 +2060,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('employeeSearch');
     if (searchInput) {
         searchInput.addEventListener('input', loadEmployeeSummary);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const sortSelect = document.getElementById('historySort');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => loadAdminLeaveHistory(e.target.value));
     }
 });
 
