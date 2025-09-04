@@ -1756,16 +1756,44 @@ async function loadLeaveHistory(employeeId) {
     }
 }
 
-async function loadAdminLeaveHistory() {
+async function loadAdminLeaveHistory(startMonth, endMonth) {
     const container = document.getElementById('weeklyHistory');
     if (!container) return;
     container.innerHTML = '';
     try {
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
-        apps.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+        let filteredApps = apps;
+
+        if (startMonth && endMonth) {
+            const start = new Date(startMonth + '-01');
+            const end = new Date(endMonth + '-01');
+            const monthDiff = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+            if (monthDiff < 0) {
+                alert('Start month must be before end month');
+                return;
+            }
+            if (monthDiff > 11) {
+                alert('Please select a range of 12 months or less');
+                return;
+            }
+            const endOfEndMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0);
+            filteredApps = apps.filter(app => {
+                const appDate = new Date(app.start_date);
+                return appDate >= start && appDate <= endOfEndMonth;
+            });
+        }
+
+        filteredApps.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+
+        if (filteredApps.length === 0) {
+            const msg = document.createElement('p');
+            msg.textContent = 'No leave applications found';
+            container.appendChild(msg);
+            return;
+        }
 
         const groups = {};
-        apps.forEach(app => {
+        filteredApps.forEach(app => {
             const start = new Date(app.start_date);
             const day = start.getDay();
             const diff = day === 0 ? -6 : 1 - day; // shift to Monday
@@ -1955,7 +1983,9 @@ function switchTab(tabName) {
         loadEmployeeSummary();
         loadLeaveApplications();
     } else if (tabName === 'admin-history') {
-        loadAdminLeaveHistory();
+        const startMonth = document.getElementById('historyStartMonth')?.value;
+        const endMonth = document.getElementById('historyEndMonth')?.value;
+        loadAdminLeaveHistory(startMonth, endMonth);
     }
 }
 
@@ -2054,6 +2084,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('employeeSearch');
     if (searchInput) {
         searchInput.addEventListener('input', loadEmployeeSummary);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const filterBtn = document.getElementById('filterHistoryBtn');
+    if (filterBtn) {
+        filterBtn.addEventListener('click', () => {
+            const startMonth = document.getElementById('historyStartMonth').value;
+            const endMonth = document.getElementById('historyEndMonth').value;
+            loadAdminLeaveHistory(startMonth, endMonth);
+        });
     }
 });
 
