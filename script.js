@@ -454,6 +454,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tabHolidayDates) {
         tabHolidayDates.addEventListener('click', () => switchTab('holiday-dates'));
     }
+    const tabAdminHistory = document.getElementById('tabAdminHistory');
+    if (tabAdminHistory) {
+        tabAdminHistory.addEventListener('click', () => switchTab('admin-history'));
+    }
     const resetBtn = document.getElementById('resetBalancesBtn');
     if (resetBtn) resetBtn.addEventListener('click', resetAllLeaveBalances);
 
@@ -1096,6 +1100,7 @@ function configureTabsForUser() {
     document.getElementById('tabEmployeeManagement').style.display = isAdmin ? 'block' : 'none';
     document.getElementById('tabApplicationStatus').style.display = isAdmin ? 'block' : 'none';
     document.getElementById('tabHolidayDates').style.display = isAdmin ? 'block' : 'none';
+    document.getElementById('tabAdminHistory').style.display = isAdmin ? 'block' : 'none';
     document.getElementById('adminSection').style.display = isAdmin ? 'block' : 'none';
 
     // Toggle visibility for employee-specific tabs based on user role
@@ -1106,6 +1111,7 @@ function configureTabsForUser() {
     document.getElementById('employee-management').style.display = isAdmin ? '' : 'none';
     document.getElementById('application-status').style.display = isAdmin ? '' : 'none';
     document.getElementById('holiday-dates').style.display = isAdmin ? '' : 'none';
+    document.getElementById('admin-history').style.display = isAdmin ? '' : 'none';
     document.getElementById('leave-request').style.display = isAdmin ? 'none' : '';
     document.getElementById('check-history').style.display = isAdmin ? 'none' : '';
 
@@ -1750,6 +1756,62 @@ async function loadLeaveHistory(employeeId) {
     }
 }
 
+async function loadAdminLeaveHistory() {
+    const container = document.getElementById('weeklyHistory');
+    if (!container) return;
+    container.innerHTML = '';
+    try {
+        const apps = await room.collection('leave_application').getList({ status: 'Approved' });
+        apps.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+
+        const groups = {};
+        apps.forEach(app => {
+            const start = new Date(app.start_date);
+            const day = start.getDay();
+            const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+            const monday = new Date(start);
+            monday.setDate(start.getDate() + diff);
+            const key = monday.toISOString().slice(0, 10);
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(app);
+        });
+
+        Object.keys(groups)
+            .sort((a, b) => new Date(b) - new Date(a))
+            .forEach(key => {
+                const weekApps = groups[key];
+                const start = new Date(key);
+                const end = new Date(start);
+                end.setDate(start.getDate() + 6);
+
+                const details = document.createElement('details');
+                details.className = 'week-group';
+
+                const summary = document.createElement('summary');
+                summary.textContent = `${key} to ${end.toISOString().slice(0, 10)} (${weekApps.length} records)`;
+                details.appendChild(summary);
+
+                const table = document.createElement('table');
+                const thead = document.createElement('thead');
+                thead.innerHTML = '<tr><th>Employee</th><th>Leave Type</th><th>Dates</th></tr>';
+                table.appendChild(thead);
+                const tbody = document.createElement('tbody');
+
+                weekApps.forEach(app => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td>`;
+                    tbody.appendChild(tr);
+                });
+
+                table.appendChild(tbody);
+                details.appendChild(table);
+                container.appendChild(details);
+            });
+    } catch (error) {
+        console.error('Error loading admin leave history:', error);
+    }
+}
+
 async function loadHolidays() {
     try {
         const tbody = document.getElementById('holidayTableBody');
@@ -1857,7 +1919,8 @@ function switchTab(tabName) {
         'check-history': 'tabCheckHistory',
         'employee-management': 'tabEmployeeManagement',
         'application-status': 'tabApplicationStatus',
-        'holiday-dates': 'tabHolidayDates'
+        'holiday-dates': 'tabHolidayDates',
+        'admin-history': 'tabAdminHistory'
     };
     
     // Hide all tab contents
@@ -1891,6 +1954,8 @@ function switchTab(tabName) {
     } else if (tabName === 'application-status') {
         loadEmployeeSummary();
         loadLeaveApplications();
+    } else if (tabName === 'admin-history') {
+        loadAdminLeaveHistory();
     }
 }
 

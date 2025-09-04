@@ -170,7 +170,10 @@ def _create_indexes(conn):
     conn.execute('CREATE INDEX IF NOT EXISTS idx_employees_email ON employees(personal_email)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(is_active)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_employees_name ON employees(first_name, surname)')
-    
+
+    # Leave application indexes
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_leave_applications_status_date ON leave_applications(status, start_date)')
+
     # Balance indexes
     conn.execute('CREATE INDEX IF NOT EXISTS idx_leave_balances_employee ON leave_balances(employee_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_leave_balances_year ON leave_balances(year)')
