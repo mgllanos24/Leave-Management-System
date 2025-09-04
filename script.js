@@ -1817,6 +1817,39 @@ async function loadAdminLeaveHistory(sortOrder = 'az') {
     }
 }
 
+async function exportAdminLeaveHistoryPdf() {
+    const container = document.getElementById('weeklyHistory');
+    if (!container) return;
+
+    const detailElements = Array.from(container.querySelectorAll('.week-group'));
+    const previousStates = detailElements.map(d => d.open);
+    detailElements.forEach(d => d.open = true);
+
+    try {
+        const apps = await room.collection('leave_application').getList({ status: 'Approved' });
+        if (!apps.length) return;
+
+        const startDates = apps.map(a => new Date(a.start_date));
+        const endDates = apps.map(a => new Date(a.end_date));
+        const minDate = new Date(Math.min(...startDates));
+        const maxDate = new Date(Math.max(...endDates));
+        const format = d => `${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(-2)}`;
+        const range = `${format(minDate)}-${format(maxDate)}`;
+
+        let employeeName = apps[0].employee_name || '';
+        const parts = employeeName.trim().split(/\s+/);
+        const first = parts[0] || '';
+        const last = parts.length > 1 ? parts[parts.length - 1] : '';
+        const fileName = `LeaveHistory_${last}${first}_${range}.pdf`;
+
+        await html2pdf().from(container).set({ filename: fileName }).save();
+    } catch (error) {
+        console.error('Error exporting admin leave history PDF:', error);
+    } finally {
+        detailElements.forEach((d, i) => d.open = previousStates[i]);
+    }
+}
+
 async function loadHolidays() {
     try {
         const tbody = document.getElementById('holidayTableBody');
@@ -2067,6 +2100,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const sortSelect = document.getElementById('historySort');
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => loadAdminLeaveHistory(e.target.value));
+    }
+    const exportBtn = document.getElementById('exportHistoryPdf');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportAdminLeaveHistoryPdf);
     }
 });
 
