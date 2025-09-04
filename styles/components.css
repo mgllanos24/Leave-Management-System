@@ -1,1 +1,15 @@
 /* Components styles placeholder */
+
+/* Admin leave history styles */
+#admin-history {
+    padding: 1rem;
+}
+
+.week-group {
+    margin-bottom: 1rem;
+}
+
+.week-group summary {
+    cursor: pointer;
+    font-weight: 600;
+}
