@@ -1759,12 +1759,16 @@ async function loadLeaveHistory(employeeId) {
     }
 }
 
-async function loadAdminLeaveHistory(sortOrder = 'az') {
+async function loadAdminLeaveHistory(sortOrder = 'az', employeeName = '', startDate = '', endDate = '') {
     const container = document.getElementById('weeklyHistory');
     if (!container) return;
     container.innerHTML = '';
     try {
-        const apps = await room.collection('leave_application').getList({ status: 'Approved' });
+        const params = { status: 'Approved' };
+        if (employeeName) params.employee_name = employeeName;
+        if (startDate) params.start_date = startDate;
+        if (endDate) params.end_date = endDate;
+        const apps = await room.collection('leave_application').getList(params);
         apps.sort((a, b) => sortOrder === 'za'
             ? b.employee_name.localeCompare(a.employee_name)
             : a.employee_name.localeCompare(b.employee_name));
@@ -1961,7 +1965,10 @@ function switchTab(tabName) {
         loadLeaveApplications();
     } else if (tabName === 'admin-history') {
         const sort = document.getElementById('historySort')?.value;
-        loadAdminLeaveHistory(sort);
+        const employeeName = document.getElementById('historyEmployeeName')?.value || '';
+        const startDate = document.getElementById('historyStartDate')?.value || '';
+        const endDate = document.getElementById('historyEndDate')?.value || '';
+        loadAdminLeaveHistory(sort, employeeName, startDate, endDate);
     }
 }
 
@@ -2066,7 +2073,12 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     const sortSelect = document.getElementById('historySort');
     if (sortSelect) {
-        sortSelect.addEventListener('change', (e) => loadAdminLeaveHistory(e.target.value));
+        sortSelect.addEventListener('change', (e) => {
+            const employeeName = document.getElementById('historyEmployeeName')?.value || '';
+            const startDate = document.getElementById('historyStartDate')?.value || '';
+            const endDate = document.getElementById('historyEndDate')?.value || '';
+            loadAdminLeaveHistory(e.target.value, employeeName, startDate, endDate);
+        });
     }
 });
 

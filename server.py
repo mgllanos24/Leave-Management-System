@@ -188,7 +188,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     results = [dict(row) for row in cursor.fetchall()]
                     
                 elif collection == 'leave_application':
-                    # Get leave applications with optional employee and status filters
+                    # Get leave applications with optional filters
                     base_query = 'SELECT * FROM leave_applications'
                     conditions = []
                     params = []
@@ -198,6 +198,15 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     if 'status' in query:
                         conditions.append('status = ?')
                         params.append(query['status'][0])
+                    if 'employee_name' in query:
+                        conditions.append('employee_name LIKE ?')
+                        params.append(f"%{query['employee_name'][0]}%")
+                    if 'start_date' in query:
+                        conditions.append('start_date >= ?')
+                        params.append(query['start_date'][0])
+                    if 'end_date' in query:
+                        conditions.append('end_date <= ?')
+                        params.append(query['end_date'][0])
                     if conditions:
                         base_query += ' WHERE ' + ' AND '.join(conditions)
                     base_query += ' ORDER BY created_at DESC'
