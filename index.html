@@ -17,10 +17,10 @@
             <h1>🏢 Employee Leave Management System</h1>
             <p>Please select your login type</p>
             <div class="entry-buttons">
-                <button id="employeeEntryBtn" class="entry-btn employee-btn" onclick="showEmployeeLogin()">
+                <button id="employeeEntryBtn" class="btn btn-primary" onclick="showEmployeeLogin()">
                     👤 Employee Login
                 </button>
-                <button id="adminEntryBtn" class="entry-btn admin-btn" onclick="showAdminLogin()">
+                <button id="adminEntryBtn" class="btn btn-success" onclick="showAdminLogin()">
                     🔐 Administrator Login
                 </button>
             </div>
@@ -31,12 +31,12 @@
     <div id="employeeLoginContainer" class="login-container" style="display: none;">
         <div class="login-header">
             <h2>👤 Employee Login</h2>
-            <button id="backToEntryFromEmployee" class="back-btn">← Back</button>
+            <button id="backToEntryFromEmployee" class="btn btn-secondary">← Back</button>
         </div>
         <div class="login-form active">
             <form id="loginEmployeeForm" autocomplete="off">
                 <input type="email" id="loginEmployeeEmail" placeholder="Enter your email address" autocomplete="off" required />
-                <button type="submit" class="btn-login">Login</button>
+                <button type="submit" class="btn btn-primary">Login</button>
             </form>
         </div>
     </div>
@@ -45,13 +45,13 @@
     <div id="adminLoginContainer" class="login-container" style="display: none;">
         <div class="login-header">
             <h2>🔐 Administrator Login</h2>
-            <button id="backToEntryFromAdmin" class="back-btn">← Back</button>
+            <button id="backToEntryFromAdmin" class="btn btn-secondary">← Back</button>
         </div>
         <div class="login-form active">
             <form id="loginAdminForm" autocomplete="off">
                 <input type="text" id="loginAdminUsername" placeholder="Username" autocomplete="off" required />
                 <input type="password" id="loginAdminPassword" placeholder="Password" autocomplete="new-password" required />
-                <button type="submit" class="btn-login">Login</button>
+                <button type="submit" class="btn btn-primary">Login</button>
             </form>
         </div>
     </div>
@@ -62,19 +62,19 @@
             <p>Manage leave requests and employee allocations</p>
             <div id="welcomeContainer" style="display:none; margin-top:10px;">
                 <span id="welcomeName"></span>
-                <button id="logoutBtn" class="btn btn-secondary" style="margin-left:15px;">Logout</button>
+                <button id="logoutBtn" class="btn btn-danger" style="margin-left:15px;">Logout</button>
             </div>
         </header>
 
         <!-- Tab Navigation -->
         <div class="tab-navigation">
             <!-- Visible tabs depend on login role -->
-            <button id="tabLeaveRequest" class="tab-button active">🏖️ Leave Request</button>
-            <button id="tabCheckHistory" class="tab-button">🔍 Check Status/History</button>
-            <button id="tabEmployeeManagement" class="tab-button" style="display: none;">👥 Employee Management</button>
-            <button id="tabApplicationStatus" class="tab-button" style="display: none;">📋 Application Status</button>
-            <button id="tabHolidayDates" class="tab-button" style="display: none;">🎉 Holiday Dates</button>
-            <button id="tabAdminHistory" class="tab-button" style="display:none;">🗂️ Leave History</button>
+            <button id="tabLeaveRequest" class="btn tab-button active">🏖️ Leave Request</button>
+            <button id="tabCheckHistory" class="btn tab-button">🔍 Check Status/History</button>
+            <button id="tabEmployeeManagement" class="btn tab-button" style="display: none;">👥 Employee Management</button>
+            <button id="tabApplicationStatus" class="btn tab-button" style="display: none;">📋 Application Status</button>
+            <button id="tabHolidayDates" class="btn tab-button" style="display: none;">🎉 Holiday Dates</button>
+            <button id="tabAdminHistory" class="btn tab-button" style="display:none;">🗂️ Leave History</button>
         </div>
 
         <!-- Leave Request Tab -->
@@ -236,7 +236,7 @@
 
                 <!-- Submit Section -->
                 <section class="form-section">
-                    <button type="submit" class="btn-primary" id="submitBtn">
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
                         📤 Submit Vacation Request
                     </button>
                 </section>
@@ -403,7 +403,7 @@
                             <input id="historyEndMonth" type="month">
                         </div>
                         <div class="form-group">
-                            <button id="historyExportBtn" type="button">Export PDF</button>
+                    <button id="historyExportBtn" type="button" class="btn btn-secondary">Export PDF</button>
                         </div>
                     </div>
                     <div id="weeklyHistory"></div>
@@ -466,7 +466,7 @@
                     <p>You will be notified once your request is reviewed.</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" id="closeModal" class="btn-primary">Close</button>
+                    <button type="button" id="closeModal" class="btn btn-primary">Close</button>
                 </div>
             </div>
         </div>
@@ -476,13 +476,13 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>❌ Insufficient Leave Balance</h2>
-                    <button id="errorModalClose" class="close-btn">&times;</button>
+                    <button id="errorModalClose" class="btn btn-secondary close-btn">&times;</button>
                 </div>
                 <div class="modal-body">
                     <p id="errorModalMessage"></p>
                 </div>
                 <div class="modal-footer">
-                    <button id="errorModalOk" type="button" class="btn-primary">OK</button>
+                    <button id="errorModalOk" type="button" class="btn btn-primary">OK</button>
                 </div>
             </div>
         </div>
@@ -492,7 +492,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Edit Employee</h2>
-                    <button id="editModalClose" class="close-btn">&times;</button>
+                    <button id="editModalClose" class="btn btn-secondary close-btn">&times;</button>
                 </div>
                 <form id="editEmployeeForm" class="edit-employee-form">
                     <div class="form-row">
