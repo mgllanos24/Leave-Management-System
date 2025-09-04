@@ -1759,18 +1759,33 @@ async function loadLeaveHistory(employeeId) {
     }
 }
 
-async function loadAdminLeaveHistory(sortOrder = 'az') {
+async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = '') {
     const container = document.getElementById('weeklyHistory');
     if (!container) return;
     container.innerHTML = '';
     try {
+        const year = new Date().getFullYear();
+        const startDate = startMonth
+            ? new Date(year, parseInt(startMonth) - 1, 1)
+            : new Date(year, 0, 1);
+        const endDate = endMonth
+            ? new Date(year, parseInt(endMonth), 0)
+            : new Date(year, 11, 31);
+
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
-        apps.sort((a, b) => sortOrder === 'za'
-            ? b.employee_name.localeCompare(a.employee_name)
-            : a.employee_name.localeCompare(b.employee_name));
+
+        const filtered = apps.filter(app => {
+            const nameMatch = app.employee_name?.toLowerCase().includes(search.toLowerCase());
+            const appStart = new Date(app.start_date);
+            const appEnd = new Date(app.end_date);
+            const inRange = appStart >= startDate && appEnd <= endDate;
+            return nameMatch && inRange;
+        });
+
+        filtered.sort((a, b) => a.employee_name.localeCompare(b.employee_name));
 
         const groups = {};
-        apps.forEach(app => {
+        filtered.forEach(app => {
             const start = new Date(app.start_date);
             const day = start.getDay();
             const diff = day === 0 ? -6 : 1 - day; // shift to Monday
@@ -1960,8 +1975,10 @@ function switchTab(tabName) {
         loadEmployeeSummary();
         loadLeaveApplications();
     } else if (tabName === 'admin-history') {
-        const sort = document.getElementById('historySort')?.value;
-        loadAdminLeaveHistory(sort);
+        const search = document.getElementById('historySearch')?.value || '';
+        const start = document.getElementById('historyStartMonth')?.value || '';
+        const end = document.getElementById('historyEndMonth')?.value || '';
+        loadAdminLeaveHistory(search, start, end);
     }
 }
 
@@ -2064,10 +2081,20 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    const sortSelect = document.getElementById('historySort');
-    if (sortSelect) {
-        sortSelect.addEventListener('change', (e) => loadAdminLeaveHistory(e.target.value));
-    }
+    const searchInput = document.getElementById('historySearch');
+    const startMonth = document.getElementById('historyStartMonth');
+    const endMonth = document.getElementById('historyEndMonth');
+
+    const reload = () => {
+        const search = searchInput?.value || '';
+        const start = startMonth?.value || '';
+        const end = endMonth?.value || '';
+        loadAdminLeaveHistory(search, start, end);
+    };
+
+    if (searchInput) searchInput.addEventListener('input', reload);
+    if (startMonth) startMonth.addEventListener('change', reload);
+    if (endMonth) endMonth.addEventListener('change', reload);
 });
 
 // Expose functions for inline handlers
