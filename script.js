@@ -1836,6 +1836,51 @@ async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = ''
     }
 }
 
+async function exportAdminHistoryPdf() {
+    const container = document.getElementById('weeklyHistory');
+    if (!container) return;
+
+    const details = Array.from(container.querySelectorAll('.week-group'));
+    const states = details.map(d => d.open);
+    details.forEach(d => {
+        d.open = true;
+    });
+
+    const dateCells = container.querySelectorAll('tbody tr td:nth-child(3)');
+    let earliest = null;
+    let latest = null;
+    dateCells.forEach(cell => {
+        const [startStr, endStr] = cell.textContent.split(' - ');
+        const start = new Date(startStr.trim());
+        const end = new Date(endStr.trim());
+        if (!earliest || start < earliest) earliest = start;
+        if (!latest || end > latest) latest = end;
+    });
+
+    const format = d => `${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(-2)}`;
+    const range = earliest && latest ? `${format(earliest)}-${format(latest)}` : '';
+
+    const nameInput = document.getElementById('historySearch');
+    let name = nameInput ? nameInput.value.trim() : '';
+    let namePart = 'AllEmployees';
+    if (name) {
+        const parts = name.split(/\s+/);
+        const first = parts[0] || '';
+        const last = parts.length > 1 ? parts[parts.length - 1] : '';
+        namePart = (last + first).replace(/\s+/g, '') || 'AllEmployees';
+    }
+
+    const filename = `LeaveHistory_${namePart}_${range}.pdf`;
+
+    if (typeof html2pdf !== 'undefined') {
+        await html2pdf().from(container).save(filename);
+    }
+
+    details.forEach((d, idx) => {
+        d.open = states[idx];
+    });
+}
+
 async function loadHolidays() {
     try {
         const tbody = document.getElementById('holidayTableBody');
@@ -2088,6 +2133,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('historySearch');
     const startMonth = document.getElementById('historyStartMonth');
     const endMonth = document.getElementById('historyEndMonth');
+    const exportBtn = document.getElementById('historyExportBtn');
 
     const reload = () => {
         const search = searchInput?.value || '';
@@ -2099,6 +2145,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) searchInput.addEventListener('input', reload);
     if (startMonth) startMonth.addEventListener('change', reload);
     if (endMonth) endMonth.addEventListener('change', reload);
+    if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
 });
 
 // Expose functions for inline handlers
