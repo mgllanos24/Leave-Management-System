@@ -362,6 +362,12 @@ window.LeaveBalanceAPI = {
     }
 };
 
+const SERVICE_LENGTH_MAP = {
+    '1-3': 5,
+    '4-7': 10,
+    '8+': 15
+};
+
 // Handle login and app initialization
 document.addEventListener('DOMContentLoaded', function() {
     /* @tweakable whether to show debug messages during login flow initialization */
@@ -664,6 +670,15 @@ function setupCriticalFormHandlers() {
                 alert(`Error updating employee: ${error.message}`);
             }
         });
+
+        const editServiceLength = document.getElementById('editServiceLength');
+        if (editServiceLength) {
+            editServiceLength.addEventListener('change', function() {
+                const annualInput = document.getElementById('editAnnualLeave');
+                const mapped = SERVICE_LENGTH_MAP[this.value];
+                annualInput.value = mapped !== undefined ? mapped : '';
+            });
+        }
 
         if (debugImmediateSetup) {
             console.log('✅ Edit employee form submit handler attached immediately');
@@ -1872,6 +1887,17 @@ async function editEmployee(employeeId) {
         document.getElementById('editPersonalEmail').value = employee.personal_email || '';
         document.getElementById('editAnnualLeave').value = employee.annual_leave || 0;
         document.getElementById('editSickLeave').value = employee.sick_leave || 0;
+
+        const serviceSelect = document.getElementById('editServiceLength');
+        if (serviceSelect) {
+            let lengthValue = '8+';
+            if (employee.annual_leave === 5) {
+                lengthValue = '1-3';
+            } else if (employee.annual_leave === 10) {
+                lengthValue = '4-7';
+            }
+            serviceSelect.value = lengthValue;
+        }
 
         const balances = await LeaveBalanceAPI.getEmployeeBalances(employeeId);
         const priv = balances.find(b => b.balance_type === 'PRIVILEGE');
