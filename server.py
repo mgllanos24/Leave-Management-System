@@ -15,8 +15,8 @@ from services.database_service import init_database, get_db_connection, db_lock
 from services.employee_service import create_employee, update_employee, delete_employee, get_employees, get_employee_by_email
 # @tweakable import employee validation constants to fix undefined variable errors
 from services.employee_service import (
-    ENABLE_EMPLOYEE_VALIDATION, VALIDATE_EMAIL_UNIQUENESS, MAX_FIRSTNAME_LENGTH, 
-    MAX_SURNAME_LENGTH, DEFAULT_PRIVILEGE_LEAVE, DEFAULT_SICK_LEAVE, ENABLE_EMPLOYEE_AUDIT
+    ENABLE_EMPLOYEE_VALIDATION, VALIDATE_EMAIL_UNIQUENESS, MAX_FIRSTNAME_LENGTH,
+    MAX_SURNAME_LENGTH, DEFAULT_PRIVILEGE_LEAVE, ENABLE_EMPLOYEE_AUDIT
 )
 from services.balance_manager import (
     initialize_employee_balances,
@@ -34,6 +34,9 @@ from services.email_service import (
     SMTP_USERNAME,
     SMTP_PASSWORD,
 )
+
+# Default sick leave allocation
+DEFAULT_SICK_LEAVE = 5
 
 # @tweakable server configuration
 ADMIN_EMAIL = "mgllanos@gmail.com"

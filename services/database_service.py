@@ -59,7 +59,7 @@ def _create_tables(conn):
     MAX_FIRSTNAME_LENGTH = 50
     MAX_SURNAME_LENGTH = 50
     DEFAULT_PRIVILEGE_LEAVE = 15
-    DEFAULT_SICK_LEAVE = 7
+    DEFAULT_SICK_LEAVE = 5
     
     # Create employees table with enhanced structure
     conn.execute(f'''
