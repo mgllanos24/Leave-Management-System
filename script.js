@@ -1766,11 +1766,14 @@ async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = ''
     try {
         const year = new Date().getFullYear();
         const startDate = startMonth
-            ? new Date(year, parseInt(startMonth) - 1, 1)
+            ? new Date(`${startMonth}-01`)
             : new Date(year, 0, 1);
-        const endDate = endMonth
-            ? new Date(year, parseInt(endMonth), 0)
+        let endDate = endMonth
+            ? new Date(`${endMonth}-01`)
             : new Date(year, 11, 31);
+        if (endMonth) {
+            endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
+        }
 
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
 
