@@ -632,6 +632,9 @@ function setupCriticalFormHandlers() {
                 updatePrivilegeLeave('serviceLength', 'annualLeave');
             });
 
+            // Set default PL days based on the initial service length selection
+            updatePrivilegeLeave('serviceLength', 'annualLeave');
+
             if (debugImmediateSetup) {
                 console.log('✅ Service length change handler attached immediately');
             }
