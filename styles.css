@@ -344,6 +344,15 @@ header p {
     border-color: var(--primary-color);
 }
 
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #c2410c;
+}
+
 .btn-danger {
     background: var(--error-color);
     color: white;
@@ -883,7 +892,7 @@ tr:hover {
 
 /* Touch-friendly enhancements */
 @media (hover: none) and (pointer: coarse) {
-    .btn-primary, .btn-secondary {
+    .btn-primary, .btn-secondary, .btn-warning {
         padding: 18px 30px;
         font-size: 1.1rem;
     }
