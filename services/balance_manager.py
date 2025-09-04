@@ -20,7 +20,7 @@ ENABLE_BALANCE_AUDIT = True
 PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual'}}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
 DEFAULT_PRIVILEGE_LEAVE = 15
-DEFAULT_SICK_LEAVE = 7
+DEFAULT_SICK_LEAVE = 5
 
 def initialize_employee_balances(employee_id, year=None):
     """Initialize leave balances for a new employee"""
