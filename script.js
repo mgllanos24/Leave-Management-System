@@ -1246,6 +1246,7 @@ async function handleEmployeeFormSubmit() {
         
         // Reset form
         form.reset();
+        updatePrivilegeLeave('serviceLength', 'annualLeave');
         
         // Reload employee table
         await loadEmployeeList();
