@@ -458,6 +458,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tabAdminHistory) {
         tabAdminHistory.addEventListener('click', () => switchTab('admin-history'));
     }
+    const exportHistoryBtn = document.getElementById('exportHistoryPdf');
+    if (exportHistoryBtn) {
+        exportHistoryBtn.addEventListener('click', () => {
+            const start = document.getElementById('historyStartDate')?.value || '';
+            const end = document.getElementById('historyEndDate')?.value || '';
+            if (currentUser) {
+                exportHistoryPdf(
+                    currentUser.id,
+                    currentUser.surname || '',
+                    currentUser.first_name || '',
+                    start,
+                    end
+                );
+            }
+        });
+    }
     const resetBtn = document.getElementById('resetBalancesBtn');
     if (resetBtn) resetBtn.addEventListener('click', resetAllLeaveBalances);
 
@@ -1754,6 +1770,44 @@ async function loadLeaveHistory(employeeId) {
     } catch (error) {
         console.error('Error loading leave history:', error);
     }
+}
+
+function exportHistoryPdf(employeeId, lastName, firstName, startDate, endDate) {
+    const table = document.getElementById('historyTable');
+    if (!table) return;
+
+    const jspdfLib = window.jspdf;
+    if (!jspdfLib || !jspdfLib.jsPDF) {
+        console.error('jsPDF library is not loaded.');
+        return;
+    }
+
+    const { jsPDF } = jspdfLib;
+    const doc = new jsPDF();
+
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+    const body = Array.from(table.querySelectorAll('tbody tr')).map(tr =>
+        Array.from(tr.children).map(td => td.textContent.trim())
+    );
+
+    doc.text('Leave History', 14, 15);
+    if (startDate || endDate) {
+        doc.text(`Range: ${startDate || 'N/A'} - ${endDate || 'N/A'}`, 14, 23);
+    }
+
+    if (doc.autoTable) {
+        doc.autoTable({ head: [headers], body, startY: startDate || endDate ? 30 : 20 });
+    } else {
+        // Fallback simple table rendering
+        let y = startDate || endDate ? 30 : 20;
+        body.forEach(row => {
+            doc.text(row.join(' | '), 14, y);
+            y += 10;
+        });
+    }
+
+    const filename = `LeaveHistory_${employeeId}_${lastName}${firstName}.pdf`;
+    doc.save(filename);
 }
 
 async function loadAdminLeaveHistory() {

@@ -247,6 +247,10 @@
         <div id="check-history" class="tab-content">
             <section class="section">
                 <h2>🔍 My Vacation Requests</h2>
+                <div class="history-controls">
+                    <!-- Existing sort controls would appear here -->
+                    <button id="exportHistoryPdf" class="btn btn-secondary">Export to PDF</button>
+                </div>
                 <div class="table-container">
                     <table id="historyTable">
                         <thead>
@@ -544,6 +548,8 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
