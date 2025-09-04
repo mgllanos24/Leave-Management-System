@@ -290,12 +290,23 @@
                         
                         <div class="form-row">
                             <div class="form-group">
+                                <label for="serviceLength">Length of Service</label>
+                                <select id="serviceLength" name="serviceLength">
+                                    <option value="1-3">1–3 Years</option>
+                                    <option value="4-7">4–7 Years</option>
+                                    <option value="8+">8+ Years</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label for="annualLeave">Privilege Leave (PL) (days)</label>
-                                <input type="number" id="annualLeave" name="annualLeave" min="0" max="45" value="15" required>
+                                <input type="number" id="annualLeave" name="annualLeave" min="0" max="45" required readonly>
                             </div>
                             <div class="form-group">
                                 <label for="sickLeave">Sick Leave (SL) (days)</label>
-                                <input type="number" id="sickLeave" name="sickLeave" min="0" max="15" value="7" required>
+                                <input type="number" id="sickLeave" name="sickLeave" min="0" max="15" value="5" required>
                             </div>
                         </div>
                         

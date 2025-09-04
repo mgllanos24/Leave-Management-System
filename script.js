@@ -581,6 +581,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+function updatePrivilegeLeave(rangeId, targetId) {
+    const range = document.getElementById(rangeId);
+    const target = document.getElementById(targetId);
+    if (!range || !target) return;
+
+    const mapping = {
+        '1-3': 5,
+        '4-7': 10,
+        '8+': 15
+    };
+
+    target.value = mapping[range.value] || '';
+}
+
 // **NEW: Set up critical form handlers immediately to prevent race condition**
 function setupCriticalFormHandlers() {
     /* @tweakable whether to enable immediate form handler setup debugging */
@@ -606,6 +620,17 @@ function setupCriticalFormHandlers() {
         
         if (debugImmediateSetup) {
             console.log('✅ Employee form submit handler attached immediately');
+        }
+
+        const serviceLengthSelect = document.getElementById('serviceLength');
+        if (serviceLengthSelect) {
+            serviceLengthSelect.addEventListener('change', function() {
+                updatePrivilegeLeave('serviceLength', 'annualLeave');
+            });
+
+            if (debugImmediateSetup) {
+                console.log('✅ Service length change handler attached immediately');
+            }
         }
     }
     
@@ -1192,7 +1217,7 @@ async function handleEmployeeFormSubmit() {
         surname: formData.get('surname'),
         personal_email: formData.get('personalEmail'),
         annual_leave: parseInt(formData.get('annualLeave')) || 15,
-        sick_leave: parseInt(formData.get('sickLeave')) || 7
+        sick_leave: parseInt(formData.get('sickLeave')) || 5
     };
     
     try {
