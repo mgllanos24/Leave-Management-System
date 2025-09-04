@@ -1822,13 +1822,13 @@ async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = ''
 
                 const table = document.createElement('table');
                 const thead = document.createElement('thead');
-                thead.innerHTML = '<tr><th>Employee</th><th>Leave Type</th><th>Dates</th></tr>';
+                thead.innerHTML = '<tr><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Total Days</th></tr>';
                 table.appendChild(thead);
                 const tbody = document.createElement('tbody');
 
                 weekApps.forEach(app => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td>`;
+                    tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td><td>${app.total_days ?? calculateTotalDays(app.start_date, app.end_date, app.start_day_type, app.end_day_type)}</td>`;
                     tbody.appendChild(tr);
                 });
 
