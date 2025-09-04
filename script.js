@@ -268,6 +268,9 @@ let sessionToken = null;
 // Track whether holiday form handlers have been initialized
 let holidayFormInitialized = false;
 
+// Track admin history requests to ignore stale responses
+let adminHistoryRequestId = 0;
+
 /* @tweakable sessionStorage keys for authentication persistence */
 const AUTH_TYPE_KEY = 'elms_auth_type';
 const AUTH_USER_KEY = 'elms_auth_user';
@@ -1761,6 +1764,7 @@ async function loadLeaveHistory(employeeId) {
 }
 
 async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = '') {
+    const requestId = ++adminHistoryRequestId;
     const container = document.getElementById('weeklyHistory');
     if (!container) return;
     container.innerHTML = '';
@@ -1777,6 +1781,7 @@ async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = ''
         }
 
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
+        if (requestId !== adminHistoryRequestId) return;
 
         const filtered = apps.filter(app => {
             const nameMatch = app.employee_name?.toLowerCase().includes(search.toLowerCase());
@@ -2089,11 +2094,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const startMonth = document.getElementById('historyStartMonth');
     const endMonth = document.getElementById('historyEndMonth');
 
+    let reloadTimeout;
     const reload = () => {
-        const search = searchInput?.value || '';
-        const start = startMonth?.value || '';
-        const end = endMonth?.value || '';
-        loadAdminLeaveHistory(search, start, end);
+        clearTimeout(reloadTimeout);
+        reloadTimeout = setTimeout(() => {
+            const search = searchInput?.value || '';
+            const start = startMonth?.value || '';
+            const end = endMonth?.value || '';
+            loadAdminLeaveHistory(search, start, end);
+        }, 300);
     };
 
     if (searchInput) searchInput.addEventListener('input', reload);
