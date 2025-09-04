@@ -1542,8 +1542,8 @@ async function loadLeaveApplications() {
                 <td>${app.total_days}</td>
                 <td>${app.status}</td>
                 <td class="application-actions">
-                    <button class="approve-btn">Approve</button>
-                    <button class="reject-btn">Reject</button>
+                    <button class="btn btn-success approve-btn">Approve</button>
+                    <button class="btn btn-danger reject-btn">Reject</button>
                 </td>
             `;
             tbody.appendChild(row);

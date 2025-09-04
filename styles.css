@@ -224,14 +224,8 @@ header p {
 
 .tab-button {
     flex: 1;
-    padding: 15px 20px;
-    border: none;
     background: transparent;
     color: var(--text-secondary);
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
     border-bottom: 3px solid transparent;
 }
 
@@ -334,14 +328,21 @@ header p {
 }
 
 .btn-secondary {
-    background: var(--surface);
-    color: var(--text-primary);
-    border: 2px solid var(--border-color);
+    background: var(--secondary-color);
+    color: white;
 }
 
 .btn-secondary:hover {
-    background: var(--background);
-    border-color: var(--primary-color);
+    background: #475569;
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #15803d;
 }
 
 .btn-danger {
@@ -351,6 +352,15 @@ header p {
 
 .btn-danger:hover {
     background: #b91c1c;
+}
+
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #c2410c;
 }
 
 /* Table Styles */
@@ -560,25 +570,6 @@ tr:hover {
     flex-wrap: wrap;
 }
 
-.application-actions button {
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    border-radius: 4px;
-}
-
-.approve-btn {
-    background: var(--success-color);
-    color: #fff;
-    border: 2px solid var(--success-color);
-    cursor: pointer;
-}
-
-.reject-btn {
-    background: var(--error-color);
-    color: #fff;
-    border: 2px solid var(--error-color);
-    cursor: pointer;
-}
 
 /* Notification Styles */
 .notifications-section {
@@ -680,36 +671,6 @@ tr:hover {
     gap: 20px;
 }
 
-.entry-btn {
-    padding: 20px 30px;
-    border: none;
-    border-radius: var(--border-radius);
-    font-size: 1.2rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: var(--box-shadow);
-}
-
-.employee-btn {
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-    color: white;
-}
-
-.employee-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
-}
-
-.admin-btn {
-    background: linear-gradient(135deg, #059669, #047857);
-    color: white;
-}
-
-.admin-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
-}
 
 /* Login Header Styles */
 .login-header {
@@ -727,20 +688,6 @@ tr:hover {
     font-size: 1.5rem;
 }
 
-.back-btn {
-    background: var(--secondary-color);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.2s ease;
-}
-
-.back-btn:hover {
-    background: #475569;
-}
 
 /* Remove old login tabs styles since we're not using them anymore */
 .login-tabs {
@@ -765,21 +712,6 @@ tr:hover {
     font-size: 1rem;
 }
 
-.btn-login {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    background: var(--primary-color);
-    color: white;
-    border-radius: var(--border-radius);
-    font-size: 1rem;
-    cursor: pointer;
-    transition: background 0.2s ease;
-}
-
-.btn-login:hover {
-    background: var(--primary-hover);
-}
 
 /* Welcome container and logout button styling */
 #welcomeContainer {
@@ -799,22 +731,6 @@ tr:hover {
     font-size: 1.1rem;
 }
 
-#logoutBtn {
-    padding: 10px 20px;
-    font-size: 1rem;
-    font-weight: 500;
-    background: var(--error-color);
-    color: white;
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    min-width: 80px;
-}
-
-#logoutBtn:hover {
-    background: #b91c1c;
-}
 
 /* Ensure tab buttons are properly hidden when needed */
 .tab-button[style*="display: none"] {
@@ -883,7 +799,7 @@ tr:hover {
 
 /* Touch-friendly enhancements */
 @media (hover: none) and (pointer: coarse) {
-    .btn-primary, .btn-secondary {
+    .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-warning {
         padding: 18px 30px;
         font-size: 1.1rem;
     }
