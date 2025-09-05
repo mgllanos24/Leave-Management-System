@@ -1686,13 +1686,14 @@ async function updateApplicationStatus(id, newStatus) {
 }
 
 
-async function loadLeaveHistory(employeeId) {
+async function loadLeaveHistory(employeeId, tableBodyId = 'historyTableBody') {
     try {
         const apps = await room
             .collection('leave_application')
             .makeRequest('GET', `?employee_id=${encodeURIComponent(employeeId)}`);
 
-        const tbody = document.getElementById('historyTableBody');
+        const tbody = document.getElementById(tableBodyId);
+        if (!tbody) return;
         tbody.innerHTML = '';
 
         apps.forEach(app => {
@@ -1715,6 +1716,39 @@ async function loadLeaveHistory(employeeId) {
         }
     } catch (error) {
         console.error('Error loading leave history:', error);
+    }
+}
+
+async function loadAdminLeaveHistory() {
+    try {
+        const searchInput = document.getElementById('employeeSearch');
+        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+        const tbody = document.getElementById('historyTableBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+        }
+
+        if (!query) {
+            return;
+        }
+
+        const employees = await room.collection('employee').getList();
+        const found = employees.find(emp => {
+            const name = `${emp.first_name || ''} ${emp.surname || ''}`.trim().toLowerCase();
+            const email = (emp.personal_email || emp.email || '').toLowerCase();
+            return name.includes(query) || email.includes(query);
+        });
+
+        if (found) {
+            await loadLeaveHistory(found.id);
+        } else if (tbody) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="6">Employee not found</td>';
+            tbody.appendChild(row);
+        }
+    } catch (error) {
+        console.error('Error loading admin leave history:', error);
     }
 }
 
@@ -1855,7 +1889,7 @@ function switchTab(tabName) {
 
     // Load tab-specific data when needed
     if (tabName === 'check-history' && currentUser) {
-        loadLeaveHistory(currentUser.id);
+        loadLeaveHistory(currentUser.id, 'employeeHistoryTableBody');
     } else if (tabName === 'application-status') {
         loadEmployeeSummary();
         loadLeaveApplications();
@@ -1962,7 +1996,11 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('employeeSearch');
     if (searchInput) {
-        searchInput.addEventListener('input', loadEmployeeSummary);
+        searchInput.addEventListener('input', loadAdminLeaveHistory);
+    }
+    const filterBtn = document.getElementById('filterHistoryBtn');
+    if (filterBtn) {
+        filterBtn.addEventListener('click', loadAdminLeaveHistory);
     }
 });
 
@@ -1978,3 +2016,4 @@ window.closeErrorModal = closeErrorModal;
 window.closeEditModal = closeEditModal;
 window.updateApplicationStatus = updateApplicationStatus;
 window.loadEmployeeSummary = loadEmployeeSummary;
+window.loadAdminLeaveHistory = loadAdminLeaveHistory;
