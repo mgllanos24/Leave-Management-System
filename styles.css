@@ -288,6 +288,16 @@ header p {
     gap: 20px;
 }
 
+.filter-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+}
+
+.filter-row .form-group {
+    flex: 1;
+}
+
 .form-group {
     display: flex;
     flex-direction: column;
