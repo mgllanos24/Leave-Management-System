@@ -782,8 +782,6 @@ function initEntryButtons() {
     }
 }
 
-initEntryButtons();
-
 function showEmployeeLogin() {
     /* @tweakable whether to log navigation to employee login */
     const logNavigation = true;
