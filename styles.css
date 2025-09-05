@@ -5,7 +5,7 @@
 }
 
 body {
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: 'Cal Sans', sans-serif;
     background-color: #f8fafc;
     color: #1e293b;
     line-height: 1.6;
@@ -651,6 +651,34 @@ tr:hover {
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+/* Entry Button Styles */
+.entry-btn {
+    padding: 12px 20px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.employee-btn {
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    color: #ffffff;
+}
+
+.employee-btn:hover {
+    background: linear-gradient(90deg, #2563eb, #1d4ed8);
+}
+
+.admin-btn {
+    background: linear-gradient(90deg, #10b981, #059669);
+    color: #ffffff;
+}
+
+.admin-btn:hover {
+    background: linear-gradient(90deg, #059669, #047857);
 }
 
 
