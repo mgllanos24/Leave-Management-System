@@ -373,8 +373,9 @@ const SERVICE_LENGTH_MAP = {
 
 // Handle login and app initialization
 document.addEventListener('DOMContentLoaded', function() {
-    /* @tweakable whether to show debug messages during login flow initialization */
-    const debugLoginFlow = true;
+    try {
+        /* @tweakable whether to show debug messages during login flow initialization */
+        const debugLoginFlow = true;
     
     /* @tweakable whether to validate app container visibility on page load */
     const validateInitialVisibility = true;
@@ -573,8 +574,15 @@ document.addEventListener('DOMContentLoaded', function() {
         setupHandlersWithRetry();
     }, loginHandlerDelay);
     
-    if (debugLoginFlow) {
-        console.log('✅ Login flow initialization completed');
+        if (debugLoginFlow) {
+            console.log('✅ Login flow initialization completed');
+        }
+    } catch (error) {
+        console.error('Application failed to load:', error);
+        const errorBanner = document.getElementById('loadError');
+        if (errorBanner) {
+            errorBanner.style.display = 'block';
+        }
     }
 });
 
