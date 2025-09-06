@@ -595,14 +595,16 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 employee_name = app_info['employee_name']
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
 
-                                manager_subject = f"Leave application {status_word}: {employee_name}"
+                                manager_subject = f"You approved leave for {employee_name}"
                                 manager_body = (
-                                    f"Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.\\n\\n"
-                                    "Request Details:\\n"
+                                    f"You have approved the leave for {employee_name} (Application ID: {app_id}).\\n\\n"
+                                    f"Leave details:\\n"
                                     f"- Leave Type: {leave_type}\\n"
                                     f"- Start Date: {start_date}\\n"
                                     f"- End Date: {end_date}\\n"
-                                    f"- Total Days: {total_days}\\n"
+                                    f"- Total Days: {total_days}\\n\\n"
+                                    "Add this leave to your calendar using the attached event.\\n\\n"
+                                    "Best regards,\\nHR Department"
                                 )
                                 employee_subject = f"Your leave application has been {status_word}"
                                 employee_body = (
