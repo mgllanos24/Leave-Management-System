@@ -1764,6 +1764,14 @@ async function loadLeaveHistory(employeeId, status = null) {
     }
 }
 
+function getFiscalYearRange(date = new Date()) {
+    const fiscalStartMonth = 0; // January; change if fiscal year starts elsewhere
+    const year = date.getMonth() >= fiscalStartMonth ? date.getFullYear() : date.getFullYear() - 1;
+    const start = new Date(year, fiscalStartMonth, 1);
+    const end = new Date(year + 1, fiscalStartMonth, 0);
+    return { start, end };
+}
+
 async function loadAdminLeaveHistory(search = '') {
     const requestId = ++adminHistoryRequestId;
     const tbody = document.getElementById('adminHistoryTableBody');
@@ -1773,18 +1781,15 @@ async function loadAdminLeaveHistory(search = '') {
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
         if (requestId !== adminHistoryRequestId) return;
 
-        const startInput = document.getElementById('historyStart')?.value;
-        const endInput = document.getElementById('historyEnd')?.value;
-        const startDate = startInput ? new Date(startInput) : null;
-        const endDate = endInput ? new Date(endInput) : null;
+        const { start: fiscalStart, end: fiscalEnd } = getFiscalYearRange();
 
         const filtered = apps.filter(app => {
             const name = (app.employee_name || '').toLowerCase();
             const nameMatch = name.includes(search.toLowerCase());
             const appStart = new Date(app.start_date);
             const appEnd = new Date(app.end_date);
-            const inRange = (!startDate || appStart >= startDate) && (!endDate || appEnd <= endDate);
-            return nameMatch && inRange;
+            const inFiscalYear = appStart >= fiscalStart && appEnd <= fiscalEnd;
+            return nameMatch && inFiscalYear;
         });
 
         filtered.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
@@ -2089,8 +2094,6 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('historySearch');
     const exportBtn = document.getElementById('historyExportBtn');
-    const startInput = document.getElementById('historyStart');
-    const endInput = document.getElementById('historyEnd');
 
     let reloadTimeout;
     const reload = () => {
@@ -2102,8 +2105,6 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     if (searchInput) searchInput.addEventListener('input', reload);
-    if (startInput) startInput.addEventListener('change', reload);
-    if (endInput) endInput.addEventListener('change', reload);
     if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
 });
 
