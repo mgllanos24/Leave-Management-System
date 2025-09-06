@@ -1724,14 +1724,14 @@ async function updateApplicationStatus(id, newStatus) {
 }
 
 
-async function loadLeaveHistory(employeeId) {
+async function loadLeaveHistory(employeeId, status = null) {
     try {
-        // Fetch only approved leave applications for this employee
+        const statusParam = status ? `&status=${encodeURIComponent(status)}` : '';
         const apps = await room
             .collection('leave_application')
             .makeRequest(
                 'GET',
-                `?employee_id=${encodeURIComponent(employeeId)}&status=Approved`
+                `?employee_id=${encodeURIComponent(employeeId)}${statusParam}`
             );
 
         const tbody = document.getElementById('historyTableBody');
@@ -1745,7 +1745,7 @@ async function loadLeaveHistory(employeeId) {
                 <td>${app.start_date}</td>
                 <td>${app.end_date}</td>
                 <td>${app.total_days}</td>
-                <td>${app.status}</td>
+                <td><span class="status-badge status-${(app.status || '').toLowerCase()}">${app.status}</span></td>
             `;
             tbody.appendChild(row);
         });
