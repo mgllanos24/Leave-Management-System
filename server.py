@@ -80,45 +80,43 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
     return total
 
 
-def format_leave_request_email(data, submission_time=None):
-    """Build a detailed leave request message for notifications.
+def format_leave_request_email(
+    employee_name,
+    application_id,
+    leave_type,
+    start_date,
+    start_day_type,
+    end_date,
+    end_day_type,
+    total_days,
+    reason,
+    date_applied,
+):
+    """Build a multi-line email body for a leave request notification."""
 
-    Parameters
-    ----------
-    data: dict
-        Leave application information.
-    submission_time: str | None
-        Optional ISO formatted timestamp when the request was submitted.
-    """
-
-    application_id = data.get("application_id", "")
-    leave_type = data.get("leave_type", "")
-    start_date = data.get("start_date", "")
-    start_day_type = data.get("start_day_type", "full")
-    end_date = data.get("end_date", "")
-    end_day_type = data.get("end_day_type", "full")
-    total_days = data.get("total_days", 0)
-
-    categories = data.get("selected_reasons", [])
-    if isinstance(categories, str):
-        try:
-            categories = json.loads(categories)
-        except Exception:  # noqa: BLE001 - fallback to raw string
-            categories = [categories]
-    categories_str = ", ".join(categories) if categories else "None"
-
-    reason = data.get("reason", "")
-    submitted = submission_time or data.get("date_applied") or datetime.now().isoformat()
+    try:
+        applied_dt = datetime.fromisoformat(date_applied)
+        formatted_applied = applied_dt.strftime("%B %d, %Y %I:%M %p")
+    except Exception:  # noqa: BLE001 - if parsing fails, use raw value
+        formatted_applied = date_applied
 
     return (
-        f"Application ID: {application_id}\n"
-        f"Leave type: {leave_type}\n"
-        f"Start: {start_date} ({start_day_type})\n"
-        f"End: {end_date} ({end_day_type})\n"
-        f"Total days: {total_days}\n"
-        f"Categories: {categories_str}\n"
-        f"Reason: {reason}\n"
-        f"Submitted at: {submitted}"
+        "A new leave request has been submitted and requires your approval.\n\n"
+        "Employee Details\n"
+        f"- Employee Name: {employee_name}\n"
+        f"- Application ID: {application_id}\n\n"
+        "Leave Request Details\n"
+        f"- Leave Type: {leave_type}\n"
+        f"- Start Date: {start_date} ({start_day_type})\n"
+        f"- End Date: {end_date} ({end_day_type})\n"
+        f"- Total Days: {total_days}\n\n"
+        "Reason for Leave\n"
+        f"- Reason: {reason}\n"
+        f"- Date Applied: {formatted_applied}\n\n"
+        "Please log in to the Leave Management System to review and take action.\n"
+        "Status: Pending Approval\n\n"
+        "Best regards,\n"
+        "Leave Management System"
     )
 
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
@@ -448,7 +446,18 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if collection == 'leave_application':
                 admin_email = ADMIN_EMAIL
                 subject = "New Leave Request Submitted"
-                body = format_leave_request_email(data)
+                body = format_leave_request_email(
+                    data.get('employee_name', ''),
+                    data.get('application_id', ''),
+                    data.get('leave_type', ''),
+                    data.get('start_date', ''),
+                    data.get('start_day_type', 'full'),
+                    data.get('end_date', ''),
+                    data.get('end_day_type', 'full'),
+                    data.get('total_days', 0),
+                    data.get('reason', ''),
+                    data.get('date_applied', ''),
+                )
                 try:
                     if send_notification_email(
                         admin_email,
