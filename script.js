@@ -1763,22 +1763,15 @@ async function loadLeaveHistory(employeeId) {
     }
 }
 
-async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = '') {
+async function loadAdminLeaveHistory(search = '') {
     const requestId = ++adminHistoryRequestId;
-    const container = document.getElementById('weeklyHistory');
-    if (!container) return;
-    container.innerHTML = '';
+    const tbody = document.getElementById('historyTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
     try {
-        const year = new Date().getFullYear();
-        const startDate = startMonth
-            ? new Date(`${startMonth}-01`)
-            : new Date(year, 0, 1);
-        let endDate = endMonth
-            ? new Date(`${endMonth}-01`)
-            : new Date(year, 11, 31);
-        if (endMonth) {
-            endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
-        }
+        const today = new Date();
+        const fiscalStart = new Date(today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1, 8, 1);
+        const fiscalEnd = new Date(fiscalStart.getFullYear() + 1, 7, 31);
 
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
         if (requestId !== adminHistoryRequestId) return;
@@ -1787,69 +1780,31 @@ async function loadAdminLeaveHistory(search = '', startMonth = '', endMonth = ''
             const nameMatch = app.employee_name?.toLowerCase().includes(search.toLowerCase());
             const appStart = new Date(app.start_date);
             const appEnd = new Date(app.end_date);
-            const inRange = appStart >= startDate && appEnd <= endDate;
+            const inRange = appStart >= fiscalStart && appEnd <= fiscalEnd;
             return nameMatch && inRange;
         });
 
-        filtered.sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+        filtered.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
-        const groups = {};
         filtered.forEach(app => {
-            const start = new Date(app.start_date);
-            const day = start.getDay();
-            const diff = day === 0 ? -6 : 1 - day; // shift to Monday
-            const monday = new Date(start);
-            monday.setDate(start.getDate() + diff);
-            const key = monday.toISOString().slice(0, 10);
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(app);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td><td>${app.total_days ?? calculateTotalDays(app.start_date, app.end_date, app.start_day_type, app.end_day_type)}</td>`;
+            tbody.appendChild(tr);
         });
 
-        Object.keys(groups)
-            .sort((a, b) => new Date(b) - new Date(a))
-            .forEach(key => {
-                const weekApps = groups[key];
-                const start = new Date(key);
-                const end = new Date(start);
-                end.setDate(start.getDate() + 6);
-
-                const details = document.createElement('details');
-                details.className = 'week-group';
-
-                const summary = document.createElement('summary');
-                summary.textContent = `${key} to ${end.toISOString().slice(0, 10)} (${weekApps.length} records)`;
-                details.appendChild(summary);
-
-                const table = document.createElement('table');
-                const thead = document.createElement('thead');
-                thead.innerHTML = '<tr><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Total Days</th></tr>';
-                table.appendChild(thead);
-                const tbody = document.createElement('tbody');
-
-                weekApps.forEach(app => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td><td>${app.total_days ?? calculateTotalDays(app.start_date, app.end_date, app.start_day_type, app.end_day_type)}</td>`;
-                    tbody.appendChild(tr);
-                });
-
-                table.appendChild(tbody);
-                details.appendChild(table);
-                container.appendChild(details);
-            });
+        if (filtered.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="4">No leave applications found</td>';
+            tbody.appendChild(tr);
+        }
     } catch (error) {
         console.error('Error loading admin leave history:', error);
     }
 }
 
 async function exportAdminHistoryPdf() {
-    const container = document.getElementById('weeklyHistory');
+    const container = document.getElementById('historyTable');
     if (!container) return;
-
-    const details = Array.from(container.querySelectorAll('.week-group'));
-    const states = details.map(d => d.open);
-    details.forEach(d => {
-        d.open = true;
-    });
 
     const dateCells = container.querySelectorAll('tbody tr td:nth-child(3)');
     let earliest = null;
@@ -1880,10 +1835,6 @@ async function exportAdminHistoryPdf() {
     if (typeof html2pdf !== 'undefined') {
         await html2pdf().from(container).save(filename);
     }
-
-    details.forEach((d, idx) => {
-        d.open = states[idx];
-    });
 }
 
 async function loadHolidays() {
@@ -2030,9 +1981,7 @@ function switchTab(tabName) {
         loadLeaveApplications();
     } else if (tabName === 'admin-history') {
         const search = document.getElementById('historySearch')?.value || '';
-        const start = document.getElementById('historyStartMonth')?.value || '';
-        const end = document.getElementById('historyEndMonth')?.value || '';
-        loadAdminLeaveHistory(search, start, end);
+        loadAdminLeaveHistory(search);
     }
 }
 
@@ -2136,8 +2085,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('historySearch');
-    const startMonth = document.getElementById('historyStartMonth');
-    const endMonth = document.getElementById('historyEndMonth');
     const exportBtn = document.getElementById('historyExportBtn');
 
     let reloadTimeout;
@@ -2145,15 +2092,11 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(reloadTimeout);
         reloadTimeout = setTimeout(() => {
             const search = searchInput?.value || '';
-            const start = startMonth?.value || '';
-            const end = endMonth?.value || '';
-            loadAdminLeaveHistory(search, start, end);
+            loadAdminLeaveHistory(search);
         }, 300);
     };
 
     if (searchInput) searchInput.addEventListener('input', reload);
-    if (startMonth) startMonth.addEventListener('change', reload);
-    if (endMonth) endMonth.addEventListener('change', reload);
     if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
 });
 
