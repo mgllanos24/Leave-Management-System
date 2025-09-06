@@ -101,24 +101,28 @@ def format_leave_request_email(
     except Exception:  # noqa: BLE001 - if parsing fails, use raw value
         formatted_applied = date_applied
 
-    return (
-        "A new leave request has been submitted and requires your approval.\n\n"
-        "Employee Details\n"
-        f"- Employee Name: {employee_name}\n"
-        f"- Application ID: {application_id}\n\n"
-        "Leave Request Details\n"
-        f"- Leave Type: {leave_type}\n"
-        f"- Start Date: {start_date} ({start_day_type})\n"
-        f"- End Date: {end_date} ({end_day_type})\n"
-        f"- Total Days: {total_days}\n\n"
-        "Reason for Leave\n"
-        f"- Reason: {reason}\n"
-        f"- Date Applied: {formatted_applied}\n\n"
-        "Please log in to the Leave Management System to review and take action.\n"
-        "Status: Pending Approval\n\n"
-        "Best regards,\n"
-        "Leave Management System"
-    )
+    
+    return f"""A new leave request has been submitted and requires your approval.
+
+Employee Details
+- Employee Name: {employee_name}
+- Application ID: {application_id}
+
+Leave Request Details
+- Leave Type: {leave_type}
+- Start Date: {start_date} ({start_day_type})
+- End Date: {end_date} ({end_day_type})
+- Total Days: {total_days}
+
+Reason for Leave
+- Reason: {reason}
+- Date Applied: {formatted_applied}
+
+Please log in to the Leave Management System to review and take action.
+Status: Pending Approval
+
+Best regards,
+Leave Management System"""
 
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def guess_type(self, path):
@@ -596,27 +600,32 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
 
                                 manager_subject = f"Leave application {status_word}: {employee_name}"
-                                manager_body = (
-                                    f"Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.\\n\\n"
-                                    "Request Details:\\n"
-                                    f"- Leave Type: {leave_type}\\n"
-                                    f"- Start Date: {start_date}\\n"
-                                    f"- End Date: {end_date}\\n"
-                                    f"- Total Days: {total_days}\\n"
-                                )
+                                
+                                manager_body = f"""Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.
+
+Request Details:
+- Leave Type: {leave_type}
+- Start Date: {start_date}
+- End Date: {end_date}
+- Total Days: {total_days}
+"""
                                 employee_subject = f"Your leave application has been {status_word}"
-                                employee_body = (
-                                    f"Dear {employee_name},\\n\\n"
-                                    f"Your leave request (Application ID: {app_id}) has been {status_word}.\\n\\n"
-                                    "Request Details:\\n"
-                                    f"- Leave Type: {leave_type}\\n"
-                                    f"- Start Date: {start_date}\\n"
-                                    f"- End Date: {end_date}\\n"
-                                    f"- Total Days: {total_days}\\n\\n"
-                                    "Please plan accordingly.\\n\\n"
-                                    "Best regards,\\n"
-                                    "HR Department\\n"
-                                )
+                                
+                                employee_body = f"""Dear {employee_name},
+
+Your leave request (Application ID: {app_id}) has been {status_word}.
+
+Request Details:
+- Leave Type: {leave_type}
+- Start Date: {start_date}
+- End Date: {end_date}
+- Total Days: {total_days}
+
+Please plan accordingly.
+
+Best regards,
+HR Department
+"""
 
                                 ics_content = None
                                 if new_status == 'Approved':
