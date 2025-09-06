@@ -72,7 +72,7 @@ class BackendCollection {
                 }
                 
                 if (this.database.debugMode) {
-                    console.log(`🔄 ${method} ${url}`, data ? data : '');
+                    console.log(`REQUEST ${method} ${url}`, data ? data : '');
                 }
                 
                 const response = await fetch(url, options);
@@ -86,7 +86,7 @@ class BackendCollection {
                 const result = await response.json();
                 
                 if (this.database.debugMode) {
-                    console.log(`✅ ${method} ${url} success`, result);
+                    console.log(`SUCCESS ${method} ${url} success`, result);
                 }
                 
                 return result;
@@ -97,15 +97,15 @@ class BackendCollection {
                 }
 
                 if (error.name === 'AbortError') {
-                    console.error(`⏱️ ${method} ${url} timed out after ${this.database.requestTimeout}ms`);
+                    console.error(`TIMEOUT ${method} ${url} timed out after ${this.database.requestTimeout}ms`);
                     error = new Error(`Request timed out after ${this.database.requestTimeout}ms`);
                 }
 
                 if (attempt === this.database.maxRetries) {
-                    console.error(`❌ ${method} ${url} failed after ${attempt} attempts:`, error);
+                    console.error(`ERROR ${method} ${url} failed after ${attempt} attempts:`, error);
                     throw error;
                 } else {
-                    console.warn(`⚠️ ${method} ${url} attempt ${attempt} failed, retrying...`, error.message);
+                    console.warn(`WARNING ${method} ${url} attempt ${attempt} failed, retrying...`, error.message);
                     await new Promise(resolve => setTimeout(resolve, this.database.retryDelay));
                 }
             }
@@ -252,7 +252,7 @@ const USE_BACKEND_DATABASE = true;
 if (USE_BACKEND_DATABASE) {
     if (!window.room || !(window.room instanceof BackendDatabase)) {
         window.room = new BackendDatabase();
-        console.log('✅ room initialized with BackendDatabase');
+        console.log('SUCCESS room initialized with BackendDatabase');
     }
 }
 const room = window.room;
@@ -398,8 +398,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const logDOMState = true;
     
     if (debugLoginFlow) {
-        console.log('🚀 Initializing Employee Leave Management System...');
-        console.log('📊 Page Load Debug Info:');
+        console.log('START Initializing Employee Leave Management System...');
+        console.log('INFO Page Load Debug Info:');
         console.log('- Current URL:', window.location.href);
         console.log('- DOM Ready State:', document.readyState);
         console.log('- Script Loading Time:', new Date().toISOString());
@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Enhanced DOM state logging
     if (logDOMState) {
-        console.log('📋 DOM State Check:');
+        console.log('INFO DOM State Check:');
         console.log('- Entry Container:', document.getElementById('entryContainer'));
         console.log('- Employee Entry Button:', document.getElementById('employeeEntryBtn'));
         console.log('- Admin Entry Button:', document.getElementById('adminEntryBtn'));
@@ -483,17 +483,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (employeeBtn) {
                 employeeBtn.style.border = '2px dashed red';
                 employeeBtn.title = 'DEBUG: Employee button found and marked';
-                console.log('🔍 Visual debug marker added to employee button');
+                console.log('DEBUG Visual debug marker added to employee button');
             } else {
-                console.error('🚨 Employee button not found for visual debugging');
+                console.error('ERROR Employee button not found for visual debugging');
             }
             
             if (adminBtn) {
                 adminBtn.style.border = '2px dashed red';
                 adminBtn.title = 'DEBUG: Admin button found and marked';
-                console.log('🔍 Visual debug marker added to admin button');
+                console.log('DEBUG Visual debug marker added to admin button');
             } else {
-                console.error('🚨 Admin button not found for visual debugging');
+                console.error('ERROR Admin button not found for visual debugging');
             }
         }, 100);
     }
@@ -504,28 +504,28 @@ document.addEventListener('DOMContentLoaded', function() {
             const employeeBtn = document.getElementById('employeeEntryBtn');
             const adminBtn = document.getElementById('adminEntryBtn');
 
-            console.log('🔧 Setting up backup button handlers...');
+            console.log('INFO Setting up backup button handlers...');
 
             if (employeeBtn) {
                 employeeBtn.addEventListener('click', function(e) {
                     e.preventDefault();
-                    console.log('🔄 Backup employee handler triggered');
+                    console.log('INFO Backup employee handler triggered');
                     showEmployeeLogin();
                 });
-                console.log('✅ Employee button handler confirmed');
+                console.log('SUCCESS Employee button handler confirmed');
             } else {
-                console.error('❌ Employee button not found!');
+                console.error('ERROR Employee button not found!');
             }
 
             if (adminBtn) {
                 adminBtn.addEventListener('click', function(e) {
                     e.preventDefault();
-                    console.log('🔄 Backup admin handler triggered');
+                    console.log('INFO Backup admin handler triggered');
                     showAdminLogin();
                 });
-                console.log('✅ Admin button handler confirmed');
+                console.log('SUCCESS Admin button handler confirmed');
             } else {
-                console.error('❌ Admin button not found!');
+                console.error('ERROR Admin button not found!');
             }
         }, 200);
     }
@@ -554,15 +554,15 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             await setupLoginHandlers();
             if (debugLoginFlow) {
-                console.log('✅ Login handlers setup completed successfully');
+                console.log('SUCCESS Login handlers setup completed successfully');
             }
         } catch (error) {
-            console.error('❌ Error setting up login handlers:', error);
+            console.error('ERROR Error setting up login handlers:', error);
             if (retryCount < maxLoginElementRetries) {
-                console.log(`🔄 Retrying login handler setup (attempt ${retryCount + 1})...`);
+                console.log(`INFO Retrying login handler setup (attempt ${retryCount + 1})...`);
                 setTimeout(() => setupHandlersWithRetry(retryCount + 1), loginElementRetryDelay);
             } else {
-                console.error('🚨 Failed to setup login handlers after maximum retries');
+                console.error('ERROR Failed to setup login handlers after maximum retries');
                 // Try direct button attachment as fallback
                 setupLoginButtonsFallback();
             }
@@ -574,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }, loginHandlerDelay);
     
     if (debugLoginFlow) {
-        console.log('✅ Login flow initialization completed');
+        console.log('SUCCESS Login flow initialization completed');
     }
 });
 
@@ -598,7 +598,7 @@ function setupCriticalFormHandlers() {
     const debugImmediateSetup = true;
     
     if (debugImmediateSetup) {
-        console.log('🚀 Setting up critical form handlers immediately...');
+        console.log('START Setting up critical form handlers immediately...');
     }
     
     // Set up employee form handler immediately
@@ -609,14 +609,14 @@ function setupCriticalFormHandlers() {
             e.stopPropagation();
             
             if (debugImmediateSetup) {
-                console.log('✅ Employee form submitted via immediate handler');
+                console.log('SUCCESS Employee form submitted via immediate handler');
             }
             
             await handleEmployeeFormSubmit();
         });
         
         if (debugImmediateSetup) {
-            console.log('✅ Employee form submit handler attached immediately');
+            console.log('SUCCESS Employee form submit handler attached immediately');
         }
 
         const serviceLengthSelect = document.getElementById('serviceLength');
@@ -629,7 +629,7 @@ function setupCriticalFormHandlers() {
             updatePrivilegeLeave('serviceLength', 'annualLeave');
 
             if (debugImmediateSetup) {
-                console.log('✅ Service length change handler attached immediately');
+                console.log('SUCCESS Service length change handler attached immediately');
             }
         }
     }
@@ -642,7 +642,7 @@ function setupCriticalFormHandlers() {
             e.stopPropagation();
             
             if (debugImmediateSetup) {
-                console.log('✅ Vacation form submitted via immediate handler');
+                console.log('SUCCESS Vacation form submitted via immediate handler');
             }
             
             await submitLeaveApplication(e);
@@ -653,7 +653,7 @@ function setupCriticalFormHandlers() {
         });
 
         if (debugImmediateSetup) {
-            console.log('✅ Vacation form submit handler attached immediately');
+            console.log('SUCCESS Vacation form submit handler attached immediately');
         }
     }
 
@@ -665,7 +665,7 @@ function setupCriticalFormHandlers() {
             e.stopPropagation();
 
             if (debugImmediateSetup) {
-                console.log('✅ Edit employee form submitted via immediate handler');
+                console.log('SUCCESS Edit employee form submitted via immediate handler');
             }
 
             try {
@@ -706,12 +706,12 @@ function setupCriticalFormHandlers() {
         }
 
         if (debugImmediateSetup) {
-            console.log('✅ Edit employee form submit handler attached immediately');
+            console.log('SUCCESS Edit employee form submit handler attached immediately');
         }
     }
     
     if (debugImmediateSetup) {
-        console.log('🎉 Critical form handlers setup completed');
+        console.log('SUCCESS Critical form handlers setup completed');
     }
 }
 
@@ -720,7 +720,7 @@ function setupLoginButtonsFallback() {
     const debugFallback = true;
     
     if (debugFallback) {
-        console.log('🔧 Setting up fallback login button handlers...');
+        console.log('INFO Setting up fallback login button handlers...');
     }
     
     const employeeBtn = document.getElementById('employeeEntryBtn');
@@ -745,12 +745,12 @@ function initializeLocalDatabase() {
     /* @tweakable database initialization timeout in milliseconds */
     const dbInitTimeout = 3000;
     
-    console.log('📊 Initializing local database connection...');
+    console.log('INFO Initializing local database connection...');
     
     if (window.room) {
-        console.log('✅ Database connection ready');
+        console.log('SUCCESS Database connection ready');
     } else {
-        console.warn('⚠️ Database connection not available yet');
+        console.warn('WARNING Database connection not available yet');
     }
 }
 
@@ -770,7 +770,7 @@ function restoreAuthenticationState() {
                 sessionToken = savedToken;
 
                 if (debugAuthRestore) {
-                    console.log('✅ Authentication state restored:', { type: currentUserType, user: currentUser });
+                    console.log('SUCCESS Authentication state restored:', { type: currentUserType, user: currentUser });
                 }
                 showMainApp();
             }
@@ -822,7 +822,7 @@ function showEmployeeLogin() {
     const logNavigation = true;
 
     if (logNavigation) {
-        console.log('🔄 Navigating to employee login');
+        console.log('INFO Navigating to employee login');
     }
 
     const employeeForm = document.getElementById('loginEmployeeForm');
@@ -841,7 +841,7 @@ function showAdminLogin() {
     const logNavigation = true;
 
     if (logNavigation) {
-        console.log('🔄 Navigating to admin login');
+        console.log('INFO Navigating to admin login');
     }
 
     const adminForm = document.getElementById('loginAdminForm');
@@ -861,7 +861,7 @@ async function setupLoginHandlers() {
     const validateFormElements = true;
     
     if (enableDetailedLogging) {
-        console.log('🔧 Setting up login form handlers...');
+        console.log('INFO Setting up login form handlers...');
     }
     
     // Employee login form
@@ -877,7 +877,7 @@ async function setupLoginHandlers() {
         });
         
         if (enableDetailedLogging) {
-            console.log('✅ Employee login form handler attached');
+            console.log('SUCCESS Employee login form handler attached');
         }
     }
     
@@ -895,7 +895,7 @@ async function setupLoginHandlers() {
         });
         
         if (enableDetailedLogging) {
-            console.log('✅ Admin login form handler attached');
+            console.log('SUCCESS Admin login form handler attached');
         }
     }
     
@@ -1165,7 +1165,7 @@ async function initializeApp() {
     
     try {
         if (enableInitDebug) {
-            console.log('🚀 Initializing main application...');
+            console.log('START Initializing main application...');
         }
         
         // Load initial data
@@ -1192,11 +1192,11 @@ async function initializeApp() {
         setupLeaveTypeHandling();
         
         if (enableInitDebug) {
-            console.log('✅ Application initialization completed');
+            console.log('SUCCESS Application initialization completed');
         }
         
     } catch (error) {
-        console.error('❌ Application initialization failed:', error);
+        console.error('ERROR Application initialization failed:', error);
     }
 }
 
@@ -1206,7 +1206,7 @@ async function handleEmployeeFormSubmit() {
     const debugEmployeeSubmission = true;
     
     if (debugEmployeeSubmission) {
-        console.log('📝 Employee form submitted');
+        console.log('INFO Employee form submitted');
     }
     
     const form = document.getElementById('employeeForm');
@@ -1226,13 +1226,13 @@ async function handleEmployeeFormSubmit() {
         }
         
         if (debugEmployeeSubmission) {
-            console.log('🔄 Creating employee record...', employeeData);
+            console.log('INFO Creating employee record...', employeeData);
         }
         
         const newEmployee = await room.collection('employee').create(employeeData);
         
         if (debugEmployeeSubmission) {
-            console.log('✅ Employee created:', newEmployee);
+            console.log('SUCCESS Employee created:', newEmployee);
         }
         
         // Reset form
@@ -1245,7 +1245,7 @@ async function handleEmployeeFormSubmit() {
         alert(`Employee ${employeeData.first_name} ${employeeData.surname} added successfully!`);
         
     } catch (error) {
-        console.error('❌ Error adding employee:', error);
+        console.error('ERROR Error adding employee:', error);
         alert(`Error adding employee: ${error.message}`);
     } finally {
         if (showEmployeeCreationFeedback) {
@@ -1311,14 +1311,14 @@ function setupEmployeeManagement() {
     const debugEmployeeSetup = true;
     
     if (debugEmployeeSetup) {
-        console.log('🔧 Setting up employee management handlers...');
+        console.log('INFO Setting up employee management handlers...');
     }
     
     // Note: Form handler is already set up in setupCriticalFormHandlers
     // This function can handle additional employee management setup
     
     if (debugEmployeeSetup) {
-        console.log('✅ Employee management setup completed');
+        console.log('SUCCESS Employee management setup completed');
     }
 }
 
@@ -1327,13 +1327,13 @@ function setupHolidayManagement() {
     const debugHolidaySetup = true;
 
     if (debugHolidaySetup) {
-        console.log('🔧 Setting up holiday management handlers...');
+        console.log('INFO Setting up holiday management handlers...');
     }
 
     // Only attach handlers once
     if (holidayFormInitialized) {
         if (debugHolidaySetup) {
-            console.log('ℹ️ Holiday form handlers already initialized');
+            console.log('INFO Holiday form handlers already initialized');
         }
         return;
     }
@@ -1359,17 +1359,17 @@ function setupHolidayManagement() {
         holidayFormInitialized = true;
 
         if (debugHolidaySetup) {
-            console.log('✅ Holiday form submit handler attached');
+            console.log('SUCCESS Holiday form submit handler attached');
         }
     }
 
     if (debugHolidaySetup) {
-        console.log('✅ Holiday management setup completed');
+        console.log('SUCCESS Holiday management setup completed');
     }
 }
 
 function setupLeaveApplication() {
-    console.log('🔧 Setting up leave application handlers...');
+    console.log('INFO Setting up leave application handlers...');
 }
 
 function setupDateCalculation() {
@@ -1928,7 +1928,7 @@ function switchTab(tabName) {
     const logTabSwitching = true;
 
     if (logTabSwitching) {
-        console.log(`🔄 Switching to tab: ${tabName}`);
+        console.log(`INFO Switching to tab: ${tabName}`);
     }
 
     // Map hyphenated tab names to their camel-cased button IDs
