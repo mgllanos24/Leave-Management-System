@@ -120,6 +120,13 @@ def format_leave_request_email(
     )
 
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
+    def guess_type(self, path):
+        """Ensure JavaScript files are served with UTF-8 charset"""
+        base, ext = os.path.splitext(path)
+        if ext == '.js':
+            return 'application/javascript; charset=UTF-8'
+        return super().guess_type(path)
+
     def send_cors_headers(self):
         """Add CORS headers to the response"""
         self.send_header('Access-Control-Allow-Origin', '*')
