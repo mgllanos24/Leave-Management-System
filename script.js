@@ -1480,8 +1480,11 @@ async function submitLeaveApplication(event) {
 function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
     if (!startDate || !endDate) return 0;
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Normalize dates to local midnight to avoid timezone issues
+    const start = new Date(startDate + 'T00:00');
+    const end = new Date(endDate + 'T00:00');
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
     if (end < start) return 0;
 
     const startType = startDayType || document.querySelector('input[name="startDayType"]:checked')?.value || 'full';
@@ -1489,6 +1492,7 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
 
     let total = 0;
     const current = new Date(start);
+    current.setHours(0, 0, 0, 0);
     while (current <= end) {
         const iso = current.toISOString().split('T')[0];
         const day = current.getDay();
@@ -1503,6 +1507,7 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
             }
         }
         current.setDate(current.getDate() + 1);
+        current.setHours(0, 0, 0, 0);
     }
 
     return total;
