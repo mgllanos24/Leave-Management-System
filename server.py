@@ -604,6 +604,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     f"- End Date: {end_date}\\n"
                                     f"- Total Days: {total_days}\\n"
                                 )
+                                admin_subject = (
+                                    f"Approved leave for {employee_name}"
+                                    if new_status == 'Approved'
+                                    else f"Leave application {status_word}: {employee_name}"
+                                )
+                                admin_body = (
+                                    f"The leave application for {employee_name} (Application ID: {app_id}) has been {status_word}.\\n\\n"
+                                    "Request Details:\\n"
+                                    f"- Leave Type: {leave_type}\\n"
+                                    f"- Start Date: {start_date}\\n"
+                                    f"- End Date: {end_date}\\n"
+                                    f"- Total Days: {total_days}\\n"
+                                )
                                 employee_subject = f"Your leave application has been {status_word}"
                                 employee_body = (
                                     f"Dear {employee_name},\\n\\n"
@@ -653,6 +666,20 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     print(
                                         f"⚠️ Manager email missing for application {record_id}; skipping manager notification"
                                     )
+
+                                try:
+                                    send_notification_email(
+                                        ADMIN_EMAIL,
+                                        admin_subject,
+                                        admin_body,
+                                        SMTP_SERVER,
+                                        SMTP_PORT,
+                                        SMTP_USERNAME,
+                                        SMTP_PASSWORD,
+                                        ics_content=ics_content,
+                                    )
+                                except Exception as email_err:
+                                    print(f"⚠️ Failed to notify admin for {record_id}: {email_err}")
 
                                 if employee_email:
                                     try:
