@@ -2134,27 +2134,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('historySearch');
-    const startMonth = document.getElementById('historyStartMonth');
-    const endMonth = document.getElementById('historyEndMonth');
-    const exportBtn = document.getElementById('historyExportBtn');
-
     let reloadTimeout;
-    const reload = () => {
-        clearTimeout(reloadTimeout);
-        reloadTimeout = setTimeout(() => {
-            const search = searchInput?.value || '';
-            const start = startMonth?.value || '';
-            const end = endMonth?.value || '';
-            loadAdminLeaveHistory(search, start, end);
-        }, 300);
-    };
-
-    if (searchInput) searchInput.addEventListener('input', reload);
-    if (startMonth) startMonth.addEventListener('change', reload);
-    if (endMonth) endMonth.addEventListener('change', reload);
-    if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(reloadTimeout);
+            reloadTimeout = setTimeout(() => {
+                loadAdminLeaveHistory(searchInput.value);
+            }, 300);
+        });
+    }
 });
 
 // Expose functions for inline handlers
