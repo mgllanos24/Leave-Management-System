@@ -42,6 +42,7 @@ DEFAULT_SICK_LEAVE = 5
 ADMIN_EMAIL = "mgllanos@gmail.com"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
+MANAGER_EMAIL = os.getenv("MANAGER_EMAIL")
 
 # @tweakable employee management configuration - define missing constants
 AUTO_CREATE_BALANCE_RECORDS = True
@@ -629,19 +630,29 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                         ),
                                     )
 
-                                try:
-                                    send_notification_email(
-                                        ADMIN_EMAIL,
-                                        manager_subject,
-                                        manager_body,
-                                        SMTP_SERVER,
-                                        SMTP_PORT,
-                                        SMTP_USERNAME,
-                                        SMTP_PASSWORD,
-                                        ics_content=ics_content,
+                                manager_email = (
+                                    app_info['manager_email']
+                                    if 'manager_email' in app_info.keys() and app_info['manager_email']
+                                    else MANAGER_EMAIL or ADMIN_EMAIL
+                                )
+                                if manager_email:
+                                    try:
+                                        send_notification_email(
+                                            manager_email,
+                                            manager_subject,
+                                            manager_body,
+                                            SMTP_SERVER,
+                                            SMTP_PORT,
+                                            SMTP_USERNAME,
+                                            SMTP_PASSWORD,
+                                            ics_content=ics_content,
+                                        )
+                                    except Exception as email_err:
+                                        print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
+                                else:
+                                    print(
+                                        f"⚠️ Manager email missing for application {record_id}; skipping manager notification"
                                     )
-                                except Exception as email_err:
-                                    print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
 
                                 if employee_email:
                                     try:
@@ -653,10 +664,14 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                             SMTP_PORT,
                                             SMTP_USERNAME,
                                             SMTP_PASSWORD,
-                                            ics_content=ics_content,
+                                            ics_content=None,
                                         )
                                     except Exception as email_err:
                                         print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
+                                else:
+                                    print(
+                                        f"⚠️ Employee email missing for employee {employee_id}; skipping employee notification"
+                                    )
                         except Exception as prep_err:
                             print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
 
