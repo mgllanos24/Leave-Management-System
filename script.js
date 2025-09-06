@@ -1769,18 +1769,19 @@ async function loadAdminLeaveHistory(search = '') {
     if (!tbody) return;
     tbody.innerHTML = '';
     try {
-        const today = new Date();
-        const fiscalStart = new Date(today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1, 8, 1);
-        const fiscalEnd = new Date(fiscalStart.getFullYear() + 1, 7, 31);
-
         const apps = await room.collection('leave_application').getList({ status: 'Approved' });
         if (requestId !== adminHistoryRequestId) return;
+
+        const startInput = document.getElementById('historyStart')?.value;
+        const endInput = document.getElementById('historyEnd')?.value;
+        const startDate = startInput ? new Date(startInput) : null;
+        const endDate = endInput ? new Date(endInput) : null;
 
         const filtered = apps.filter(app => {
             const nameMatch = app.employee_name?.toLowerCase().includes(search.toLowerCase());
             const appStart = new Date(app.start_date);
             const appEnd = new Date(app.end_date);
-            const inRange = appStart >= fiscalStart && appEnd <= fiscalEnd;
+            const inRange = (!startDate || appStart >= startDate) && (!endDate || appEnd <= endDate);
             return nameMatch && inRange;
         });
 
@@ -2086,6 +2087,8 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('historySearch');
     const exportBtn = document.getElementById('historyExportBtn');
+    const startInput = document.getElementById('historyStart');
+    const endInput = document.getElementById('historyEnd');
 
     let reloadTimeout;
     const reload = () => {
@@ -2097,6 +2100,8 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     if (searchInput) searchInput.addEventListener('input', reload);
+    if (startInput) startInput.addEventListener('change', reload);
+    if (endInput) endInput.addEventListener('change', reload);
     if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
 });
 
