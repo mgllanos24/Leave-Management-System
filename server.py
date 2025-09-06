@@ -42,7 +42,6 @@ DEFAULT_SICK_LEAVE = 5
 ADMIN_EMAIL = "mgllanos@gmail.com"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
-MANAGER_EMAIL = os.getenv("MANAGER_EMAIL")
 
 # @tweakable employee management configuration - define missing constants
 AUTO_CREATE_BALANCE_RECORDS = True
@@ -599,9 +598,9 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 employee_name = app_info['employee_name']
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
 
-                                manager_subject = f"Leave application {status_word}: {employee_name}"
+                                admin_subject = f"Leave application {status_word}: {employee_name}"
                                 
-                                manager_body = f"""Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.
+                                admin_body = f"""Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.
 
 Request Details:
 - Leave Type: {leave_type}
@@ -639,17 +638,13 @@ HR Department
                                         ),
                                     )
 
-                                manager_email = (
-                                    app_info['manager_email']
-                                    if 'manager_email' in app_info.keys() and app_info['manager_email']
-                                    else MANAGER_EMAIL or ADMIN_EMAIL
-                                )
-                                if manager_email:
+                                admin_email = ADMIN_EMAIL
+                                if admin_email:
                                     try:
                                         send_notification_email(
-                                            manager_email,
-                                            manager_subject,
-                                            manager_body,
+                                            admin_email,
+                                            admin_subject,
+                                            admin_body,
                                             SMTP_SERVER,
                                             SMTP_PORT,
                                             SMTP_USERNAME,
@@ -657,10 +652,10 @@ HR Department
                                             ics_content=ics_content,
                                         )
                                     except Exception as email_err:
-                                        print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
+                                        print(f"⚠️ Failed to notify admin for {record_id}: {email_err}")
                                 else:
                                     print(
-                                        f"⚠️ Manager email missing for application {record_id}; skipping manager notification"
+                                        f"⚠️ Admin email missing for application {record_id}; skipping admin notification"
                                     )
 
                                 if employee_email:
