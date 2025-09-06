@@ -1738,7 +1738,7 @@ async function loadLeaveHistory(employeeId, status = null) {
                 `?employee_id=${encodeURIComponent(employeeId)}${statusParam}`
             );
 
-        const tbody = document.getElementById('historyTableBody');
+        const tbody = document.getElementById('employeeHistoryTableBody');
         tbody.innerHTML = '';
 
         apps.forEach(app => {
@@ -1766,7 +1766,7 @@ async function loadLeaveHistory(employeeId, status = null) {
 
 async function loadAdminLeaveHistory(search = '') {
     const requestId = ++adminHistoryRequestId;
-    const tbody = document.getElementById('historyTableBody');
+    const tbody = document.getElementById('adminHistoryTableBody');
     if (!tbody) return;
     tbody.innerHTML = '';
     try {
@@ -1806,7 +1806,7 @@ async function loadAdminLeaveHistory(search = '') {
 }
 
 async function exportAdminHistoryPdf() {
-    const container = document.getElementById('historyTable');
+    const container = document.getElementById('adminHistoryTable');
     if (!container) return;
 
     const dateCells = container.querySelectorAll('tbody tr td:nth-child(3)');
