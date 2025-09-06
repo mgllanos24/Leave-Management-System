@@ -79,6 +79,48 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
 
     return total
 
+
+def format_leave_request_email(data, submission_time=None):
+    """Build a detailed leave request message for notifications.
+
+    Parameters
+    ----------
+    data: dict
+        Leave application information.
+    submission_time: str | None
+        Optional ISO formatted timestamp when the request was submitted.
+    """
+
+    application_id = data.get("application_id", "")
+    leave_type = data.get("leave_type", "")
+    start_date = data.get("start_date", "")
+    start_day_type = data.get("start_day_type", "full")
+    end_date = data.get("end_date", "")
+    end_day_type = data.get("end_day_type", "full")
+    total_days = data.get("total_days", 0)
+
+    categories = data.get("selected_reasons", [])
+    if isinstance(categories, str):
+        try:
+            categories = json.loads(categories)
+        except Exception:  # noqa: BLE001 - fallback to raw string
+            categories = [categories]
+    categories_str = ", ".join(categories) if categories else "None"
+
+    reason = data.get("reason", "")
+    submitted = submission_time or data.get("date_applied") or datetime.now().isoformat()
+
+    return (
+        f"Application ID: {application_id}\n"
+        f"Leave type: {leave_type}\n"
+        f"Start: {start_date} ({start_day_type})\n"
+        f"End: {end_date} ({end_day_type})\n"
+        f"Total days: {total_days}\n"
+        f"Categories: {categories_str}\n"
+        f"Reason: {reason}\n"
+        f"Submitted at: {submitted}"
+    )
+
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def send_cors_headers(self):
         """Add CORS headers to the response"""
@@ -315,7 +357,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             print(f"📝 Employee created: {data.get('first_name')} {data.get('surname')} ({data.get('personal_email')})")
                     
                     elif collection == 'leave_application':
-                        app_id = data.get('application_id', f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}")
+                        app_id = data.get(
+                            'application_id',
+                            f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}"
+                        )
 
                         # Recalculate total days server-side ignoring client-provided value
                         cursor = conn.execute('SELECT date FROM holidays')
@@ -328,33 +373,38 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             holidays,
                         )
 
-                        conn.execute('''
+                        conn.execute(
+                            '''
                             INSERT INTO leave_applications (
                                 id, application_id, employee_id, employee_name, start_date, end_date,
                                 start_day_type, end_day_type, leave_type, selected_reasons, reason,
                                 total_days, status, date_applied, created_at, updated_at
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (
-                            record_id,
-                            app_id,
-                            data.get('employee_id', ''),
-                            data.get('employee_name', ''),
-                            data.get('start_date', ''),
-                            data.get('end_date', ''),
-                            data.get('start_day_type', 'full'),
-                            data.get('end_day_type', 'full'),
-                            data.get('leave_type', ''),
-                            json.dumps(data.get('selected_reasons', [])),
-                            data.get('reason', ''),
-                            total_days,
-                            data.get('status', 'Pending'),
-                            current_time,
-                            current_time,
-                            current_time
-                        ))
+                            ''',
+                            (
+                                record_id,
+                                app_id,
+                                data.get('employee_id', ''),
+                                data.get('employee_name', ''),
+                                data.get('start_date', ''),
+                                data.get('end_date', ''),
+                                data.get('start_day_type', 'full'),
+                                data.get('end_day_type', 'full'),
+                                data.get('leave_type', ''),
+                                json.dumps(data.get('selected_reasons', [])),
+                                data.get('reason', ''),
+                                total_days,
+                                data.get('status', 'Pending'),
+                                current_time,
+                                current_time,
+                                current_time,
+                            ),
+                        )
 
-                        # Update data with server-calculated total days
+                        # Update data with server-calculated fields
                         data['total_days'] = total_days
+                        data['application_id'] = app_id
+                        data['date_applied'] = current_time
                     
                     elif collection == 'holiday':
                         conn.execute('''
@@ -398,13 +448,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if collection == 'leave_application':
                 admin_email = ADMIN_EMAIL
                 subject = "New Leave Request Submitted"
-                body = (
-                    f"Employee: {data.get('employee_name', 'Unknown')}\n"
-                    f"Leave type: {data.get('leave_type', '')}\n"
-                    f"Dates: {data.get('start_date', '')} to {data.get('end_date', '')}\n"
-                    f"Total days: {data.get('total_days', 0)}\n"
-                    f"Reason: {data.get('reason', '')}"
-                )
+                body = format_leave_request_email(data)
                 try:
                     if send_notification_email(
                         admin_email,
