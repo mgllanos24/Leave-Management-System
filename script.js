@@ -1733,9 +1733,13 @@ async function updateApplicationStatus(id, newStatus) {
 
 async function loadLeaveHistory(employeeId) {
     try {
+        // Fetch only approved leave applications for this employee
         const apps = await room
             .collection('leave_application')
-            .makeRequest('GET', `?employee_id=${encodeURIComponent(employeeId)}`);
+            .makeRequest(
+                'GET',
+                `?employee_id=${encodeURIComponent(employeeId)}&status=Approved`
+            );
 
         const tbody = document.getElementById('historyTableBody');
         tbody.innerHTML = '';
