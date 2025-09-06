@@ -1775,7 +1775,8 @@ async function loadAdminLeaveHistory(search = '') {
         const endDate = endInput ? new Date(endInput) : null;
 
         const filtered = apps.filter(app => {
-            const nameMatch = app.employee_name?.toLowerCase().includes(search.toLowerCase());
+            const name = (app.employee_name || '').toLowerCase();
+            const nameMatch = name.includes(search.toLowerCase());
             const appStart = new Date(app.start_date);
             const appEnd = new Date(app.end_date);
             const inRange = (!startDate || appStart >= startDate) && (!endDate || appEnd <= endDate);
