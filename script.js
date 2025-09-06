@@ -426,17 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('adminLoginContainer').style.display = 'none';
     }
 
-    // Attach button click handlers
-    const employeeEntryBtn = document.getElementById('employeeEntryBtn');
-    if (employeeEntryBtn) {
-        employeeEntryBtn.addEventListener('click', showEmployeeLogin);
-    }
-
-    const adminEntryBtn = document.getElementById('adminEntryBtn');
-    if (adminEntryBtn) {
-        adminEntryBtn.addEventListener('click', showAdminLogin);
-    }
-
+    // Attach tab navigation handlers
     const tabLeaveRequest = document.getElementById('tabLeaveRequest');
     if (tabLeaveRequest) {
         tabLeaveRequest.addEventListener('click', () => switchTab('leave-request'));
@@ -826,8 +816,6 @@ function initEntryButtons() {
         console.error('adminEntryBtn not found');
     }
 }
-
-initEntryButtons();
 
 function showEmployeeLogin() {
     /* @tweakable whether to log navigation to employee login */
@@ -2109,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
 });
 
-// Expose functions for inline handlers
+// Expose functions for debugging
 window.showEmployeeLogin = showEmployeeLogin;
 window.showAdminLogin = showAdminLogin;
 window.switchTab = switchTab;
