@@ -1174,16 +1174,6 @@ async function initializeApp() {
         await loadEmployeeSummary();
         await loadHolidays();
 
-        const populateBtn = document.getElementById('populateHolidaysBtn');
-        if (populateBtn) {
-            populateBtn.addEventListener('click', async () => {
-                const confirmPopulate = confirm('Auto-populate holidays for the next fiscal year? This will replace existing holidays.');
-                if (confirmPopulate) {
-                    await populateNextFiscalYearHolidays();
-                }
-            });
-        }
-
         // Set up form handlers and other functionality
         setupEmployeeManagement();
         setupHolidayManagement();
@@ -1338,6 +1328,20 @@ function setupHolidayManagement() {
         return;
     }
 
+    const populateBtn = document.getElementById('populateHolidaysBtn');
+    if (populateBtn) {
+        populateBtn.addEventListener('click', async () => {
+            const confirmPopulate = confirm('Auto-populate holidays for the next fiscal year? This will replace existing holidays.');
+            if (confirmPopulate) {
+                await populateNextFiscalYearHolidays();
+            }
+        });
+
+        if (debugHolidaySetup) {
+            console.log('SUCCESS Populate holidays button handler attached');
+        }
+    }
+
     const holidayForm = document.getElementById('holidayForm');
     if (holidayForm) {
         holidayForm.addEventListener('submit', async function(e) {
@@ -1356,12 +1360,12 @@ function setupHolidayManagement() {
             }
         });
 
-        holidayFormInitialized = true;
-
         if (debugHolidaySetup) {
             console.log('SUCCESS Holiday form submit handler attached');
         }
     }
+
+    holidayFormInitialized = true;
 
     if (debugHolidaySetup) {
         console.log('SUCCESS Holiday management setup completed');
