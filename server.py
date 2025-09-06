@@ -511,16 +511,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
                         # Fetch leave and employee details for notification emails
                         try:
+
                             cursor = conn.execute(
-                                'SELECT employee_id, employee_name, start_date, end_date, total_days FROM leave_applications WHERE id = ?',
-                                (record_id,)
+                                'SELECT employee_id, employee_name, start_date, end_date, total_days, application_id, leave_type FROM leave_applications WHERE id = ?',
+                                (record_id,),
                             )
                             app_info = cursor.fetchone()
                             if app_info:
                                 employee_id = app_info['employee_id']
+                                leave_type = app_info['leave_type']
+                                app_id = app_info['application_id']
                                 cursor = conn.execute(
                                     'SELECT personal_email FROM employees WHERE id = ?',
-                                    (employee_id,)
+                                    (employee_id,),
                                 )
                                 emp = cursor.fetchone()
                                 employee_email = emp['personal_email'] if emp else None
@@ -533,13 +536,25 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
                                 manager_subject = f"Leave application {status_word}: {employee_name}"
                                 manager_body = (
-                                    f"Leave application for {employee_name} from {start_date} to {end_date} "
-                                    f"({total_days} days) has been {status_word}."
+                                    f"Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.\\n\\n"
+                                    "Request Details:\\n"
+                                    f"- Leave Type: {leave_type}\\n"
+                                    f"- Start Date: {start_date}\\n"
+                                    f"- End Date: {end_date}\\n"
+                                    f"- Total Days: {total_days}\\n"
                                 )
                                 employee_subject = f"Your leave application has been {status_word}"
                                 employee_body = (
-                                    f"Your leave application from {start_date} to {end_date} "
-                                    f"({total_days} days) has been {status_word}."
+                                    f"Dear {employee_name},\\n\\n"
+                                    f"Your leave request (Application ID: {app_id}) has been {status_word}.\\n\\n"
+                                    "Request Details:\\n"
+                                    f"- Leave Type: {leave_type}\\n"
+                                    f"- Start Date: {start_date}\\n"
+                                    f"- End Date: {end_date}\\n"
+                                    f"- Total Days: {total_days}\\n\\n"
+                                    "Please plan accordingly.\\n\\n"
+                                    "Best regards,\\n"
+                                    "HR Department\\n"
                                 )
 
                                 ics_content = None
