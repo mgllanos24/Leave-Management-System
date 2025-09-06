@@ -618,8 +618,14 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     "HR Department\\n"
                                 )
 
+                                manager_email = (
+                                    app_info['manager_email']
+                                    if 'manager_email' in app_info.keys() and app_info['manager_email']
+                                    else MANAGER_EMAIL or ADMIN_EMAIL
+                                )
+
                                 ics_content = None
-                                if new_status == 'Approved':
+                                if new_status == 'Approved' and manager_email:
                                     ics_content = generate_ics_content(
                                         start_date,
                                         end_date,
@@ -628,13 +634,9 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                             f"Approved leave from {start_date} to {end_date} "
                                             f"({total_days} days)"
                                         ),
+                                        organizer=SMTP_USERNAME,
+                                        attendee=manager_email,
                                     )
-
-                                manager_email = (
-                                    app_info['manager_email']
-                                    if 'manager_email' in app_info.keys() and app_info['manager_email']
-                                    else MANAGER_EMAIL or ADMIN_EMAIL
-                                )
                                 if manager_email:
                                     try:
                                         send_notification_email(

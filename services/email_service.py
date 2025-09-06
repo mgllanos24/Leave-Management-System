@@ -23,6 +23,8 @@ def generate_ics_content(
     end_date: str,
     summary: str,
     description: str | None = None,
+    organizer: str | None = None,
+    attendee: str | None = None,
 ) -> str:
     """Create a basic ICS calendar event.
 
@@ -36,6 +38,10 @@ def generate_ics_content(
         Event title shown on the calendar entry.
     description:
         Optional description to include with the event.
+    organizer:
+        Optional email address to populate the ``ORGANIZER`` field.
+    attendee:
+        Optional email address to populate the ``ATTENDEE`` field.
     """
 
     start_dt = datetime.fromisoformat(start_date)
@@ -46,6 +52,7 @@ def generate_ics_content(
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
+        "METHOD:REQUEST",
         "PRODID:-//Leave Management System//EN",
         "BEGIN:VEVENT",
         f"UID:{uid}",
@@ -57,6 +64,10 @@ def generate_ics_content(
 
     if description:
         lines.append(f"DESCRIPTION:{description}")
+    if organizer:
+        lines.append(f"ORGANIZER:mailto:{organizer}")
+    if attendee:
+        lines.append(f"ATTENDEE:mailto:{attendee}")
 
     lines.extend(["END:VEVENT", "END:VCALENDAR"])
 
@@ -109,6 +120,7 @@ def send_notification_email(
             maintype="text",
             subtype="calendar",
             filename="event.ics",
+            params={"method": "REQUEST"},
         )
 
     try:
