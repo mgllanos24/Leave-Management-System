@@ -198,7 +198,8 @@ header p {
     position: relative;
 }
 
-#employeeSearch {
+#employeeSearch,
+#historySearch {
     width: 100%;
     padding: 10px;
     border: 1px solid var(--border-color);
@@ -207,7 +208,8 @@ header p {
     background: var(--background);
 }
 
-#employeeSearch:focus {
+#employeeSearch:focus,
+#historySearch:focus {
     outline: none;
     border-color: var(--primary-color);
 }
