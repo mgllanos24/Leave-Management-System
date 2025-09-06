@@ -1766,7 +1766,10 @@ async function loadAdminLeaveHistory(search = '') {
     if (!tbody) return;
     tbody.innerHTML = '';
     try {
-        const apps = await room.collection('leave_application').getList({ status: 'Approved' });
+        const status = document.getElementById('historyStatus')?.value || 'All';
+        const params = {};
+        if (status !== 'All') params.status = status;
+        const apps = await room.collection('leave_application').getList(params);
         if (requestId !== adminHistoryRequestId) return;
 
         const startInput = document.getElementById('historyStart')?.value;
@@ -1786,13 +1789,13 @@ async function loadAdminLeaveHistory(search = '') {
 
         filtered.forEach(app => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td><td>${app.total_days ?? calculateTotalDays(app.start_date, app.end_date, app.start_day_type, app.end_day_type)}</td>`;
+            tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td><td>${app.total_days ?? calculateTotalDays(app.start_date, app.end_date, app.start_day_type, app.end_day_type)}</td><td>${app.status}</td>`;
             tbody.appendChild(tr);
         });
 
         if (filtered.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="4">No leave applications found</td>';
+            tr.innerHTML = '<td colspan="5">No leave applications found</td>';
             tbody.appendChild(tr);
         }
     } catch (error) {
@@ -2086,6 +2089,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const exportBtn = document.getElementById('historyExportBtn');
     const startInput = document.getElementById('historyStart');
     const endInput = document.getElementById('historyEnd');
+    const statusSelect = document.getElementById('historyStatus');
 
     let reloadTimeout;
     const reload = () => {
@@ -2099,6 +2103,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) searchInput.addEventListener('input', reload);
     if (startInput) startInput.addEventListener('change', reload);
     if (endInput) endInput.addEventListener('change', reload);
+    if (statusSelect) statusSelect.addEventListener('change', reload);
     if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
 });
 

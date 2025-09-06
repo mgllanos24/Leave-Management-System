@@ -395,6 +395,12 @@
                     <input type="text" id="historySearch" placeholder="Search employee">
                     <input type="date" id="historyStart" title="Start date">
                     <input type="date" id="historyEnd" title="End date">
+                    <select id="historyStatus">
+                        <option value="All">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
                     <div class="table-container">
                         <table id="historyTable">
                             <thead>
@@ -403,6 +409,7 @@
                                     <th>Leave Type</th>
                                     <th>Dates</th>
                                     <th>Total Days</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="historyTableBody"></tbody>
