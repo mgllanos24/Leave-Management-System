@@ -47,6 +47,7 @@ def generate_ics_content(
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//Leave Management System//EN",
+        "METHOD:REQUEST",
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{dtstamp}",
@@ -109,6 +110,7 @@ def send_notification_email(
             maintype="text",
             subtype="calendar",
             filename="event.ics",
+            params={"method": "REQUEST"},
         )
 
     try:
