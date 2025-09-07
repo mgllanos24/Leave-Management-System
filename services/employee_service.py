@@ -6,6 +6,7 @@ TODO: implement functions and add error handling.
 from .database_service import get_db_connection, db_lock
 from datetime import datetime
 import uuid
+import logging
 
 # Moved from server.py - employee management functions
 # @tweakable employee validation configuration
@@ -17,10 +18,17 @@ DEFAULT_PRIVILEGE_LEAVE = 15
 DEFAULT_SICK_LEAVE = 5
 ENABLE_EMPLOYEE_AUDIT = True
 
+def _safe_get_connection():
+    try:
+        return get_db_connection()
+    except ConnectionError as e:
+        logging.error(f"Database connection failed: {e}")
+        raise
+
 def create_employee(employee_data):
     """Create a new employee record with validation"""
     with db_lock:
-        conn = get_db_connection()
+        conn = _safe_get_connection()
         try:
             record_id = str(uuid.uuid4())
             current_time = datetime.now().isoformat()
@@ -61,7 +69,7 @@ def create_employee(employee_data):
 def update_employee(employee_id, employee_data):
     """Update an employee record with validation"""
     with db_lock:
-        conn = get_db_connection()
+        conn = _safe_get_connection()
         try:
             current_time = datetime.now().isoformat()
             
@@ -99,7 +107,7 @@ def update_employee(employee_id, employee_data):
 def delete_employee(employee_id):
     """Soft delete an employee (maintain data integrity)"""
     with db_lock:
-        conn = get_db_connection()
+        conn = _safe_get_connection()
         try:
             cursor = conn.execute('UPDATE employees SET is_active = 0, updated_at = ? WHERE id = ? AND is_active = 1', 
                                 (datetime.now().isoformat(), employee_id))
@@ -119,7 +127,7 @@ def delete_employee(employee_id):
 
 def get_employees(active_only=True):
     """Get all employees with optional active filter"""
-    conn = get_db_connection()
+    conn = _safe_get_connection()
     try:
         if active_only:
             cursor = conn.execute('SELECT * FROM employees WHERE is_active = 1 ORDER BY created_at DESC')
@@ -134,7 +142,7 @@ def get_employees(active_only=True):
 
 def get_employee_by_email(email):
     """Get employee by email address"""
-    conn = get_db_connection()
+    conn = _safe_get_connection()
     try:
         cursor = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email.lower(),))
         result = cursor.fetchone()

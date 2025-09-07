@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Optional
+import logging
 
 from .database_service import get_db_connection
 from .email_service import (
@@ -25,8 +26,10 @@ def approve_leave_request(application_id: str) -> bool:
         ``True`` if the request was updated and an email was dispatched,
         otherwise ``False``.
     """
-    conn = get_db_connection()
-    if conn is None:
+    try:
+        conn = get_db_connection()
+    except ConnectionError as e:
+        logging.error(f"Database connection failed: {e}")
         return False
 
     try:
