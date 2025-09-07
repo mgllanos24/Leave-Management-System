@@ -24,39 +24,90 @@ def create_employee(employee_data):
     with db_lock:
         conn = get_db_connection()
         try:
-            record_id = str(uuid.uuid4())
             current_time = datetime.now().isoformat()
-            
-            # Enhanced employee validation
+
+            existing_record = None
             if ENABLE_EMPLOYEE_VALIDATION:
-                _validate_employee_data(conn, employee_data)
-            
-            conn.execute('''
+                existing_record = _validate_employee_data(conn, employee_data)
+            else:
+                email = employee_data.get('personal_email', '').strip().lower()
+                cursor = conn.execute('SELECT * FROM employees WHERE personal_email = ?', (email,))
+                existing_record = cursor.fetchone()
+                if existing_record and existing_record['is_active'] == 1:
+                    raise ValueError(f"Employee with email {email} already exists")
+
+            if existing_record:
+                record_id = existing_record['id']
+                conn.execute(
+                    '''
+                    UPDATE employees
+                    SET first_name=?, surname=?, personal_email=?, annual_leave=?, sick_leave=?, is_active=1, created_at=?, updated_at=?
+                    WHERE id=?
+                    ''',
+                    (
+                        employee_data.get('first_name', '').strip(),
+                        employee_data.get('surname', '').strip(),
+                        employee_data.get('personal_email', '').strip().lower(),
+                        employee_data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
+                        employee_data.get('sick_leave', DEFAULT_SICK_LEAVE),
+                        current_time,
+                        current_time,
+                        record_id,
+                    ),
+                )
+
+                conn.commit()
+
+                if ENABLE_EMPLOYEE_AUDIT:
+                    print(
+                        f"📝 Employee reactivated: {employee_data.get('first_name')} {employee_data.get('surname')} ({employee_data.get('personal_email')})"
+                    )
+
+                updated_record = {
+                    'id': record_id,
+                    'first_name': employee_data.get('first_name', '').strip(),
+                    'surname': employee_data.get('surname', '').strip(),
+                    'personal_email': employee_data.get('personal_email', '').strip().lower(),
+                    'annual_leave': employee_data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
+                    'sick_leave': employee_data.get('sick_leave', DEFAULT_SICK_LEAVE),
+                    'is_active': 1,
+                    'created_at': current_time,
+                    'updated_at': current_time,
+                }
+                return updated_record
+
+            record_id = str(uuid.uuid4())
+            conn.execute(
+                '''
                 INSERT INTO employees (id, first_name, surname, personal_email, annual_leave, sick_leave, is_active, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-            ''', (
-                record_id,
-                employee_data.get('first_name', '').strip(),
-                employee_data.get('surname', '').strip(),
-                employee_data.get('personal_email', '').strip().lower(),
-                employee_data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
-                employee_data.get('sick_leave', DEFAULT_SICK_LEAVE),
-                current_time,
-                current_time
-            ))
-            
+                ''',
+                (
+                    record_id,
+                    employee_data.get('first_name', '').strip(),
+                    employee_data.get('surname', '').strip(),
+                    employee_data.get('personal_email', '').strip().lower(),
+                    employee_data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
+                    employee_data.get('sick_leave', DEFAULT_SICK_LEAVE),
+                    current_time,
+                    current_time,
+                ),
+            )
+
             conn.commit()
-            
+
             if ENABLE_EMPLOYEE_AUDIT:
-                print(f"📝 Employee created: {employee_data.get('first_name')} {employee_data.get('surname')} ({employee_data.get('personal_email')})")
-            
-            # Return the created record
+                print(
+                    f"📝 Employee created: {employee_data.get('first_name')} {employee_data.get('surname')} ({employee_data.get('personal_email')})"
+                )
+
             created_record = dict(employee_data)
             created_record['id'] = record_id
             created_record['created_at'] = current_time
-            
+            created_record['updated_at'] = current_time
+            created_record['is_active'] = 1
             return created_record
-            
+
         finally:
             conn.close()
 
@@ -158,11 +209,13 @@ def _validate_employee_data(conn, data):
     if not email or '@' not in email:
         raise ValueError("Invalid email address")
     
-    # Check email uniqueness
+    existing = None
     if VALIDATE_EMAIL_UNIQUENESS:
-        cursor = conn.execute('SELECT id FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
-        if cursor.fetchone():
+        cursor = conn.execute('SELECT * FROM employees WHERE personal_email = ?', (email,))
+        existing = cursor.fetchone()
+        if existing and existing['is_active'] == 1:
             raise ValueError(f"Employee with email {email} already exists")
+    return existing
 
 def _validate_employee_update_data(conn, employee_id, data):
     """Validate employee data before update"""
@@ -182,3 +235,4 @@ def _validate_employee_update_data(conn, employee_id, data):
         cursor = conn.execute('SELECT id FROM employees WHERE personal_email = ? AND id != ? AND is_active = 1', (email, employee_id))
         if cursor.fetchone():
             raise ValueError(f"Employee with email {email} already exists")
+
