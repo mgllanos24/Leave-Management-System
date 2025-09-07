@@ -10,6 +10,7 @@ import smtplib
 import uuid
 from datetime import datetime, timedelta
 from email.message import EmailMessage
+import logging
 
 
 # Default configuration can be provided via environment variables. These values
@@ -109,12 +110,15 @@ def send_notification_email(
 
     if ics_content:
         msg.add_attachment(
-            ics_content,
+            ics_content.encode("utf-8"),
             maintype="text",
             subtype="calendar",
             filename="event.ics",
             params={"method": "REQUEST"},
         )
+
+    logging.debug("Preparing to send email via %s:%s", smtp_server, smtp_port)
+    logging.debug("ICS attachment included: %s", ics_content is not None)
 
     try:
         with smtplib.SMTP(smtp_server, smtp_port) as s:
@@ -123,5 +127,7 @@ def send_notification_email(
             s.send_message(msg)
         return True
     except Exception as e:  # noqa: BLE001 - broad exception to log any failure
-        print(f"Email sending failed: {e}")
+        logging.exception(
+            "Email sending failed to %s with subject %s: %s", to_addr, subject, e
+        )
         return False
