@@ -48,6 +48,8 @@ def generate_ics_content(
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//Leave Management System//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:REQUEST",
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{dtstamp}",
@@ -90,9 +92,10 @@ def send_notification_email(
     if ics_content:
         msg.add_attachment(
             ics_content,
-            maintype="text",
             subtype="calendar",
             filename="event.ics",
+            params={"method": "REQUEST"},
+            headers=["Content-Class: urn:content-classes:calendarmessage"],
         )
 
     try:
