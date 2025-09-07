@@ -361,136 +361,102 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length) if content_length > 0 else b''
             data = json.loads(post_data.decode('utf-8')) if post_data else {}
-            
+
             notification_emails = []
-            with db_lock:
-                conn = get_db_connection()
-                try:
-                    record_id = str(uuid.uuid4())
-                    current_time = datetime.now().isoformat()
+            response_payload = None
+            record_id = None
 
-                    if collection == 'employee':
-                        # Enhanced employee validation
-                        if ENABLE_EMPLOYEE_VALIDATION:
-                            first_name = data.get('first_name', '').strip()
-                            surname = data.get('surname', '').strip()
-                            email = data.get('personal_email', '').strip().lower()
-                            
-                            if not first_name or len(first_name) > MAX_FIRSTNAME_LENGTH:
-                                raise ValueError(f"Invalid first name (max {MAX_FIRSTNAME_LENGTH} characters)")
-                            if not surname or len(surname) > MAX_SURNAME_LENGTH:
-                                raise ValueError(f"Invalid surname (max {MAX_SURNAME_LENGTH} characters)")
-                            if not email or '@' not in email:
-                                raise ValueError("Invalid email address")
-                            
-                            # Check email uniqueness
-                            if VALIDATE_EMAIL_UNIQUENESS:
-                                cursor = conn.execute('SELECT id FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
-                                if cursor.fetchone():
-                                    raise ValueError(f"Employee with email {email} already exists")
-                        
-                        conn.execute('''
-                            INSERT INTO employees (id, first_name, surname, personal_email, annual_leave, sick_leave, is_active, created_at, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-                        ''', (
-                            record_id,
-                            data.get('first_name', '').strip(),
-                            data.get('surname', '').strip(),
-                            data.get('personal_email', '').strip().lower(),
-                            data.get('annual_leave', DEFAULT_PRIVILEGE_LEAVE),
-                            data.get('sick_leave', DEFAULT_SICK_LEAVE),
-                            current_time,
-                            current_time
-                        ))
+            if collection == 'employee':
+                employee_record = create_employee(data)
+                record_id = employee_record['id']
+                response_payload = employee_record
+            else:
+                with db_lock:
+                    conn = get_db_connection()
+                    try:
+                        record_id = str(uuid.uuid4())
+                        current_time = datetime.now().isoformat()
 
-                        if ENABLE_EMPLOYEE_AUDIT:
-                            logging.info(
-                                "Employee created: %s %s (%s)",
-                                data.get('first_name'),
-                                data.get('surname'),
-                                data.get('personal_email'),
+                        if collection == 'leave_application':
+                            app_id = data.get(
+                                'application_id',
+                                f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}"
                             )
-                    
-                    elif collection == 'leave_application':
-                        app_id = data.get(
-                            'application_id',
-                            f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}"
-                        )
 
-                        # Recalculate total days server-side ignoring client-provided value
-                        cursor = conn.execute('SELECT date FROM holidays')
-                        holidays = {row['date'] for row in cursor.fetchall()}
-                        total_days = calculate_total_days(
-                            data.get('start_date', ''),
-                            data.get('end_date', ''),
-                            data.get('start_day_type', 'full'),
-                            data.get('end_day_type', 'full'),
-                            holidays,
-                        )
-
-                        conn.execute(
-                            '''
-                            INSERT INTO leave_applications (
-                                id, application_id, employee_id, employee_name, start_date, end_date,
-                                start_day_type, end_day_type, leave_type, selected_reasons, reason,
-                                total_days, status, date_applied, created_at, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ''',
-                            (
-                                record_id,
-                                app_id,
-                                data.get('employee_id', ''),
-                                data.get('employee_name', ''),
+                            # Recalculate total days server-side ignoring client-provided value
+                            cursor = conn.execute('SELECT date FROM holidays')
+                            holidays = {row['date'] for row in cursor.fetchall()}
+                            total_days = calculate_total_days(
                                 data.get('start_date', ''),
                                 data.get('end_date', ''),
                                 data.get('start_day_type', 'full'),
                                 data.get('end_day_type', 'full'),
-                                data.get('leave_type', ''),
-                                json.dumps(data.get('selected_reasons', [])),
-                                data.get('reason', ''),
-                                total_days,
-                                data.get('status', 'Pending'),
-                                current_time,
-                                current_time,
-                                current_time,
-                            ),
-                        )
+                                holidays,
+                            )
 
-                        # Update data with server-calculated fields
-                        data['total_days'] = total_days
-                        data['application_id'] = app_id
-                        data['date_applied'] = current_time
-                    
-                    elif collection == 'holiday':
-                        conn.execute('''
-                            INSERT INTO holidays (id, date, name, created_at)
-                            VALUES (?, ?, ?, ?)
-                        ''', (
-                            record_id,
-                            data.get('date', ''),
-                            data.get('name', ''),
-                            current_time
-                        ))
-                    elif collection == 'notification':
-                        conn.execute('''
-                            INSERT INTO notifications (id, employee_id, message, read, created_at)
-                            VALUES (?, ?, ?, ?, ?)
-                        ''', (
-                            record_id,
-                            data.get('employee_id', ''),
-                            data.get('message', ''),
-                            data.get('read', 0),
-                            current_time
-                        ))
-                    
-                    else:
-                        self.send_error(404, f"Collection '{collection}' not found")
-                        return
-                    
-                    conn.commit()
+                            conn.execute(
+                                '''
+                                INSERT INTO leave_applications (
+                                    id, application_id, employee_id, employee_name, start_date, end_date,
+                                    start_day_type, end_day_type, leave_type, selected_reasons, reason,
+                                    total_days, status, date_applied, created_at, updated_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ''',
+                                (
+                                    record_id,
+                                    app_id,
+                                    data.get('employee_id', ''),
+                                    data.get('employee_name', ''),
+                                    data.get('start_date', ''),
+                                    data.get('end_date', ''),
+                                    data.get('start_day_type', 'full'),
+                                    data.get('end_day_type', 'full'),
+                                    data.get('leave_type', ''),
+                                    json.dumps(data.get('selected_reasons', [])),
+                                    data.get('reason', ''),
+                                    total_days,
+                                    data.get('status', 'Pending'),
+                                    current_time,
+                                    current_time,
+                                    current_time,
+                                ),
+                            )
 
-                finally:
-                    conn.close()
+                            # Update data with server-calculated fields
+                            data['total_days'] = total_days
+                            data['application_id'] = app_id
+                            data['date_applied'] = current_time
+
+                        elif collection == 'holiday':
+                            conn.execute('''
+                                INSERT INTO holidays (id, date, name, created_at)
+                                VALUES (?, ?, ?, ?)
+                            ''', (
+                                record_id,
+                                data.get('date', ''),
+                                data.get('name', ''),
+                                current_time
+                            ))
+                        elif collection == 'notification':
+                            conn.execute('''
+                                INSERT INTO notifications (id, employee_id, message, read, created_at)
+                                VALUES (?, ?, ?, ?, ?)
+                            ''', (
+                                record_id,
+                                data.get('employee_id', ''),
+                                data.get('message', ''),
+                                data.get('read', 0),
+                                current_time
+                            ))
+
+                        else:
+                            self.send_error(404, f"Collection '{collection}' not found")
+                            return
+
+                        conn.commit()
+
+                    finally:
+                        conn.close()
 
             # Initialize leave balances for new employee after releasing the lock
             if collection == 'employee' and AUTO_CREATE_BALANCE_RECORDS:
@@ -538,13 +504,43 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         err,
                     )
 
-            # Return the created record
-            created_record = dict(data)
-            created_record['id'] = record_id
-            created_record['created_at'] = current_time
+            email_status = {}
+            for recipient, to_addr, subject, body, ics in notification_emails:
+                try:
+                    sent, err = send_notification_email(
+                        to_addr,
+                        subject,
+                        body,
+                        SMTP_SERVER,
+                        SMTP_PORT,
+                        SMTP_USERNAME,
+                        SMTP_PASSWORD,
+                        ics_content=ics,
+                    )
+                    email_status[recipient] = bool(sent)
+                    if not sent:
+                        logging.warning(
+                            "Failed to send email to %s for application %s: %s",
+                            to_addr,
+                            record_id,
+                            err,
+                        )
+                except Exception as email_err:  # noqa: BLE001 - unexpected failure
+                    email_status[recipient] = False
+                    logging.exception(
+                        "Failed to send email '%s' to %s for application %s",
+                        subject,
+                        to_addr,
+                        record_id,
+                    )
 
-            self.send_json_response(created_record)
-                    
+            if response_payload is not None:
+                response_payload['email_status'] = email_status
+            else:
+                response_payload = {'email_status': email_status}
+
+            self.send_json_response(response_payload)
+
         except Exception as e:
             self.send_error(500, f"Error creating record: {str(e)}")
     
