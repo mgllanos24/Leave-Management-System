@@ -1,32 +1,18 @@
-"""
-Service: Email Service. Purpose: Send notifications and alerts via SMTP.
-"""
+"""Service: Email Service. Purpose: Send notifications and alerts via SMTP."""
 
-import os
 import smtplib
 import uuid
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 
 
-# Default configuration can be provided via environment variables. These values
-# are only used if explicit settings are not supplied when calling
-# ``send_notification_email``.
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+# Static SMTP configuration used for all outbound email.
+SMTP_SERVER = "smtp.example.com"
+SMTP_PORT = 587
+SMTP_USERNAME = "user@example.com"
+SMTP_PASSWORD = "password"
 
-missing_creds = []
-if not SMTP_USERNAME:
-    missing_creds.append("SMTP_USERNAME")
-if not SMTP_PASSWORD:
-    missing_creds.append("SMTP_PASSWORD")
-if missing_creds:
-    raise RuntimeError(
-        "Missing required environment variable(s): " + ", ".join(missing_creds)
-    )
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
+ADMIN_EMAIL = "admin@example.com"
 
 
 def _sanitize_ics_text(value: str) -> str:
@@ -103,8 +89,7 @@ def send_notification_email(
 ) -> bool:
     """Send notification email via SMTP with configurable settings."""
 
-    # Fall back to module level constants or environment variables if explicit
-    # credentials were not supplied.
+    # Fall back to module level constants if explicit credentials were not supplied.
     username = username or SMTP_USERNAME
     password = password or SMTP_PASSWORD
 

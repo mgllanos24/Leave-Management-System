@@ -3,7 +3,6 @@ import socketserver
 import json
 import urllib.parse
 import sys
-import os
 import uuid
 import logging
 import sqlite3
@@ -110,8 +109,6 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/api/'):
             self.handle_api_request()
-        elif self.path == '/api/config/admin_email':
-            self.send_json_response({'admin_email': ADMIN_EMAIL})
         else:
             # Serve static files
             super().do_GET()
@@ -173,25 +170,18 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 query = urllib.parse.parse_qs(query_string)
                 
-                # @tweakable handle config endpoint for admin email retrieval
-                if collection == 'config' and len(path_parts) > 3:
-                    config_key = path_parts[3]
-                    if config_key == 'admin_email':
+                if collection == 'config':
+                    # Return admin email configuration
+                    if len(path_parts) > 3:
+                        config_key = path_parts[3]
+                        if config_key == 'admin_email':
+                            results = {'admin_email': ADMIN_EMAIL}
+                            self.send_json_response(results)
+                        else:
+                            self.send_error(404, f"Config key '{config_key}' not found")
+                    else:
                         results = {'admin_email': ADMIN_EMAIL}
                         self.send_json_response(results)
-                        return
-                    else:
-                        self.send_error(404, f"Config key '{config_key}' not found")
-                        return
-                elif collection == 'config':
-                    # Return all config values
-                    results = {
-                        'admin_email': ADMIN_EMAIL,
-                        'smtp_username': SMTP_USERNAME,
-                        'smtp_server': SMTP_SERVER,
-                        'smtp_port': SMTP_PORT,
-                    }
-                    self.send_json_response(results)
                     return
                 
                 if collection == 'employee':
