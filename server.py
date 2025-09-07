@@ -35,11 +35,27 @@ from services.email_service import (
     SMTP_PASSWORD,
 )
 
+# Load environment variables from a .env file if present
+def _load_env(path: str = ".env") -> None:
+    """Populate ``os.environ`` from a ``.env`` file if it exists."""
+    if os.path.exists(path):
+        with open(path) as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
+
+_load_env()
+
 # Default sick leave allocation
 DEFAULT_SICK_LEAVE = 5
 
 # @tweakable server configuration
-ADMIN_EMAIL = "mgllanos@gmail.com"
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
+if not ADMIN_EMAIL:
+    raise RuntimeError("ADMIN_EMAIL environment variable is required")
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 

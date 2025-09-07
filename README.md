@@ -45,3 +45,18 @@ A comprehensive web-based leave management system designed for small to medium o
    SMTP_PASSWORD = "your-app-password"     # Your Gmail App Password
    ```
 
+#### Administrator Email
+
+The server requires an email address for the administrator so notifications can
+be delivered when employees submit leave requests. Set this via an
+`ADMIN_EMAIL` environment variable. The application will read variables from a
+local `.env` file if present:
+
+```bash
+# .env
+ADMIN_EMAIL=admin@example.com
+```
+
+Make sure to provide a real address in production so alerts reach the
+appropriate person.
+
