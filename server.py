@@ -53,7 +53,7 @@ _load_env()
 DEFAULT_SICK_LEAVE = 5
 
 # @tweakable server configuration
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "mgllanos@gmail.com")
 if not ADMIN_EMAIL:
     raise RuntimeError("ADMIN_EMAIL environment variable is required")
 ADMIN_USERNAME = "admin"
