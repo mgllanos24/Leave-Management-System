@@ -119,29 +119,31 @@ def delete_employee(employee_id):
 
 def get_employees(active_only=True):
     """Get all employees with optional active filter"""
-    conn = get_db_connection()
-    try:
-        if active_only:
-            cursor = conn.execute('SELECT * FROM employees WHERE is_active = 1 ORDER BY created_at DESC')
-        else:
-            cursor = conn.execute('SELECT * FROM employees ORDER BY created_at DESC')
-        
-        results = [dict(row) for row in cursor.fetchall()]
-        return results
-        
-    finally:
-        conn.close()
+    with db_lock:
+        conn = get_db_connection()
+        try:
+            if active_only:
+                cursor = conn.execute('SELECT * FROM employees WHERE is_active = 1 ORDER BY created_at DESC')
+            else:
+                cursor = conn.execute('SELECT * FROM employees ORDER BY created_at DESC')
+
+            results = [dict(row) for row in cursor.fetchall()]
+            return results
+
+        finally:
+            conn.close()
 
 def get_employee_by_email(email):
     """Get employee by email address"""
-    conn = get_db_connection()
-    try:
-        cursor = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email.lower(),))
-        result = cursor.fetchone()
-        return dict(result) if result else None
-        
-    finally:
-        conn.close()
+    with db_lock:
+        conn = get_db_connection()
+        try:
+            cursor = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email.lower(),))
+            result = cursor.fetchone()
+            return dict(result) if result else None
+
+        finally:
+            conn.close()
 
 def _validate_employee_data(conn, data):
     """Validate employee data before creation"""
