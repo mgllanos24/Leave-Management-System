@@ -756,13 +756,16 @@ HR Department
                     )
                     email_status[recipient] = bool(sent)
                     if not sent:
-                        print(
-                            f"⚠️ Failed to send email to {to_addr} for application {record_id}"
+                        logging.warning(
+                            "Failed to send email to %s for application %s", to_addr, record_id
                         )
                 except Exception as email_err:
                     email_status[recipient] = False
-                    print(
-                        f"⚠️ Failed to send email to {to_addr} for application {record_id}: {email_err}"
+                    logging.error(
+                        "Failed to send email to %s for application %s: %s",
+                        to_addr,
+                        record_id,
+                        email_err,
                     )
 
             if response_payload is not None:
