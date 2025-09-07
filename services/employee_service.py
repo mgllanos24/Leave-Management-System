@@ -182,7 +182,3 @@ def _validate_employee_update_data(conn, employee_id, data):
         cursor = conn.execute('SELECT id FROM employees WHERE personal_email = ? AND id != ? AND is_active = 1', (email, employee_id))
         if cursor.fetchone():
             raise ValueError(f"Employee with email {email} already exists")
-
-def _todo():
-    """Placeholder to keep the module importable."""
-    return None
