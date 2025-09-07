@@ -322,6 +322,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length) if content_length > 0 else b''
             data = json.loads(post_data.decode('utf-8')) if post_data else {}
             
+            notification_emails = []
             with db_lock:
                 conn = get_db_connection()
                 try:
@@ -640,38 +641,28 @@ HR Department
 
                                 admin_email = ADMIN_EMAIL
                                 if admin_email:
-                                    try:
-                                        send_notification_email(
+                                    notification_emails.append(
+                                        (
                                             admin_email,
                                             admin_subject,
                                             admin_body,
-                                            SMTP_SERVER,
-                                            SMTP_PORT,
-                                            SMTP_USERNAME,
-                                            SMTP_PASSWORD,
-                                            ics_content=ics_content,
+                                            ics_content,
                                         )
-                                    except Exception as email_err:
-                                        print(f"⚠️ Failed to notify admin for {record_id}: {email_err}")
+                                    )
                                 else:
                                     print(
                                         f"⚠️ Admin email missing for application {record_id}; skipping admin notification"
                                     )
 
                                 if employee_email:
-                                    try:
-                                        send_notification_email(
+                                    notification_emails.append(
+                                        (
                                             employee_email,
                                             employee_subject,
                                             employee_body,
-                                            SMTP_SERVER,
-                                            SMTP_PORT,
-                                            SMTP_USERNAME,
-                                            SMTP_PASSWORD,
-                                            ics_content=None,
+                                            None,
                                         )
-                                    except Exception as email_err:
-                                        print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
+                                    )
                                 else:
                                     print(
                                         f"⚠️ Employee email missing for employee {employee_id}; skipping employee notification"
@@ -731,7 +722,24 @@ HR Department
 
                 finally:
                     conn.close()
-                    
+
+            for to_addr, subject, body, ics in notification_emails:
+                try:
+                    send_notification_email(
+                        to_addr,
+                        subject,
+                        body,
+                        SMTP_SERVER,
+                        SMTP_PORT,
+                        SMTP_USERNAME,
+                        SMTP_PASSWORD,
+                        ics_content=ics,
+                    )
+                except Exception as email_err:
+                    print(
+                        f"⚠️ Failed to send email to {to_addr} for application {record_id}: {email_err}"
+                    )
+
         except ValueError as e:
             self.send_error(400, str(e))
         except sqlite3.Error as e:
