@@ -1689,6 +1689,15 @@ async function loadEmployeeSummary() {
 async function updateApplicationStatus(id, newStatus) {
     showLoading();
 
+    // Ensure update modal is hidden before proceeding
+    const updateModal = document.getElementById('updateSuccessModal');
+    if (updateModal) {
+        updateModal.classList.remove('show');
+        document.getElementById('updateSuccessHeading').textContent = '';
+        document.getElementById('updateStatusText').textContent = '';
+        document.getElementById('updateRequestId').textContent = '';
+    }
+
     // Disable all action buttons to prevent duplicate requests
     const actionButtons = document.querySelectorAll('.approve-btn, .reject-btn');
     actionButtons.forEach(btn => (btn.disabled = true));
@@ -1701,7 +1710,13 @@ async function updateApplicationStatus(id, newStatus) {
 
         const emailStatus = result?.email_status || {};
         if (emailStatus.admin && emailStatus.employee) {
-            document.getElementById('successModal').classList.add('show');
+            const heading = newStatus === 'Approved'
+                ? '✅ Application Approved'
+                : '❌ Application Rejected';
+            document.getElementById('updateSuccessHeading').textContent = heading;
+            document.getElementById('updateStatusText').textContent = newStatus;
+            document.getElementById('updateRequestId').textContent = result.application_id || id;
+            document.getElementById('updateSuccessModal').classList.add('show');
         } else {
             alert('Application updated but email notification failed');
         }
@@ -2086,6 +2101,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', function() {
             document.getElementById('successModal').classList.remove('show');
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const updateCloseModalBtn = document.getElementById('updateCloseModal');
+    if (updateCloseModalBtn) {
+        updateCloseModalBtn.addEventListener('click', function() {
+            const modal = document.getElementById('updateSuccessModal');
+            modal.classList.remove('show');
+            document.getElementById('updateSuccessHeading').textContent = '';
+            document.getElementById('updateStatusText').textContent = '';
+            document.getElementById('updateRequestId').textContent = '';
         });
     }
 });
