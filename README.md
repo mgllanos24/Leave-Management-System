@@ -36,16 +36,11 @@ A comprehensive web-based leave management system designed for small to medium o
 
 ### Step 2: Configuration
 
-#### Email Notifications (Optional but Recommended)
-1. Provide your SMTP credentials via environment variables before starting the
-   application:
-   ```bash
-   export SMTP_USERNAME="your-email@gmail.com"    # Your email address
-   export SMTP_PASSWORD="your-app-password"       # Your SMTP/App password
-   ```
-   The service will fail to start if either of these variables is missing.
-2. Optionally override `SMTP_SERVER` and `SMTP_PORT` in the same manner to use a
-   different mail provider.
+#### Email Notifications
+SMTP settings are now hardcoded in `services/email_service.py`, so no environment
+variables are required for configuration. **Warning:** hardcoding credentials is
+insecure. Keep the repository private and consider moving these settings to a
+separate configuration file that is excluded from version control.
 
 #### Employee Records
 Ensure each employee record includes a valid `personal_email` address. Leave
