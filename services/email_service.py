@@ -5,6 +5,7 @@ configuration through environment variables. Future enhancements may include
 templating or asynchronous delivery.
 """
 
+import logging
 import os
 import smtplib
 import uuid
@@ -129,4 +130,7 @@ def send_notification_email(
             s.send_message(msg)
         return True, None
     except Exception as e:  # noqa: BLE001 - broad exception to log any failure
+        logging.exception(
+            "Email sending failed to %s with subject %s: %s", to_addr, subject, e
+        )
         return False, str(e)
