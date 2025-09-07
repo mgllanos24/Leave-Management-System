@@ -49,6 +49,14 @@ AUTO_CREATE_BALANCE_RECORDS = True
 # Track active admin session tokens
 active_admin_tokens = set()
 
+
+def safe_get_db_connection():
+    try:
+        return get_db_connection()
+    except ConnectionError as e:
+        logging.error(f"Database connection failed: {e}")
+        return None
+
 def calculate_total_days(start_date, end_date, start_day_type='full', end_day_type='full', holidays=None):
     """Compute total leave days excluding weekends and specified holidays."""
     if not start_date or not end_date:
@@ -158,7 +166,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         with db_lock:
-            conn = get_db_connection()
+            conn = safe_get_db_connection()
+            if conn is None:
+                self.send_error(500, "Database connection failed")
+                return
             try:
                 query = urllib.parse.parse_qs(query_string)
                 
@@ -272,7 +283,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             data = json.loads(post_data.decode('utf-8')) if post_data else {}
             
             with db_lock:
-                conn = get_db_connection()
+                conn = safe_get_db_connection()
+                if conn is None:
+                    self.send_error(500, "Database connection failed")
+                    return
                 try:
                     record_id = str(uuid.uuid4())
                     current_time = datetime.now().isoformat()
@@ -470,7 +484,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             with db_lock:
-                conn = get_db_connection()
+                conn = safe_get_db_connection()
+                if conn is None:
+                    self.send_error(500, "Database connection failed")
+                    return
                 try:
                     current_time = datetime.now().isoformat()
 
@@ -668,7 +685,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
         with db_lock:
-            conn = get_db_connection()
+            conn = safe_get_db_connection()
+            if conn is None:
+                self.send_error(500, "Database connection failed")
+                return
             try:
                 if collection == 'employee':
                     # Soft delete for employees (maintain data integrity)
@@ -708,7 +728,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             holidays = data.get('holidays', [])
 
             with db_lock:
-                conn = get_db_connection()
+                conn = safe_get_db_connection()
+                if conn is None:
+                    logging.error("Database connection failed during holiday population")
+                    return
                 try:
                     conn.execute('DELETE FROM holidays')
                     now = datetime.now().isoformat()
@@ -818,7 +841,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 print(f"🔄 Bootstrapping employee data for: {email}")
 
             # Find employee without holding the DB lock
-            conn = get_db_connection()
+            conn = safe_get_db_connection()
+            if conn is None:
+                logging.error("Database connection failed during bootstrap lookup")
+                self.send_error(500, "Database connection failed")
+                return
             try:
                 cur = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
                 row = cur.fetchone()
@@ -853,7 +880,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
             # Query balances for response while holding the DB lock
             with db_lock:
-                conn = get_db_connection()
+                conn = safe_get_db_connection()
+                if conn is None:
+                    logging.error("Database connection failed while fetching balances")
+                    self.send_error(500, "Database connection failed")
+                    return
                 try:
                     curb = conn.execute('SELECT * FROM leave_balances WHERE employee_id = ? ORDER BY balance_type, year', (employee['id'],))
                     balances = [dict(r) for r in curb.fetchall()]

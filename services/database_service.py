@@ -21,6 +21,7 @@ db_lock = threading.RLock()
 
 def get_db_connection():
     """Get database connection with retry logic"""
+    last_exception = None
     for attempt in range(MAX_DB_RETRIES):
         try:
             conn = sqlite3.connect(DATABASE_PATH, timeout=DB_CONNECTION_TIMEOUT)
@@ -28,9 +29,8 @@ def get_db_connection():
             conn.row_factory = sqlite3.Row  # Enable dict-like access
             return conn
         except sqlite3.Error as e:
-            if attempt == MAX_DB_RETRIES - 1:
-                raise e
-    return None
+            last_exception = e
+    raise ConnectionError(f"Unable to connect to database after {MAX_DB_RETRIES} attempts: {last_exception}")
 
 def init_database():
     """Initialize SQLite database with required tables"""
