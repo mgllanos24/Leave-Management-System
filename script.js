@@ -1694,11 +1694,17 @@ async function updateApplicationStatus(id, newStatus) {
     actionButtons.forEach(btn => (btn.disabled = true));
 
     try {
-        await room.collection('leave_application').update(id, { status: newStatus });
+        const result = await room.collection('leave_application').update(id, { status: newStatus });
         await loadLeaveApplications();
         await loadEmployeeSummary();
         await loadEmployeeList();
-        alert('Application status updated successfully');
+
+        const emailStatus = result?.email_status || {};
+        if (emailStatus.admin && emailStatus.employee) {
+            document.getElementById('successModal').classList.add('show');
+        } else {
+            alert('Application updated but email notification failed');
+        }
     } catch (error) {
         const requestUrl = `leave_application/${id}`;
         const status = error?.response?.status || error.status;
