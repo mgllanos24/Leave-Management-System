@@ -1,6 +1,8 @@
-"""
-Service: Employee Service. Purpose: Manage employee creation, updates, and queries.
-TODO: implement functions and add error handling.
+"""Employee service for managing employee records.
+
+Provides creation, update, soft delete, and retrieval utilities with optional
+validation and audit logging. Future enhancements may include integration with
+external HR systems.
 """
 
 from .database_service import get_db_connection, db_lock
