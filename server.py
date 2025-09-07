@@ -7,6 +7,7 @@ import os
 import uuid
 import logging
 import sqlite3
+import threading
 from datetime import datetime, timedelta  # @tweakable include timedelta for date calculations
 from http.cookies import SimpleCookie
 
@@ -56,6 +57,33 @@ def safe_get_db_connection():
     except ConnectionError as e:
         logging.error(f"Database connection failed: {e}")
         return None
+
+
+def send_async_email(to_addr, subject, body, ics_content=None):
+    """Send notification email in a background thread.
+
+    This prevents long SMTP operations from blocking the main HTTP
+    request thread which could cause clients to time out and abort the
+    connection before a response is delivered.
+    """
+
+    def _send():
+        try:
+            send_notification_email(
+                to_addr,
+                subject,
+                body,
+                SMTP_SERVER,
+                SMTP_PORT,
+                SMTP_USERNAME,
+                SMTP_PASSWORD,
+                ics_content=ics_content,
+                timeout=10,
+            )
+        except Exception as email_error:  # noqa: BLE001
+            logging.error(f"Email send failed: {email_error}")
+
+    threading.Thread(target=_send, daemon=True).start()
 
 def calculate_total_days(start_date, end_date, start_day_type='full', end_day_type='full', holidays=None):
     """Compute total leave days excluding weekends and specified holidays."""
@@ -419,21 +447,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     f"Total days: {data.get('total_days', 0)}\n"
                     f"Reason: {data.get('reason', '')}"
                 )
-                try:
-                    if send_notification_email(
-                        admin_email,
-                        subject,
-                        body,
-                        SMTP_SERVER,
-                        SMTP_PORT,
-                        SMTP_USERNAME,
-                        SMTP_PASSWORD,
-                    ):
-                        logging.info("Notification email sent to %s", admin_email)
-                    else:
-                        logging.error("Failed to send notification email to %s", admin_email)
-                except Exception as email_error:
-                    logging.error("Error sending notification email: %s", email_error)
+                # Send email in background to avoid blocking HTTP response
+                send_async_email(admin_email, subject, body)
 
             # Return the created record
             created_record = dict(data)
@@ -549,19 +564,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                         f"Leave application {record_id} for employee {employee_id} lacks a personal email."
                                         " Approval cannot proceed until it is set."
                                     )
-                                    try:
-                                        send_notification_email(
-                                            ADMIN_EMAIL,
-                                            warning_subject,
-                                            warning_body,
-                                            SMTP_SERVER,
-                                            SMTP_PORT,
-                                            SMTP_USERNAME,
-                                            SMTP_PASSWORD,
-                                            ics_content=None,
-                                        )
-                                    except Exception as warn_err:
-                                        print(f"⚠️ Failed to warn admin for {record_id}: {warn_err}")
+                                    send_async_email(
+                                        ADMIN_EMAIL,
+                                        warning_subject,
+                                        warning_body,
+                                    )
                                     if new_status == 'Approved':
                                         conn.execute(
                                             'UPDATE leave_applications SET status=?, updated_at=? WHERE id=?',
@@ -602,34 +609,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                         description,
                                     )
 
-                                try:
-                                    send_notification_email(
-                                        ADMIN_EMAIL,
-                                        manager_subject,
-                                        manager_body,
-                                        SMTP_SERVER,
-                                        SMTP_PORT,
-                                        SMTP_USERNAME,
-                                        SMTP_PASSWORD,
-                                        ics_content=ics_content,
-                                    )
-                                except Exception as email_err:
-                                    print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
+                                send_async_email(
+                                    ADMIN_EMAIL,
+                                    manager_subject,
+                                    manager_body,
+                                    ics_content=ics_content,
+                                )
 
                                 if employee_email:
-                                    try:
-                                        send_notification_email(
-                                            employee_email,
-                                            employee_subject,
-                                            employee_body,
-                                            SMTP_SERVER,
-                                            SMTP_PORT,
-                                            SMTP_USERNAME,
-                                            SMTP_PASSWORD,
-                                            ics_content=None,
-                                        )
-                                    except Exception as email_err:
-                                        print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
+                                    send_async_email(
+                                        employee_email,
+                                        employee_subject,
+                                        employee_body,
+                                    )
                         except Exception as prep_err:
                             print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
 

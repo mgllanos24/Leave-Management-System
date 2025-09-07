@@ -100,8 +100,25 @@ def send_notification_email(
     username: str | None = None,
     password: str | None = None,
     ics_content: str | None = None,
+    timeout: float = 10,
 ) -> bool:
-    """Send notification email via SMTP with configurable settings."""
+    """Send notification email via SMTP with configurable settings.
+
+    Parameters
+    ----------
+    to_addr, subject, body:
+        Basic email fields.
+    smtp_server, smtp_port, username, password:
+        SMTP connection details.  Defaults fall back to environment
+        variables set at import time.
+    ics_content:
+        Optional iCalendar string to attach to the email.
+    timeout:
+        Maximum time in seconds to wait for the SMTP server before
+        abandoning the attempt.  Keeping this finite prevents callers
+        from hanging indefinitely while the HTTP connection is still
+        open.
+    """
 
     # Fall back to module level constants or environment variables if explicit
     # credentials were not supplied.
@@ -115,15 +132,18 @@ def send_notification_email(
     msg.set_content(body)
 
     if ics_content:
+        # ``add_attachment`` expects bytes if ``maintype`` is supplied.
+        # Encoding ensures correct handling and avoids ``TypeError`` from
+        # the email library complaining about unexpected arguments.
         msg.add_attachment(
-            ics_content,
+            ics_content.encode("utf-8"),
             maintype="text",
             subtype="calendar",
             filename="event.ics",
         )
 
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as s:
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=timeout) as s:
             s.starttls()
             s.login(username, password)
             s.send_message(msg)
