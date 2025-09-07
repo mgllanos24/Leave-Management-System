@@ -77,7 +77,7 @@ def send_notification_email(
     password: str | None = None,
     ics_content: str | None = None,
     html_body: str | None = None,
-) -> bool:
+) -> tuple[bool, str | None]:
     """Send notification email via SMTP with configurable settings.
 
     Parameters
@@ -91,6 +91,12 @@ def send_notification_email(
     ics_content:
         Optional iCalendar content to attach as ``event.ics`` for calendar
         integration.
+
+    Returns
+    -------
+    tuple[bool, str | None]
+        ``True`` and ``None`` if the email was sent successfully. Otherwise,
+        ``False`` and the string representation of the exception raised.
     """
 
     # Fall back to module level constants or environment variables if explicit
@@ -121,7 +127,6 @@ def send_notification_email(
             s.starttls()
             s.login(username, password)
             s.send_message(msg)
-        return True
+        return True, None
     except Exception as e:  # noqa: BLE001 - broad exception to log any failure
-        print(f"Email sending failed: {e}")
-        return False
+        return False, str(e)

@@ -516,7 +516,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     data.get('date_applied', ''),
                 )
                 try:
-                    if send_notification_email(
+                    sent, err = send_notification_email(
                         admin_email,
                         subject,
                         body,
@@ -524,12 +524,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         SMTP_PORT,
                         SMTP_USERNAME,
                         SMTP_PASSWORD,
-                    ):
-                        logging.info("Notification email sent to %s", admin_email)
-                    else:
-                        logging.error("Failed to send notification email to %s", admin_email)
-                except Exception as email_error:
-                    logging.error("Error sending notification email: %s", email_error)
+                    )
+                except Exception as email_error:  # noqa: BLE001 - unexpected failure
+                    sent, err = False, str(email_error)
+
+                if sent:
+                    logging.info("Notification email sent to %s", admin_email)
+                else:
+                    logging.error(
+                        "Failed to send notification email to %s for application %s: %s",
+                        admin_email,
+                        record_id,
+                        err,
+                    )
 
             # Return the created record
             created_record = dict(data)
@@ -783,7 +790,7 @@ HR Department
             email_status = {}
             for recipient, to_addr, subject, body, ics in notification_emails:
                 try:
-                    sent = send_notification_email(
+                    sent, err = send_notification_email(
                         to_addr,
                         subject,
                         body,
@@ -796,11 +803,12 @@ HR Department
                     email_status[recipient] = bool(sent)
                     if not sent:
                         logging.warning(
-                            "Failed to send email to %s for application %s",
+                            "Failed to send email to %s for application %s: %s",
                             to_addr,
                             record_id,
+                            err,
                         )
-                except Exception as email_err:
+                except Exception as email_err:  # noqa: BLE001 - unexpected failure
                     email_status[recipient] = False
                     logging.error(
                         "Failed to send email to %s for application %s: %s",
