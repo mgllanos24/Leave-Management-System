@@ -537,6 +537,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length) if content_length > 0 else b''
             data = json.loads(post_data.decode('utf-8')) if post_data else {}
 
+            notification_emails = []
+
             if collection == 'employee':
                 update_employee(record_id, data)
                 if 'remaining_privilege_leave' in data or 'remaining_sick_leave' in data:
@@ -659,6 +661,7 @@ HR Department
                                 if admin_email:
                                     notification_emails.append(
                                         (
+                                            'admin',
                                             admin_email,
                                             admin_subject,
                                             admin_body,
@@ -673,6 +676,7 @@ HR Department
                                 if employee_email:
                                     notification_emails.append(
                                         (
+                                            'employee',
                                             employee_email,
                                             employee_subject,
                                             employee_body,
@@ -734,14 +738,13 @@ HR Department
                         self.send_error(404, f"Collection '{collection}' not found")
                         return
 
-                    self.send_json_response(response_payload)
-
                 finally:
                     conn.close()
 
-            for to_addr, subject, body, ics in notification_emails:
+            email_status = {}
+            for recipient, to_addr, subject, body, ics in notification_emails:
                 try:
-                    send_notification_email(
+                    sent = send_notification_email(
                         to_addr,
                         subject,
                         body,
@@ -751,10 +754,23 @@ HR Department
                         SMTP_PASSWORD,
                         ics_content=ics,
                     )
+                    email_status[recipient] = bool(sent)
+                    if not sent:
+                        print(
+                            f"⚠️ Failed to send email to {to_addr} for application {record_id}"
+                        )
                 except Exception as email_err:
+                    email_status[recipient] = False
                     print(
                         f"⚠️ Failed to send email to {to_addr} for application {record_id}: {email_err}"
                     )
+
+            if response_payload is not None:
+                response_payload['email_status'] = email_status
+            else:
+                response_payload = {'email_status': email_status}
+
+            self.send_json_response(response_payload)
 
         except ValueError as e:
             self.send_error(400, str(e))
