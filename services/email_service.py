@@ -1,5 +1,8 @@
-"""
-Service: Email Service. Purpose: Send notifications and alerts via SMTP.
+"""Email service for sending notifications via SMTP.
+
+Supports plain text and HTML messages, optional iCalendar attachments, and
+configuration through environment variables. Future enhancements may include
+templating or asynchronous delivery.
 """
 
 import os
@@ -122,9 +125,3 @@ def send_notification_email(
     except Exception as e:  # noqa: BLE001 - broad exception to log any failure
         print(f"Email sending failed: {e}")
         return False
-
-
-def _todo():
-    """Placeholder to keep the module importable."""
-    return None
-

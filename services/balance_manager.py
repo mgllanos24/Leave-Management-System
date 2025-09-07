@@ -1,6 +1,8 @@
-"""
-Service: Balance Manager. Purpose: Calculate and update employee leave balances.
-TODO: implement functions and add error handling.
+"""Balance manager for calculating and tracking employee leave balances.
+
+Handles initialization, updates, and auditing of leave balances with
+configurable options. Future improvements might add support for carry over
+policies or additional balance types.
 """
 
 from .database_service import get_db_connection, db_lock

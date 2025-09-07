@@ -1,6 +1,8 @@
-"""
-Service: Database Service. Purpose: Handle all database operations and connections.
-TODO: implement functions and add error handling.
+"""Database service responsible for SQLite connections and schema management.
+
+Provides retry logic, optional backups, and helper routines for creating tables
+and indexes. Future enhancements could include migrations or alternative
+database backends.
 """
 
 import sqlite3
@@ -179,8 +181,3 @@ def _create_indexes(conn):
     conn.execute('CREATE INDEX IF NOT EXISTS idx_leave_balances_year ON leave_balances(year)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_balance_history_employee ON leave_balance_history(employee_id)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_balance_history_date ON leave_balance_history(created_at)')
-
-
-def _todo():
-    """Placeholder to keep the module importable."""
-    return None

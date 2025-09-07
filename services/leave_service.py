@@ -1,9 +1,7 @@
-"""
-Service: Leave Service. Purpose: Handle leave applications, approvals, and scheduling.
-TODO: implement functions and add error handling.
-"""
+"""Leave service placeholder.
 
-def _todo():
-    """Placeholder to keep the module importable."""
-    return None
+Intended to handle leave applications, approvals, and scheduling.
+Future work should implement persistence and business rules for leave
+processing.
+"""
 
