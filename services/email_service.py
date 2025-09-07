@@ -47,6 +47,7 @@ def generate_ics_content(
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//Leave Management System//EN",
+        "METHOD:REQUEST",
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{dtstamp}",
@@ -72,8 +73,22 @@ def send_notification_email(
     username: str | None = None,
     password: str | None = None,
     ics_content: str | None = None,
+    html_body: str | None = None,
 ) -> bool:
-    """Send notification email via SMTP with configurable settings."""
+    """Send notification email via SMTP with configurable settings.
+
+    Parameters
+    ----------
+    to_addr, subject, body:
+        Standard email fields. ``body`` is used as the plain text version.
+    html_body:
+        Optional HTML version of the message. If provided the message will be
+        sent as a multipart/alternative email containing both plain text and
+        HTML parts.
+    ics_content:
+        Optional iCalendar content to attach as ``event.ics`` for calendar
+        integration.
+    """
 
     # Fall back to module level constants or environment variables if explicit
     # credentials were not supplied.
@@ -86,11 +101,16 @@ def send_notification_email(
     msg["Subject"] = subject
     msg.set_content(body)
 
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
+
     if ics_content:
         msg.add_attachment(
             ics_content,
+            maintype="text",
             subtype="calendar",
             filename="event.ics",
+            params={"method": "REQUEST"},
         )
 
     try:

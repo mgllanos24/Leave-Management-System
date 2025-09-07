@@ -17,10 +17,10 @@
             <h1>🏢 Employee Leave Management System</h1>
             <p>Please select your login type</p>
             <div class="entry-buttons">
-                <button id="employeeEntryBtn" class="entry-btn employee-btn" onclick="showEmployeeLogin()">
+                <button id="employeeEntryBtn" class="entry-btn employee-btn" type="button">
                     👤 Employee Login
                 </button>
-                <button id="adminEntryBtn" class="entry-btn admin-btn" onclick="showAdminLogin()">
+                <button id="adminEntryBtn" class="entry-btn admin-btn" type="button">
                     🔐 Administrator Login
                 </button>
             </div>
@@ -246,9 +246,9 @@
         <!-- Check Status/History Tab -->
         <div id="check-history" class="tab-content">
             <section class="section">
-                <h2>🔍 My Vacation Requests</h2>
+                <h2>🔍 My Leave Requests</h2>
                 <div class="table-container">
-                    <table id="historyTable">
+                    <table id="employeeHistoryTable">
                         <thead>
                             <tr>
                                 <th>Application ID</th>
@@ -259,7 +259,7 @@
                                 <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody id="historyTableBody">
+                        <tbody id="employeeHistoryTableBody">
                             <!-- History rows will be populated here -->
                         </tbody>
                     </table>
@@ -394,7 +394,7 @@
                     <h2>Leave History</h2>
                     <input type="text" id="historySearch" placeholder="Search employee">
                     <div class="table-container">
-                        <table id="historyTable">
+                        <table id="adminHistoryTable">
                             <thead>
                                 <tr>
                                     <th>Employee</th>
@@ -403,7 +403,7 @@
                                     <th>Total Days</th>
                                 </tr>
                             </thead>
-                            <tbody id="historyTableBody"></tbody>
+                            <tbody id="adminHistoryTableBody"></tbody>
                         </table>
                     </div>
                 </div>

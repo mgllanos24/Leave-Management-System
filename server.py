@@ -35,11 +35,27 @@ from services.email_service import (
     SMTP_PASSWORD,
 )
 
+# Load environment variables from a .env file if present
+def _load_env(path: str = ".env") -> None:
+    """Populate ``os.environ`` from a ``.env`` file if it exists."""
+    if os.path.exists(path):
+        with open(path) as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
+
+_load_env()
+
 # Default sick leave allocation
 DEFAULT_SICK_LEAVE = 5
 
 # @tweakable server configuration
-ADMIN_EMAIL = "mgllanos@gmail.com"
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "mgllanos@gmail.com")
+if not ADMIN_EMAIL:
+    raise RuntimeError("ADMIN_EMAIL environment variable is required")
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 
@@ -79,7 +95,58 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
 
     return total
 
+
+def format_leave_request_email(
+    employee_name,
+    application_id,
+    leave_type,
+    start_date,
+    start_day_type,
+    end_date,
+    end_day_type,
+    total_days,
+    reason,
+    date_applied,
+):
+    """Build a multi-line email body for a leave request notification."""
+
+    try:
+        applied_dt = datetime.fromisoformat(date_applied)
+        formatted_applied = applied_dt.strftime("%B %d, %Y %I:%M %p")
+    except Exception:  # noqa: BLE001 - if parsing fails, use raw value
+        formatted_applied = date_applied
+
+    
+    return f"""A new leave request has been submitted and requires your approval.
+
+Employee Details
+- Employee Name: {employee_name}
+- Application ID: {application_id}
+
+Leave Request Details
+- Leave Type: {leave_type}
+- Start Date: {start_date} ({start_day_type})
+- End Date: {end_date} ({end_day_type})
+- Total Days: {total_days}
+
+Reason for Leave
+- Reason: {reason}
+- Date Applied: {formatted_applied}
+
+Please log in to the Leave Management System to review and take action.
+Status: Pending Approval
+
+Best regards,
+Leave Management System"""
+
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
+    def guess_type(self, path):
+        """Ensure JavaScript files are served with UTF-8 charset"""
+        base, ext = os.path.splitext(path)
+        if ext == '.js':
+            return 'application/javascript; charset=UTF-8'
+        return super().guess_type(path)
+
     def send_cors_headers(self):
         """Add CORS headers to the response"""
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -271,6 +338,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length) if content_length > 0 else b''
             data = json.loads(post_data.decode('utf-8')) if post_data else {}
             
+            notification_emails = []
             with db_lock:
                 conn = get_db_connection()
                 try:
@@ -315,7 +383,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             print(f"📝 Employee created: {data.get('first_name')} {data.get('surname')} ({data.get('personal_email')})")
                     
                     elif collection == 'leave_application':
-                        app_id = data.get('application_id', f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}")
+                        app_id = data.get(
+                            'application_id',
+                            f"APP-{datetime.now().strftime('%Y%m%d')}-{record_id[:8].upper()}"
+                        )
 
                         # Recalculate total days server-side ignoring client-provided value
                         cursor = conn.execute('SELECT date FROM holidays')
@@ -328,33 +399,38 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             holidays,
                         )
 
-                        conn.execute('''
+                        conn.execute(
+                            '''
                             INSERT INTO leave_applications (
                                 id, application_id, employee_id, employee_name, start_date, end_date,
                                 start_day_type, end_day_type, leave_type, selected_reasons, reason,
                                 total_days, status, date_applied, created_at, updated_at
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (
-                            record_id,
-                            app_id,
-                            data.get('employee_id', ''),
-                            data.get('employee_name', ''),
-                            data.get('start_date', ''),
-                            data.get('end_date', ''),
-                            data.get('start_day_type', 'full'),
-                            data.get('end_day_type', 'full'),
-                            data.get('leave_type', ''),
-                            json.dumps(data.get('selected_reasons', [])),
-                            data.get('reason', ''),
-                            total_days,
-                            data.get('status', 'Pending'),
-                            current_time,
-                            current_time,
-                            current_time
-                        ))
+                            ''',
+                            (
+                                record_id,
+                                app_id,
+                                data.get('employee_id', ''),
+                                data.get('employee_name', ''),
+                                data.get('start_date', ''),
+                                data.get('end_date', ''),
+                                data.get('start_day_type', 'full'),
+                                data.get('end_day_type', 'full'),
+                                data.get('leave_type', ''),
+                                json.dumps(data.get('selected_reasons', [])),
+                                data.get('reason', ''),
+                                total_days,
+                                data.get('status', 'Pending'),
+                                current_time,
+                                current_time,
+                                current_time,
+                            ),
+                        )
 
-                        # Update data with server-calculated total days
+                        # Update data with server-calculated fields
                         data['total_days'] = total_days
+                        data['application_id'] = app_id
+                        data['date_applied'] = current_time
                     
                     elif collection == 'holiday':
                         conn.execute('''
@@ -398,12 +474,17 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if collection == 'leave_application':
                 admin_email = ADMIN_EMAIL
                 subject = "New Leave Request Submitted"
-                body = (
-                    f"Employee: {data.get('employee_name', 'Unknown')}\n"
-                    f"Leave type: {data.get('leave_type', '')}\n"
-                    f"Dates: {data.get('start_date', '')} to {data.get('end_date', '')}\n"
-                    f"Total days: {data.get('total_days', 0)}\n"
-                    f"Reason: {data.get('reason', '')}"
+                body = format_leave_request_email(
+                    data.get('employee_name', ''),
+                    data.get('application_id', ''),
+                    data.get('leave_type', ''),
+                    data.get('start_date', ''),
+                    data.get('start_day_type', 'full'),
+                    data.get('end_date', ''),
+                    data.get('end_day_type', 'full'),
+                    data.get('total_days', 0),
+                    data.get('reason', ''),
+                    data.get('date_applied', ''),
                 )
                 try:
                     if send_notification_email(
@@ -511,16 +592,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
                         # Fetch leave and employee details for notification emails
                         try:
+
                             cursor = conn.execute(
-                                'SELECT employee_id, employee_name, start_date, end_date, total_days FROM leave_applications WHERE id = ?',
-                                (record_id,)
+                                'SELECT employee_id, employee_name, start_date, end_date, total_days, application_id, leave_type FROM leave_applications WHERE id = ?',
+                                (record_id,),
                             )
                             app_info = cursor.fetchone()
                             if app_info:
                                 employee_id = app_info['employee_id']
+                                leave_type = app_info['leave_type']
+                                app_id = app_info['application_id']
                                 cursor = conn.execute(
                                     'SELECT personal_email FROM employees WHERE id = ?',
-                                    (employee_id,)
+                                    (employee_id,),
                                 )
                                 emp = cursor.fetchone()
                                 employee_email = emp['personal_email'] if emp else None
@@ -531,16 +615,33 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 employee_name = app_info['employee_name']
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
 
-                                manager_subject = f"Leave application {status_word}: {employee_name}"
-                                manager_body = (
-                                    f"Leave application for {employee_name} from {start_date} to {end_date} "
-                                    f"({total_days} days) has been {status_word}."
-                                )
+                                admin_subject = f"Leave application {status_word}: {employee_name}"
+                                
+                                admin_body = f"""Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.
+
+Request Details:
+- Leave Type: {leave_type}
+- Start Date: {start_date}
+- End Date: {end_date}
+- Total Days: {total_days}
+"""
                                 employee_subject = f"Your leave application has been {status_word}"
-                                employee_body = (
-                                    f"Your leave application from {start_date} to {end_date} "
-                                    f"({total_days} days) has been {status_word}."
-                                )
+                                
+                                employee_body = f"""Dear {employee_name},
+
+Your leave request (Application ID: {app_id}) has been {status_word}.
+
+Request Details:
+- Leave Type: {leave_type}
+- Start Date: {start_date}
+- End Date: {end_date}
+- Total Days: {total_days}
+
+Please plan accordingly.
+
+Best regards,
+HR Department
+"""
 
                                 ics_content = None
                                 if new_status == 'Approved':
@@ -554,34 +655,34 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                         ),
                                     )
 
-                                try:
-                                    send_notification_email(
-                                        ADMIN_EMAIL,
-                                        manager_subject,
-                                        manager_body,
-                                        SMTP_SERVER,
-                                        SMTP_PORT,
-                                        SMTP_USERNAME,
-                                        SMTP_PASSWORD,
-                                        ics_content=ics_content,
+                                admin_email = ADMIN_EMAIL
+                                if admin_email:
+                                    notification_emails.append(
+                                        (
+                                            admin_email,
+                                            admin_subject,
+                                            admin_body,
+                                            ics_content,
+                                        )
                                     )
-                                except Exception as email_err:
-                                    print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
+                                else:
+                                    print(
+                                        f"⚠️ Admin email missing for application {record_id}; skipping admin notification"
+                                    )
 
                                 if employee_email:
-                                    try:
-                                        send_notification_email(
+                                    notification_emails.append(
+                                        (
                                             employee_email,
                                             employee_subject,
                                             employee_body,
-                                            SMTP_SERVER,
-                                            SMTP_PORT,
-                                            SMTP_USERNAME,
-                                            SMTP_PASSWORD,
-                                            ics_content=ics_content,
+                                            None,
                                         )
-                                    except Exception as email_err:
-                                        print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
+                                    )
+                                else:
+                                    print(
+                                        f"⚠️ Employee email missing for employee {employee_id}; skipping employee notification"
+                                    )
                         except Exception as prep_err:
                             print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
 
@@ -637,7 +738,24 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
                 finally:
                     conn.close()
-                    
+
+            for to_addr, subject, body, ics in notification_emails:
+                try:
+                    send_notification_email(
+                        to_addr,
+                        subject,
+                        body,
+                        SMTP_SERVER,
+                        SMTP_PORT,
+                        SMTP_USERNAME,
+                        SMTP_PASSWORD,
+                        ics_content=ics,
+                    )
+                except Exception as email_err:
+                    print(
+                        f"⚠️ Failed to send email to {to_addr} for application {record_id}: {email_err}"
+                    )
+
         except ValueError as e:
             self.send_error(400, str(e))
         except sqlite3.Error as e:
