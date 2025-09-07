@@ -565,7 +565,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                         SMTP_PORT,
                                         SMTP_USERNAME,
                                         SMTP_PASSWORD,
-                                        ics_content,
+                                        ics_content=ics_content,
                                     )
                                 except Exception as email_err:
                                     print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
@@ -580,7 +580,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                             SMTP_PORT,
                                             SMTP_USERNAME,
                                             SMTP_PASSWORD,
-                                            ics_content,
+                                            ics_content=None,
                                         )
                                     except Exception as email_err:
                                         print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
