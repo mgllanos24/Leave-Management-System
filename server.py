@@ -810,11 +810,11 @@ HR Department
                         )
                 except Exception as email_err:  # noqa: BLE001 - unexpected failure
                     email_status[recipient] = False
-                    logging.error(
-                        "Failed to send email to %s for application %s: %s",
+                    logging.exception(
+                        "Failed to send email '%s' to %s for application %s",
+                        subject,
                         to_addr,
                         record_id,
-                        email_err,
                     )
 
             if response_payload is not None:
