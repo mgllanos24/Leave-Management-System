@@ -542,6 +542,35 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 emp = cursor.fetchone()
                                 employee_email = emp['personal_email'] if emp else None
 
+                                # Verify employee email before proceeding
+                                if not employee_email:
+                                    warning_subject = f"Employee email missing for {employee_id}"
+                                    warning_body = (
+                                        f"Leave application {record_id} for employee {employee_id} lacks a personal email."
+                                        " Approval cannot proceed until it is set."
+                                    )
+                                    try:
+                                        send_notification_email(
+                                            ADMIN_EMAIL,
+                                            warning_subject,
+                                            warning_body,
+                                            SMTP_SERVER,
+                                            SMTP_PORT,
+                                            SMTP_USERNAME,
+                                            SMTP_PASSWORD,
+                                            ics_content=None,
+                                        )
+                                    except Exception as warn_err:
+                                        print(f"⚠️ Failed to warn admin for {record_id}: {warn_err}")
+                                    if new_status == 'Approved':
+                                        conn.execute(
+                                            'UPDATE leave_applications SET status=?, updated_at=? WHERE id=?',
+                                            (current_status, current_time, record_id),
+                                        )
+                                        conn.commit()
+                                        self.send_error(400, "Employee personal email required for approval")
+                                        return
+
                                 start_date = app_info['start_date']
                                 end_date = app_info['end_date']
                                 total_days = app_info['total_days']

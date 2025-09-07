@@ -1,4 +1,8 @@
-"""Service: Leave Service. Handle leave applications and approvals."""
+"""Service: Leave Service. Handle leave applications and approvals.
+
+All employees are expected to have a ``personal_email`` on record. Leave
+approval is aborted if this field is missing.
+"""
 from __future__ import annotations
 
 from typing import Optional
@@ -66,6 +70,14 @@ def approve_leave_request(application_id: str) -> bool:
         return False
 
     start_date, end_date, leave_type, employee_email = row
+
+    if not employee_email:
+        warning = (
+            f"Leave application {application_id} has no associated personal email."
+            " Approval aborted."
+        )
+        send_notification_email(ADMIN_EMAIL, "Missing employee email", warning, ics_content=None)
+        return False
 
     subject = f"Leave Approved: {leave_type}"
     body = (

@@ -47,3 +47,8 @@ A comprehensive web-based leave management system designed for small to medium o
 2. Optionally override `SMTP_SERVER` and `SMTP_PORT` in the same manner to use a
    different mail provider.
 
+#### Employee Records
+Ensure each employee record includes a valid `personal_email` address. Leave
+approval will fail if this field is empty, and administrators will be
+notified.
+
