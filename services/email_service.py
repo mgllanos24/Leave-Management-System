@@ -105,24 +105,31 @@ def send_notification_email(
     username = username or SMTP_USERNAME
     password = password or SMTP_PASSWORD
 
-    msg = EmailMessage()
-    msg["From"] = username or ""
-    msg["To"] = to_addr
-    msg["Subject"] = subject
-    msg.set_content(body)
+    try:
+        msg = EmailMessage()
+        msg["From"] = username or ""
+        msg["To"] = to_addr
+        msg["Subject"] = subject
+        msg.set_content(body)
 
-    if html_body:
-        msg.add_alternative(html_body, subtype="html")
+        if html_body:
+            msg.add_alternative(html_body, subtype="html")
 
-    if ics_content:
-        msg.add_attachment(
-            ics_content,
-            subtype="calendar",
-            filename="event.ics",
-            params={"method": "REQUEST"},
+        if ics_content:
+            msg.add_attachment(
+                ics_content,
+                subtype="calendar",
+                filename="event.ics",
+                params={"method": "REQUEST"},
+            )
+
+        logging.debug(
+            "Sending email to %s with subject %s; ICS attached: %s",
+            to_addr,
+            subject,
+            bool(ics_content),
         )
 
-    try:
         with smtplib.SMTP(smtp_server, smtp_port) as s:
             s.starttls()
             s.login(username, password)
