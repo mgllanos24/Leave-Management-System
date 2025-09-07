@@ -49,6 +49,17 @@ def _load_env(path: str = ".env") -> None:
 
 _load_env()
 
+# Configure logging
+LOG_FILE = os.getenv("LOG_FILE", "server.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(),
+    ],
+)
+
 # Default sick leave allocation
 DEFAULT_SICK_LEAVE = 5
 
@@ -213,7 +224,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_error(405, "Method Not Allowed")
                 
         except Exception as e:
-            print(f"❌ API request error: {e}")
+            logging.error("API request error: %s", e)
             self.send_error(500, f"Internal Server Error: {str(e)}")
     
     def handle_get_request(self, collection, path_parts, query_string):
@@ -380,7 +391,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         ))
 
                         if ENABLE_EMPLOYEE_AUDIT:
-                            print(f"📝 Employee created: {data.get('first_name')} {data.get('surname')} ({data.get('personal_email')})")
+                            logging.info(
+                                "Employee created: %s %s (%s)",
+                                data.get('first_name'),
+                                data.get('surname'),
+                                data.get('personal_email'),
+                            )
                     
                     elif collection == 'leave_application':
                         app_id = data.get(
@@ -587,7 +603,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             try:
                                 process_leave_application_balance(record_id, new_status, 'ADMIN')
                             except Exception as balance_error:
-                                print(f"⚠️ Balance processing error for {record_id}: {balance_error}")
+                                logging.warning(
+                                    "Balance processing error for %s: %s",
+                                    record_id,
+                                    balance_error,
+                                )
                                 # Don't fail the entire request if balance update fails
 
                         conn.commit()
@@ -669,8 +689,9 @@ HR Department
                                         )
                                     )
                                 else:
-                                    print(
-                                        f"⚠️ Admin email missing for application {record_id}; skipping admin notification"
+                                    logging.warning(
+                                        "Admin email missing for application %s; skipping admin notification",
+                                        record_id,
                                     )
 
                                 if employee_email:
@@ -684,11 +705,16 @@ HR Department
                                         )
                                     )
                                 else:
-                                    print(
-                                        f"⚠️ Employee email missing for employee {employee_id}; skipping employee notification"
+                                    logging.warning(
+                                        "Employee email missing for employee %s; skipping employee notification",
+                                        employee_id,
                                     )
                         except Exception as prep_err:
-                            print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
+                            logging.warning(
+                                "Email notification preparation failed for %s: %s",
+                                record_id,
+                                prep_err,
+                            )
 
                         response_payload = dict(data)
                         response_payload['id'] = record_id
@@ -756,13 +782,18 @@ HR Department
                     )
                     email_status[recipient] = bool(sent)
                     if not sent:
-                        print(
-                            f"⚠️ Failed to send email to {to_addr} for application {record_id}"
+                        logging.warning(
+                            "Failed to send email to %s for application %s",
+                            to_addr,
+                            record_id,
                         )
                 except Exception as email_err:
                     email_status[recipient] = False
-                    print(
-                        f"⚠️ Failed to send email to {to_addr} for application {record_id}: {email_err}"
+                    logging.error(
+                        "Failed to send email to %s for application %s: %s",
+                        to_addr,
+                        record_id,
+                        email_err,
                     )
 
             if response_payload is not None:
@@ -804,11 +835,11 @@ HR Department
             try:
                 if collection == 'employee':
                     # Soft delete for employees (maintain data integrity)
-                    cursor = conn.execute('UPDATE employees SET is_active = 0, updated_at = ? WHERE id = ? AND is_active = 1', 
+                    cursor = conn.execute('UPDATE employees SET is_active = 0, updated_at = ? WHERE id = ? AND is_active = 1',
                                         (datetime.now().isoformat(), record_id))
-                    
+
                     if ENABLE_EMPLOYEE_AUDIT:
-                        print(f"📝 Employee soft deleted: {record_id}")
+                        logging.info("Employee soft deleted: %s", record_id)
                 
                 elif collection == 'leave_application':
                     cursor = conn.execute('DELETE FROM leave_applications WHERE id=?', (record_id,))
@@ -947,7 +978,7 @@ HR Department
                 return
 
             if DETAILED_BOOTSTRAP_LOGGING:
-                print(f"🔄 Bootstrapping employee data for: {email}")
+                logging.info("Bootstrapping employee data for: %s", email)
 
             # Find employee without holding the DB lock
             conn = get_db_connection()
@@ -966,7 +997,7 @@ HR Department
                         error_msg = f"Employee with email {email} not found in database"
 
                     if DETAILED_BOOTSTRAP_LOGGING:
-                        print(f"❌ Bootstrap failed: {error_msg}")
+                        logging.error("Bootstrap failed: %s", error_msg)
 
                     self.send_error(404, error_msg)
                     return
@@ -976,7 +1007,12 @@ HR Department
                 conn.close()
 
             if DETAILED_BOOTSTRAP_LOGGING:
-                print(f"✅ Found employee: {employee['first_name']} {employee['surname']} (ID: {employee['id']})")
+                logging.info(
+                    "Found employee: %s %s (ID: %s)",
+                    employee['first_name'],
+                    employee['surname'],
+                    employee['id'],
+                )
 
             # Initialize balances synchronously
             balance_initialized = initialize_employee_balances(employee['id'])
@@ -993,32 +1029,40 @@ HR Department
                     conn.close()
 
             if DETAILED_BOOTSTRAP_LOGGING:
-                print(f"✅ Bootstrap completed for {email} with {len(balances)} balance records")
+                logging.info(
+                    "Bootstrap completed for %s with %d balance records",
+                    email,
+                    len(balances),
+                )
 
             self.send_json_response({'employee': employee, 'balances': balances})
 
         except Exception as e:
-            print(f"❌ Bootstrap error for {email if 'email' in locals() else 'unknown'}: {e}")
+            logging.error(
+                "Bootstrap error for %s: %s",
+                email if 'email' in locals() else 'unknown',
+                e,
+            )
             self.send_error(500, f"Bootstrap failed: {str(e)}")
 
 def run_server(port=8080):
     """Run the HTTP server"""
     try:
         # Initialize database using service
-        print("📊 Initializing database...")
+        logging.info("Initializing database...")
         init_database()
-        
+
         with socketserver.ThreadingTCPServer(("", port), LeaveManagementHandler) as httpd:
-            print(f"Server running at http://localhost:{port}")
-            print("Press Ctrl+C to stop the server")
+            logging.info("Server running at http://localhost:%s", port)
+            logging.info("Press Ctrl+C to stop the server")
             httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nServer stopped.")
+        logging.info("Server stopped.")
     except OSError as e:
         if e.errno == 48:
-            print(f"Error: Port {port} is already in use.")
+            logging.error("Port %s is already in use.", port)
         else:
-            print(f"Error starting server: {e}")
+            logging.error("Error starting server: %s", e)
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
