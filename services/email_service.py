@@ -14,8 +14,18 @@ from email.message import EmailMessage
 # ``send_notification_email``.
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "qtaskvacation@gmail.com")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "bicg llyb myff kigu")
+SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+
+missing_creds = []
+if not SMTP_USERNAME:
+    missing_creds.append("SMTP_USERNAME")
+if not SMTP_PASSWORD:
+    missing_creds.append("SMTP_PASSWORD")
+if missing_creds:
+    raise RuntimeError(
+        "Missing required environment variable(s): " + ", ".join(missing_creds)
+    )
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
 
 

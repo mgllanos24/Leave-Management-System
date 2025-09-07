@@ -37,11 +37,13 @@ A comprehensive web-based leave management system designed for small to medium o
 ### Step 2: Configuration
 
 #### Email Notifications (Optional but Recommended)
-1. Configure your email credentials in `services/email_service.py` or via
-   environment variables.
-2. Replace the default credentials:
-   ```python
-   SMTP_USERNAME = "your-email@gmail.com"  # Your Gmail address
-   SMTP_PASSWORD = "your-app-password"     # Your Gmail App Password
+1. Provide your SMTP credentials via environment variables before starting the
+   application:
+   ```bash
+   export SMTP_USERNAME="your-email@gmail.com"    # Your email address
+   export SMTP_PASSWORD="your-app-password"       # Your SMTP/App password
    ```
+   The service will fail to start if either of these variables is missing.
+2. Optionally override `SMTP_SERVER` and `SMTP_PORT` in the same manner to use a
+   different mail provider.
 
