@@ -117,7 +117,6 @@ def send_notification_email(
     if ics_content:
         msg.add_attachment(
             ics_content,
-            maintype="text",
             subtype="calendar",
             filename="event.ics",
             params={"method": "REQUEST"},
