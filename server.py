@@ -542,6 +542,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 emp = cursor.fetchone()
                                 employee_email = emp['personal_email'] if emp else None
 
+                                # Prepare notification recipients
+                                notification_emails = [ADMIN_EMAIL]
+                                if employee_email:
+                                    notification_emails.append(employee_email)
+
                                 # Verify employee email before proceeding
                                 if not employee_email:
                                     warning_subject = f"Employee email missing for {employee_id}"
@@ -602,34 +607,23 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                         description,
                                     )
 
-                                try:
-                                    send_notification_email(
-                                        ADMIN_EMAIL,
-                                        manager_subject,
-                                        manager_body,
-                                        SMTP_SERVER,
-                                        SMTP_PORT,
-                                        SMTP_USERNAME,
-                                        SMTP_PASSWORD,
-                                        ics_content=ics_content,
-                                    )
-                                except Exception as email_err:
-                                    print(f"⚠️ Failed to notify manager for {record_id}: {email_err}")
-
-                                if employee_email:
+                                for email in notification_emails:
+                                    subject = manager_subject if email == ADMIN_EMAIL else employee_subject
+                                    body = manager_body if email == ADMIN_EMAIL else employee_body
+                                    ics = ics_content if email == ADMIN_EMAIL else None
                                     try:
                                         send_notification_email(
-                                            employee_email,
-                                            employee_subject,
-                                            employee_body,
+                                            email,
+                                            subject,
+                                            body,
                                             SMTP_SERVER,
                                             SMTP_PORT,
                                             SMTP_USERNAME,
                                             SMTP_PASSWORD,
-                                            ics_content=None,
+                                            ics_content=ics,
                                         )
                                     except Exception as email_err:
-                                        print(f"⚠️ Failed to notify employee {employee_id}: {email_err}")
+                                        print(f"⚠️ Failed to notify {email}: {email_err}")
                         except Exception as prep_err:
                             print(f"⚠️ Email notification preparation failed for {record_id}: {prep_err}")
 
