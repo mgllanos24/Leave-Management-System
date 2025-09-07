@@ -2,6 +2,7 @@
 Service: Email Service. Purpose: Send notifications and alerts via SMTP.
 """
 
+import logging
 import os
 import smtplib
 import uuid
@@ -18,6 +19,8 @@ SMTP_USERNAME = os.getenv("SMTP_USERNAME", "qtaskvacation@gmail.com")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "bicg llyb myff kigu")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
 
+
+logger = logging.getLogger(__name__)
 
 def generate_ics_content(
     start_date: str,
@@ -76,10 +79,13 @@ def send_notification_email(
 ) -> bool:
     """Send notification email via SMTP with configurable settings."""
 
-    # Fall back to module level constants or environment variables if explicit
-    # credentials were not supplied.
-    username = username or SMTP_USERNAME
-    password = password or SMTP_PASSWORD
+    # Fall back to module level constants or environment variables only when
+    # no explicit credentials were supplied. Empty strings are allowed to
+    # deliberately disable authentication.
+    if username is None:
+        username = SMTP_USERNAME
+    if password is None:
+        password = SMTP_PASSWORD
 
     msg = EmailMessage()
     msg["From"] = username or ""
@@ -98,11 +104,16 @@ def send_notification_email(
     try:
         with smtplib.SMTP(smtp_server, smtp_port) as s:
             s.starttls()
-            s.login(username, password)
+            if username and password:
+                try:
+                    s.login(username, password)
+                except smtplib.SMTPAuthenticationError:
+                    logger.exception("SMTP authentication failed")
+                    return False
             s.send_message(msg)
         return True
-    except Exception as e:  # noqa: BLE001 - broad exception to log any failure
-        print(f"Email sending failed: {e}")
+    except Exception:  # noqa: BLE001 - broad exception to log any failure
+        logger.exception("Email sending failed")
         return False
 
 
