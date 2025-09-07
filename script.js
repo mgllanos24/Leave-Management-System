@@ -1698,7 +1698,30 @@ async function updateApplicationStatus(id, newStatus) {
         await loadLeaveApplications();
         await loadEmployeeSummary();
         await loadEmployeeList();
-        alert('Application status updated successfully');
+
+        const modal = document.getElementById('adminActionModal');
+        if (modal) {
+            const idSpan = document.getElementById('adminApplicationId');
+            const statusSpan = document.getElementById('adminNewStatus');
+            if (idSpan) idSpan.textContent = id;
+            if (statusSpan) statusSpan.textContent = newStatus;
+
+            const closeBtn = document.getElementById('adminActionClose');
+            if (closeBtn) {
+                closeBtn.addEventListener(
+                    'click',
+                    () => {
+                        modal.classList.remove('show');
+                        actionButtons.forEach(btn => (btn.disabled = false));
+                    },
+                    { once: true }
+                );
+            }
+
+            modal.classList.add('show');
+        } else {
+            actionButtons.forEach(btn => (btn.disabled = false));
+        }
     } catch (error) {
         const requestUrl = `leave_application/${id}`;
         const status = error?.response?.status || error.status;
@@ -1721,8 +1744,8 @@ async function updateApplicationStatus(id, newStatus) {
             originalError: error,
         });
         alert(`Failed to update application status for ID ${id}. ${status ? `Status: ${status}.` : ''}`);
-    } finally {
         actionButtons.forEach(btn => (btn.disabled = false));
+    } finally {
         hideLoading();
     }
 }
