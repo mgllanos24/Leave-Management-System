@@ -35,6 +35,19 @@ from services.email_service import (
     SMTP_PASSWORD,
 )
 
+# Configure logging to write to ``server.log`` if possible.  If creating the
+# log file fails (e.g. due to permissions issues), fall back to logging to
+# ``stderr`` so the server can still run.
+try:
+    file_handler = logging.FileHandler("server.log")
+    logging.basicConfig(level=logging.INFO, handlers=[file_handler, logging.StreamHandler()])
+except Exception as log_err:  # noqa: BLE001 - broad exception to keep server running
+    logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+    logging.warning(
+        "Falling back to stderr logging because server.log could not be opened: %s",
+        log_err,
+    )
+
 # Load environment variables from a .env file if present
 def _load_env(path: str = ".env") -> None:
     """Populate ``os.environ`` from a ``.env`` file if it exists."""
