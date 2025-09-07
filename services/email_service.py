@@ -19,6 +19,21 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "bicg llyb myff kigu")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@example.com")
 
 
+def _sanitize_ics_text(value: str) -> str:
+    """Escape characters that can break ICS formatting.
+
+    Per RFC 5545, text values must escape carriage returns, line feeds, and
+    commas. Newlines are converted to the escaped ``\n`` sequence and commas
+    are escaped with a leading backslash.
+    """
+
+    # Normalize different newline representations then escape them and commas.
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
+    value = value.replace("\n", "\\n")
+    value = value.replace(",", "\\,")
+    return value
+
+
 def generate_ics_content(
     start_date: str,
     end_date: str,
@@ -44,6 +59,7 @@ def generate_ics_content(
     uid = f"{uuid.uuid4()}@leave-management-system"
     dtstamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
 
+    summary = _sanitize_ics_text(summary)
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -57,6 +73,7 @@ def generate_ics_content(
     ]
 
     if description:
+        description = _sanitize_ics_text(description)
         lines.append(f"DESCRIPTION:{description}")
 
     lines.extend(["END:VEVENT", "END:VCALENDAR"])
