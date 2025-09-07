@@ -4,11 +4,15 @@ from __future__ import annotations
 from typing import Optional
 
 from .database_service import get_db_connection
-from .email_service import send_notification_email, generate_ics_content
+from .email_service import (
+    ADMIN_EMAIL,
+    generate_ics_content,
+    send_notification_email,
+)
 
 
 def approve_leave_request(application_id: str) -> bool:
-    """Finalize approval for a leave request and notify the employee.
+    """Finalize approval for a leave request and notify the employee and admin.
 
     Parameters
     ----------
@@ -71,6 +75,10 @@ def approve_leave_request(application_id: str) -> bool:
     except Exception:
         ics = None
 
-    send_notification_email(employee_email, subject, body, ics_content=ics)
+    # Notify the employee without calendar attachment
+    send_notification_email(employee_email, subject, body, ics_content=None)
+
+    # Notify the admin with the ICS attachment if available
+    send_notification_email(ADMIN_EMAIL, subject, body, ics_content=ics)
     return True
 
