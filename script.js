@@ -84,11 +84,18 @@ class BackendCollection {
                 }
                 
                 const result = await response.json();
-                
+
+                if (result && Array.isArray(result.email_errors) && result.email_errors.length > 0) {
+                    const summary = result.email_errors
+                        .map(err => `${err.recipient}: ${err.error}`)
+                        .join('\n');
+                    alert(`Warning: Failed to send notification emails:\n${summary}`);
+                }
+
                 if (this.database.debugMode) {
                     console.log(`SUCCESS ${method} ${url} success`, result);
                 }
-                
+
                 return result;
                 
             } catch (error) {

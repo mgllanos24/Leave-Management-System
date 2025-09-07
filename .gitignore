@@ -6,3 +6,6 @@ __pycache__/
 # Local environment variables
 .env
 
+# Server log files
+server.log
+

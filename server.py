@@ -49,6 +49,16 @@ def _load_env(path: str = ".env") -> None:
 
 _load_env()
 
+# Configure basic logging to file and stdout for audit trail
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s: %(message)s",
+    handlers=[
+        logging.FileHandler("server.log"),
+        logging.StreamHandler(sys.stdout),
+    ],
+)
+
 # Default sick leave allocation
 DEFAULT_SICK_LEAVE = 5
 
@@ -471,6 +481,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     pass
 
             # Send notification email for newly submitted leave applications
+            email_errors = []
             if collection == 'leave_application':
                 admin_email = ADMIN_EMAIL
                 subject = "New Leave Request Submitted"
@@ -487,7 +498,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     data.get('date_applied', ''),
                 )
                 try:
-                    if send_notification_email(
+                    if not send_notification_email(
                         admin_email,
                         subject,
                         body,
@@ -496,16 +507,22 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         SMTP_USERNAME,
                         SMTP_PASSWORD,
                     ):
-                        logging.info("Notification email sent to %s", admin_email)
-                    else:
-                        logging.error("Failed to send notification email to %s", admin_email)
+                        raise Exception("Unknown error sending email")
+                    logging.info("Notification email sent to %s", admin_email)
                 except Exception as email_error:
-                    logging.error("Error sending notification email: %s", email_error)
+                    logging.error(
+                        "Error sending notification email to %s: %s", admin_email, email_error
+                    )
+                    email_errors.append(
+                        {"recipient": admin_email, "error": str(email_error)}
+                    )
 
             # Return the created record
             created_record = dict(data)
             created_record['id'] = record_id
             created_record['created_at'] = current_time
+            if email_errors:
+                created_record['email_errors'] = email_errors
 
             self.send_json_response(created_record)
                     
@@ -549,6 +566,9 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                 response_payload['updated_at'] = datetime.now().isoformat()
                 self.send_json_response(response_payload)
                 return
+
+            notification_emails = []
+            response_payload = None
 
             with db_lock:
                 conn = get_db_connection()
@@ -734,14 +754,13 @@ HR Department
                         self.send_error(404, f"Collection '{collection}' not found")
                         return
 
-                    self.send_json_response(response_payload)
-
                 finally:
                     conn.close()
 
+            email_errors = []
             for to_addr, subject, body, ics in notification_emails:
                 try:
-                    send_notification_email(
+                    if not send_notification_email(
                         to_addr,
                         subject,
                         body,
@@ -750,11 +769,21 @@ HR Department
                         SMTP_USERNAME,
                         SMTP_PASSWORD,
                         ics_content=ics,
-                    )
+                    ):
+                        raise Exception("Unknown error sending email")
                 except Exception as email_err:
-                    print(
-                        f"⚠️ Failed to send email to {to_addr} for application {record_id}: {email_err}"
+                    logging.error(
+                        "Failed to send email to %s for application %s: %s",
+                        to_addr,
+                        record_id,
+                        email_err,
                     )
+                    email_errors.append({"recipient": to_addr, "error": str(email_err)})
+
+            if email_errors:
+                response_payload['email_errors'] = email_errors
+
+            self.send_json_response(response_payload)
 
         except ValueError as e:
             self.send_error(400, str(e))
