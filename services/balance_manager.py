@@ -443,7 +443,3 @@ def update_balances_from_admin_edit(employee_id, new_remaining_pl, new_remaining
             raise e
         finally:
             conn.close()
-
-def _todo():
-    """Placeholder to keep the module importable."""
-    return None
