@@ -45,3 +45,8 @@ A comprehensive web-based leave management system designed for small to medium o
    SMTP_PASSWORD = "your-app-password"     # Your Gmail App Password
    ```
 
+#### Employee Records
+Ensure each employee record includes a valid `personal_email` address. Leave
+approval will fail if this field is empty, and administrators will be
+notified.
+
