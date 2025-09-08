@@ -120,6 +120,28 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
     return total
 
 
+def next_workday(date_str, holidays=None):
+    """Return the next working day after ``date_str``.
+
+    Skips weekends and any dates provided in the ``holidays`` set.
+    """
+
+    if not date_str:
+        return None
+
+    try:
+        current = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+    holidays = holidays or set()
+
+    while True:
+        current += timedelta(days=1)
+        if current.weekday() < 5 and current.isoformat() not in holidays:
+            return current.isoformat()
+
+
 def format_leave_request_email(
     employee_name,
     application_id,
@@ -651,18 +673,22 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 end_date = app_info['end_date']
                                 total_days = app_info['total_days']
                                 employee_name = app_info['employee_name']
+                                cursor = conn.execute('SELECT date FROM holidays')
+                                holidays = {row['date'] for row in cursor.fetchall()}
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
+                                return_date = next_workday(end_date, holidays)
 
                                 admin_subject = f"Leave application {status_word}: {employee_name}"
-                                
-                                admin_body = f"""Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.
 
-Request Details:
-- Leave Type: {leave_type}
-- Start Date: {start_date}
-- End Date: {end_date}
-- Total Days: {total_days}
-"""
+                                admin_body = (
+                                    f"Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.\n\n"
+                                    "Request Details:\n"
+                                    f"- Leave Type: {leave_type}\n"
+                                    f"- Start Date: {start_date}\n"
+                                    f"- End Date: {end_date}\n"
+                                    f"- Return Date: {return_date}\n"
+                                    f"- Total Days: {total_days}\n"
+                                )
                                 employee_subject = f"Your leave application has been {status_word}"
                                 
                                 employee_body = f"""Dear {employee_name},
