@@ -120,14 +120,14 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
     return total
 
 
-def next_workday(end_date: str, holidays: set[str]) -> str:
+def next_workday(end_date: str, holidays: set[str]) -> str | None:
     """Return the next working day after ``end_date``."""
     if not end_date:
-        return ""
+        return None
     try:
         date = datetime.strptime(end_date, "%Y-%m-%d").date()
     except ValueError:
-        return ""
+        return None
 
     while True:
         date += timedelta(days=1)
@@ -179,6 +179,44 @@ Status: Pending Approval
 
 Best regards,
 Leave Management System"""
+
+
+def format_leave_decision_email(
+    recipient: str,
+    employee_name: str,
+    application_id: str,
+    leave_type: str,
+    start_date: str,
+    end_date: str,
+    total_days: int | float,
+    return_date: str,
+    status_word: str,
+) -> str:
+    """Build email body for a leave approval or rejection notification."""
+
+    details = (
+        f"Request Details:\n"
+        f"- Leave Type: {leave_type}\n"
+        f"- Start Date: {start_date}\n"
+        f"- End Date: {end_date}\n"
+        f"- Return Date: {return_date}\n"
+        f"- Total Days: {total_days}\n"
+    )
+
+    if recipient == "employee":
+        return (
+            f"Dear {employee_name},\n\n"
+            f"Your leave request (Application ID: {application_id}) has been {status_word}.\n\n"
+            f"{details}\n"
+            "Please plan accordingly.\n\n"
+            "Best regards,\n"
+            "HR Department"
+        )
+
+    return (
+        f"Leave request for {employee_name} (Application ID: {application_id}) has been {status_word}.\n\n"
+        f"{details}"
+    )
 
 class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
     def guess_type(self, path):
@@ -401,18 +439,18 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             )
 
                             # Recalculate total days server-side ignoring client-provided value
-                              cursor = conn.execute('SELECT date FROM holidays')
-                              holidays = {row['date'] for row in cursor.fetchall()}
-                              total_days = calculate_total_days(
-                                  data.get('start_date', ''),
-                                  data.get('end_date', ''),
-                                  data.get('start_day_type', 'full'),
-                                  data.get('end_day_type', 'full'),
-                                  holidays,
-                              )
-                              return_date = next_workday(data.get('end_date', ''), holidays)
+                            cursor = conn.execute('SELECT date from holidays')
+                            holidays = {row['date'] for row in cursor.fetchall()}
+                            total_days = calculate_total_days(
+                                data.get('start_date', ''),
+                                data.get('end_date', ''),
+                                data.get('start_day_type', 'full'),
+                                data.get('end_day_type', 'full'),
+                                holidays,
+                            )
+                            return_date = next_workday(data.get('end_date', ''), holidays)
 
-                              conn.execute(
+                            conn.execute(
                                   '''
                                   INSERT INTO leave_applications (
                                       id, application_id, employee_id, employee_name, start_date, end_date,
@@ -440,11 +478,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 ),
                             )
 
-                              # Update data with server-calculated fields
-                              data['total_days'] = total_days
-                              data['return_date'] = return_date
-                              data['application_id'] = app_id
-                              data['date_applied'] = current_time
+                            # Update data with server-calculated fields
+                            data['total_days'] = total_days
+                            data['return_date'] = return_date
+                            data['application_id'] = app_id
+                            data['date_applied'] = current_time
 
                         elif collection == 'holiday':
                             conn.execute('''
@@ -488,19 +526,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if collection == 'leave_application':
                 admin_email = ADMIN_EMAIL
                 subject = "New Leave Request Submitted"
-                  body = format_leave_request_email(
-                      data.get('employee_name', ''),
-                      data.get('application_id', ''),
-                      data.get('leave_type', ''),
-                      data.get('start_date', ''),
-                      data.get('start_day_type', 'full'),
-                      data.get('end_date', ''),
-                      data.get('end_day_type', 'full'),
-                      data.get('return_date', ''),
-                      data.get('total_days', 0),
-                      data.get('reason', ''),
-                      data.get('date_applied', ''),
-                  )
+                body = format_leave_request_email(
+                    data.get('employee_name', ''),
+                    data.get('application_id', ''),
+                    data.get('leave_type', ''),
+                    data.get('start_date', ''),
+                    data.get('start_day_type', 'full'),
+                    data.get('end_date', ''),
+                    data.get('end_day_type', 'full'),
+                    data.get('return_date', ''),
+                    data.get('total_days', 0),
+                    data.get('reason', ''),
+                    data.get('date_applied', ''),
+                )
                 try:
                     sent, err = send_notification_email(
                         admin_email,
@@ -673,33 +711,38 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 employee_name = app_info['employee_name']
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
 
+                                cursor = conn.execute('SELECT date FROM holidays')
+                                holidays = {row['date'] for row in cursor.fetchall()}
+                                return_date = next_workday(end_date, holidays) or ""
+
                                 admin_subject = f"Leave application {status_word}: {employee_name}"
-                                
-                                admin_body = f"""Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.
 
-Request Details:
-- Leave Type: {leave_type}
-- Start Date: {start_date}
-- End Date: {end_date}
-- Total Days: {total_days}
-"""
+                                admin_body = format_leave_decision_email(
+                                    "admin",
+                                    employee_name,
+                                    app_id,
+                                    leave_type,
+                                    start_date,
+                                    end_date,
+                                    total_days,
+                                    return_date,
+                                    status_word,
+                                )
                                 employee_subject = f"Your leave application has been {status_word}"
-                                
-                                employee_body = f"""Dear {employee_name},
 
-Your leave request (Application ID: {app_id}) has been {status_word}.
+                                employee_body = format_leave_decision_email(
+                                    "employee",
+                                    employee_name,
+                                    app_id,
+                                    leave_type,
+                                    start_date,
+                                    end_date,
+                                    total_days,
+                                    return_date,
+                                    status_word,
+                                )
 
-Request Details:
-- Leave Type: {leave_type}
-- Start Date: {start_date}
-- End Date: {end_date}
-- Total Days: {total_days}
 
-Please plan accordingly.
-
-Best regards,
-HR Department
-"""
 
                                 ics_content = None
                                 if new_status == 'Approved':

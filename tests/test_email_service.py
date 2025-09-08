@@ -1,4 +1,10 @@
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from services import email_service
+from server import format_leave_decision_email, next_workday
 
 
 def test_send_notification_email_inlines_ics(monkeypatch):
@@ -42,3 +48,32 @@ def test_send_notification_email_inlines_ics(monkeypatch):
     assert list(msg.iter_attachments()) == []
     # Optional header for compatibility
     assert msg["Content-Class"] == "urn:content-classes:calendarmessage"
+
+
+def test_decision_notifications_include_return_date():
+    holidays = {"2023-07-04"}
+    return_date = next_workday("2023-07-03", holidays)
+    admin_body = format_leave_decision_email(
+        "admin",
+        "Alice",
+        "APP-1",
+        "Annual",
+        "2023-07-01",
+        "2023-07-03",
+        1,
+        return_date,
+        "approved",
+    )
+    employee_body = format_leave_decision_email(
+        "employee",
+        "Alice",
+        "APP-1",
+        "Annual",
+        "2023-07-01",
+        "2023-07-03",
+        1,
+        return_date,
+        "approved",
+    )
+    assert return_date in admin_body
+    assert return_date in employee_body
