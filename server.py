@@ -120,6 +120,21 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
     return total
 
 
+def next_workday(end_date: str, holidays: set[str]) -> str:
+    """Return the next working day after ``end_date``."""
+    if not end_date:
+        return ""
+    try:
+        date = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return ""
+
+    while True:
+        date += timedelta(days=1)
+        if date.weekday() < 5 and date.isoformat() not in holidays:
+            return date.isoformat()
+
+
 def format_leave_request_email(
     employee_name,
     application_id,
@@ -128,6 +143,7 @@ def format_leave_request_email(
     start_day_type,
     end_date,
     end_day_type,
+    return_date,
     total_days,
     reason,
     date_applied,
@@ -143,15 +159,16 @@ def format_leave_request_email(
     
     return f"""A new leave request has been submitted and requires your approval.
 
-Employee Details
+ Employee Details
 - Employee Name: {employee_name}
 - Application ID: {application_id}
 
-Leave Request Details
-- Leave Type: {leave_type}
-- Start Date: {start_date} ({start_day_type})
-- End Date: {end_date} ({end_day_type})
-- Total Days: {total_days}
+ Leave Request Details
+ - Leave Type: {leave_type}
+ - Start Date: {start_date} ({start_day_type})
+ - End Date: {end_date} ({end_day_type})
+ - Return Date: {return_date}
+ - Total Days: {total_days}
 
 Reason for Leave
 - Reason: {reason}
@@ -384,20 +401,21 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             )
 
                             # Recalculate total days server-side ignoring client-provided value
-                            cursor = conn.execute('SELECT date FROM holidays')
-                            holidays = {row['date'] for row in cursor.fetchall()}
-                            total_days = calculate_total_days(
-                                data.get('start_date', ''),
-                                data.get('end_date', ''),
-                                data.get('start_day_type', 'full'),
-                                data.get('end_day_type', 'full'),
-                                holidays,
-                            )
+                              cursor = conn.execute('SELECT date FROM holidays')
+                              holidays = {row['date'] for row in cursor.fetchall()}
+                              total_days = calculate_total_days(
+                                  data.get('start_date', ''),
+                                  data.get('end_date', ''),
+                                  data.get('start_day_type', 'full'),
+                                  data.get('end_day_type', 'full'),
+                                  holidays,
+                              )
+                              return_date = next_workday(data.get('end_date', ''), holidays)
 
-                            conn.execute(
-                                '''
-                                INSERT INTO leave_applications (
-                                    id, application_id, employee_id, employee_name, start_date, end_date,
+                              conn.execute(
+                                  '''
+                                  INSERT INTO leave_applications (
+                                      id, application_id, employee_id, employee_name, start_date, end_date,
                                     start_day_type, end_day_type, leave_type, selected_reasons, reason,
                                     total_days, status, date_applied, created_at, updated_at
                                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -422,10 +440,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 ),
                             )
 
-                            # Update data with server-calculated fields
-                            data['total_days'] = total_days
-                            data['application_id'] = app_id
-                            data['date_applied'] = current_time
+                              # Update data with server-calculated fields
+                              data['total_days'] = total_days
+                              data['return_date'] = return_date
+                              data['application_id'] = app_id
+                              data['date_applied'] = current_time
 
                         elif collection == 'holiday':
                             conn.execute('''
@@ -469,18 +488,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if collection == 'leave_application':
                 admin_email = ADMIN_EMAIL
                 subject = "New Leave Request Submitted"
-                body = format_leave_request_email(
-                    data.get('employee_name', ''),
-                    data.get('application_id', ''),
-                    data.get('leave_type', ''),
-                    data.get('start_date', ''),
-                    data.get('start_day_type', 'full'),
-                    data.get('end_date', ''),
-                    data.get('end_day_type', 'full'),
-                    data.get('total_days', 0),
-                    data.get('reason', ''),
-                    data.get('date_applied', ''),
-                )
+                  body = format_leave_request_email(
+                      data.get('employee_name', ''),
+                      data.get('application_id', ''),
+                      data.get('leave_type', ''),
+                      data.get('start_date', ''),
+                      data.get('start_day_type', 'full'),
+                      data.get('end_date', ''),
+                      data.get('end_day_type', 'full'),
+                      data.get('return_date', ''),
+                      data.get('total_days', 0),
+                      data.get('reason', ''),
+                      data.get('date_applied', ''),
+                  )
                 try:
                     sent, err = send_notification_email(
                         admin_email,
