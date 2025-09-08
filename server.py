@@ -428,23 +428,23 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             )
 
                             # Recalculate total days server-side ignoring client-provided value
-                              cursor = conn.execute('SELECT date FROM holidays')
-                              holidays = {row['date'] for row in cursor.fetchall()}
-                              total_days = calculate_total_days(
-                                  data.get('start_date', ''),
-                                  data.get('end_date', ''),
-                                  data.get('start_day_type', 'full'),
-                                  data.get('end_day_type', 'full'),
-                                  holidays,
-                              )
-                              return_date = next_workday(data.get('end_date', ''), holidays)
-                              if return_date is None:
-                                  return_date = ""
+                            cursor = conn.execute('SELECT date FROM holidays')
+                            holidays = {row['date'] for row in cursor.fetchall()}
+                            total_days = calculate_total_days(
+                                data.get('start_date', ''),
+                                data.get('end_date', ''),
+                                data.get('start_day_type', 'full'),
+                                data.get('end_day_type', 'full'),
+                                holidays,
+                            )
+                            return_date = next_workday(data.get('end_date', ''), holidays)
+                            if return_date is None:
+                                return_date = ""
 
-                              conn.execute(
-                                  '''
-                                  INSERT INTO leave_applications (
-                                      id, application_id, employee_id, employee_name, start_date, end_date,
+                            conn.execute(
+                                '''
+                                INSERT INTO leave_applications (
+                                    id, application_id, employee_id, employee_name, start_date, end_date,
                                     start_day_type, end_day_type, leave_type, selected_reasons, reason,
                                     total_days, status, date_applied, created_at, updated_at
                                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -469,11 +469,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 ),
                             )
 
-                              # Update data with server-calculated fields
-                              data['total_days'] = total_days
-                              data['return_date'] = return_date
-                              data['application_id'] = app_id
-                              data['date_applied'] = current_time
+                            # Update data with server-calculated fields
+                            data['total_days'] = total_days
+                            data['return_date'] = return_date
+                            data['application_id'] = app_id
+                            data['date_applied'] = current_time
 
                         elif collection == 'holiday':
                             conn.execute('''
@@ -517,19 +517,19 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
             if collection == 'leave_application':
                 admin_email = ADMIN_EMAIL
                 subject = "New Leave Request Submitted"
-                  body = format_leave_request_email(
-                      data.get('employee_name', ''),
-                      data.get('application_id', ''),
-                      data.get('leave_type', ''),
-                      data.get('start_date', ''),
-                      data.get('start_day_type', 'full'),
-                      data.get('end_date', ''),
-                      data.get('end_day_type', 'full'),
-                      data.get('return_date', ''),
-                      data.get('total_days', 0),
-                      data.get('reason', ''),
-                      data.get('date_applied', ''),
-                  )
+                body = format_leave_request_email(
+                    data.get('employee_name', ''),
+                    data.get('application_id', ''),
+                    data.get('leave_type', ''),
+                    data.get('start_date', ''),
+                    data.get('start_day_type', 'full'),
+                    data.get('end_date', ''),
+                    data.get('end_day_type', 'full'),
+                    data.get('return_date', ''),
+                    data.get('total_days', 0),
+                    data.get('reason', ''),
+                    data.get('date_applied', ''),
+                )
                 try:
                     sent, err = send_notification_email(
                         admin_email,
