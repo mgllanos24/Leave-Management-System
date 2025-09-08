@@ -116,12 +116,12 @@ def send_notification_email(
             msg.add_alternative(html_body, subtype="html")
 
         if ics_content:
-            msg.add_attachment(
+            msg.add_alternative(
                 ics_content,
                 subtype="calendar",
-                filename="event.ics",
                 params={"method": "REQUEST"},
             )
+            msg["Content-Class"] = "urn:content-classes:calendarmessage"
 
         logging.debug(
             "Sending email to %s with subject %s; ICS attached: %s",
