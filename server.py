@@ -119,15 +119,20 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
 
     return total
 
+def next_workday(date_str: str, holidays: set[str] | None = None) -> str | None:
+    """Return the next working day after ``date_str``.
 
-def next_workday(end_date: str, holidays: set[str]) -> str:
-    """Return the next working day after ``end_date``."""
-    if not end_date:
-        return ""
+    Weekends (Saturday and Sunday) and any dates in ``holidays`` are skipped.
+    If ``date_str`` is empty or cannot be parsed, ``None`` is returned.
+    """
+    if not date_str:
+        return None
     try:
-        date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        date = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
-        return ""
+        return None
+
+    holidays = holidays or set()
 
     while True:
         date += timedelta(days=1)
@@ -411,6 +416,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                   holidays,
                               )
                               return_date = next_workday(data.get('end_date', ''), holidays)
+                              if return_date is None:
+                                  return_date = ""
 
                               conn.execute(
                                   '''
