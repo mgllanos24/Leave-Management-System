@@ -640,12 +640,17 @@ function setupCriticalFormHandlers() {
         vacationForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             if (debugImmediateSetup) {
                 console.log('SUCCESS Vacation form submitted via immediate handler');
             }
-            
-            await submitLeaveApplication(e);
+            const formData = new FormData(e.target);
+            const endDate = formData.get('endDate');
+            const returnDate = getNextWorkday(endDate);
+            const message = `You are expected to return on ${returnDate}. Continue?`;
+            if (confirm(message)) {
+                await submitLeaveApplication(e, returnDate);
+            }
         });
 
         vacationForm.addEventListener('reset', function() {
@@ -1435,7 +1440,7 @@ function setupLeaveTypeHandling() {
     });
 }
 
-async function submitLeaveApplication(event) {
+async function submitLeaveApplication(event, returnDate = null) {
     event.preventDefault();
     
     try {
@@ -1443,8 +1448,12 @@ async function submitLeaveApplication(event) {
         
         const formData = new FormData(event.target);
         const selectedLeaveType = formData.get('leaveType');
+        if (!returnDate) {
+            const endDate = formData.get('endDate');
+            returnDate = getNextWorkday(endDate);
+        }
 
-    const applicationData = {
+        const applicationData = {
         employee_id: currentUser.id,
         employee_name: `${currentUser.first_name} ${currentUser.surname}`,
         start_date: formData.get('startDate'),
@@ -1460,7 +1469,8 @@ async function submitLeaveApplication(event) {
             formData.get('startDayType'),
             formData.get('endDayType')
         ),
-        status: 'Pending'
+        status: 'Pending',
+        return_date: returnDate
     };
         
         const result = await room.collection('leave_application').create(applicationData);
@@ -1515,6 +1525,21 @@ function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
     }
 
     return total;
+}
+
+function getNextWorkday(dateStr) {
+    if (!dateStr) return null;
+    const date = new Date(dateStr + 'T00:00');
+    date.setHours(0, 0, 0, 0);
+
+    while (true) {
+        date.setDate(date.getDate() + 1);
+        const iso = date.toISOString().split('T')[0];
+        const day = date.getDay();
+        if (day !== 0 && day !== 6 && !holidayDates.has(iso)) {
+            return iso;
+        }
+    }
 }
 
 async function loadLeaveApplications() {
