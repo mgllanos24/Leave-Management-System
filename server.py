@@ -591,7 +591,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     start_time, end_time, start_day_type, end_day_type, leave_type,
                                     selected_reasons, reason, total_hours, total_days, status, date_applied,
                                     created_at, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 ''',
                                 (
                                     record_id,
