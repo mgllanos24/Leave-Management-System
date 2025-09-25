@@ -9,6 +9,7 @@ from .database_service import get_db_connection, db_lock
 from datetime import datetime
 import uuid
 import time
+import os
 
 # Moved from server.py - balance management functions
 # @tweakable balance management configuration
@@ -23,6 +24,8 @@ PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual'}}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
 DEFAULT_PRIVILEGE_LEAVE = 15
 DEFAULT_SICK_LEAVE = 5
+
+WORK_HOURS_PER_DAY = float(os.getenv("WORK_HOURS_PER_DAY", 8)) or 8.0
 
 def initialize_employee_balances(employee_id, year=None):
     """Initialize leave balances for a new employee"""
@@ -225,7 +228,7 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
         conn = get_db_connection()
         try:
             cursor = conn.execute(
-                'SELECT employee_id, leave_type, total_days FROM leave_applications WHERE id = ?',
+                'SELECT employee_id, leave_type, total_days, total_hours FROM leave_applications WHERE id = ?',
                 (application_id,),
             )
             application = cursor.fetchone()
@@ -234,7 +237,14 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
 
             employee_id = application['employee_id']
             leave_type = application['leave_type']
-            total_days = float(application['total_days'])
+            raw_days = application['total_days']
+            raw_hours = application['total_hours']
+            if raw_days is not None:
+                total_days = float(raw_days)
+            elif raw_hours is not None:
+                total_days = float(raw_hours) / WORK_HOURS_PER_DAY if WORK_HOURS_PER_DAY else 0.0
+            else:
+                total_days = 0.0
 
             # Normalize the single leave type to lowercase for matching
             leave_token = (leave_type or '').strip().lower()
