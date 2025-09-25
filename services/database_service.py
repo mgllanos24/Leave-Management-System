@@ -93,11 +93,14 @@ def _create_leave_tables(conn):
             employee_name TEXT NOT NULL,
             start_date TEXT NOT NULL,
             end_date TEXT NOT NULL,
+            start_time TEXT,
+            end_time TEXT,
             start_day_type TEXT DEFAULT 'full',
             end_day_type TEXT DEFAULT 'full',
             leave_type TEXT NOT NULL,
             selected_reasons TEXT,
             reason TEXT,
+            total_hours REAL NOT NULL DEFAULT 0,
             total_days REAL NOT NULL,
             status TEXT DEFAULT 'Pending',
             date_applied TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -106,6 +109,8 @@ def _create_leave_tables(conn):
             FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE
         )
     ''')
+
+    _ensure_leave_application_columns(conn)
     
     conn.execute('''
         CREATE TABLE IF NOT EXISTS holidays (
@@ -115,6 +120,30 @@ def _create_leave_tables(conn):
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+
+def _ensure_leave_application_columns(conn):
+    """Ensure legacy databases gain new leave application columns."""
+
+    cursor = conn.execute('PRAGMA table_info(leave_applications)')
+    existing = {row[1] for row in cursor.fetchall()}
+
+    column_defs = {
+        'start_time': "ALTER TABLE leave_applications ADD COLUMN start_time TEXT",
+        'end_time': "ALTER TABLE leave_applications ADD COLUMN end_time TEXT",
+        'total_hours': (
+            "ALTER TABLE leave_applications ADD COLUMN total_hours REAL NOT NULL DEFAULT 0"
+        ),
+    }
+
+    for column, statement in column_defs.items():
+        if column not in existing:
+            conn.execute(statement)
+
+    if 'total_days' not in existing:
+        conn.execute(
+            "ALTER TABLE leave_applications ADD COLUMN total_days REAL NOT NULL DEFAULT 0"
+        )
 
 def _create_balance_tables(conn):
     """Create balance tracking tables"""

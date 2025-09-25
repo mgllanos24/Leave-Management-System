@@ -115,38 +115,14 @@
                         <div class="date-group">
                             <label for="startDate">Start Date:</label>
                             <input type="date" id="startDate" name="startDate" required>
-                            <div class="half-day-options">
-                                <label class="radio-label">
-                                    <input type="radio" name="startDayType" value="full" checked>
-                                    Full Day
-                                </label>
-                                <label class="radio-label">
-                                    <input type="radio" name="startDayType" value="am">
-                                    AM Only
-                                </label>
-                                <label class="radio-label">
-                                    <input type="radio" name="startDayType" value="pm">
-                                    PM Only
-                                </label>
-                            </div>
+                            <label for="startTime" class="time-label">Start Time:</label>
+                            <input type="time" id="startTime" name="startTime" step="60" required value="09:00">
                         </div>
                         <div class="date-group">
                             <label for="endDate">End Date:</label>
                             <input type="date" id="endDate" name="endDate" required>
-                            <div class="half-day-options">
-                                <label class="radio-label">
-                                    <input type="radio" name="endDayType" value="full" checked>
-                                    Full Day
-                                </label>
-                                <label class="radio-label">
-                                    <input type="radio" name="endDayType" value="am">
-                                    AM Only
-                                </label>
-                                <label class="radio-label">
-                                    <input type="radio" name="endDayType" value="pm">
-                                    PM Only
-                                </label>
-                            </div>
+                            <label for="endTime" class="time-label">End Time:</label>
+                            <input type="time" id="endTime" name="endTime" step="60" required value="17:00">
                         </div>
                     </div>
                     <div class="duration-display">

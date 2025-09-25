@@ -27,6 +27,8 @@ def generate_ics_content(
     end_date: str,
     summary: str,
     description: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
 ) -> str:
     """Create a basic ICS calendar event.
 
@@ -42,8 +44,6 @@ def generate_ics_content(
         Optional description to include with the event.
     """
 
-    start_dt = datetime.fromisoformat(start_date)
-    end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
     uid = f"{uuid.uuid4()}@leave-management-system"
     dtstamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
 
@@ -55,10 +55,24 @@ def generate_ics_content(
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{dtstamp}",
-        f"DTSTART;VALUE=DATE:{start_dt.strftime('%Y%m%d')}",
-        f"DTEND;VALUE=DATE:{end_dt.strftime('%Y%m%d')}",
-        f"SUMMARY:{summary}",
     ]
+
+    if start_time or end_time:
+        start_clock = start_time or "00:00"
+        end_clock = end_time or start_clock
+        start_dt = datetime.fromisoformat(f"{start_date}T{start_clock}")
+        end_dt = datetime.fromisoformat(f"{end_date}T{end_clock}")
+        if end_dt <= start_dt:
+            end_dt = start_dt + timedelta(hours=1)
+        lines.append(f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}")
+        lines.append(f"DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}")
+    else:
+        start_dt = datetime.fromisoformat(start_date)
+        end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
+        lines.append(f"DTSTART;VALUE=DATE:{start_dt.strftime('%Y%m%d')}")
+        lines.append(f"DTEND;VALUE=DATE:{end_dt.strftime('%Y%m%d')}")
+
+    lines.append(f"SUMMARY:{summary}")
 
     if description:
         lines.append(f"DESCRIPTION:{description}")

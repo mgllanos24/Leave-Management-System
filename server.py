@@ -76,6 +76,10 @@ logging.basicConfig(
 # Default sick leave allocation
 DEFAULT_SICK_LEAVE = 5
 
+# Standard number of working hours in a full day. Used to translate between
+# hourly requests and legacy day-based balance tracking.
+WORK_HOURS_PER_DAY = float(os.getenv("WORK_HOURS_PER_DAY", 8))
+
 # @tweakable server configuration
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "mgllanos@gmail.com")
 if not ADMIN_EMAIL:
@@ -89,8 +93,15 @@ AUTO_CREATE_BALANCE_RECORDS = True
 # Track active admin session tokens
 active_admin_tokens = set()
 
-def calculate_total_days(start_date, end_date, start_day_type='full', end_day_type='full', holidays=None):
-    """Compute total leave days excluding weekends and specified holidays."""
+def _calculate_total_days_legacy(
+    start_date,
+    end_date,
+    start_day_type='full',
+    end_day_type='full',
+    holidays=None,
+):
+    """Legacy day-based calculation preserved for backward compatibility."""
+
     if not start_date or not end_date:
         return 0
 
@@ -108,7 +119,6 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
     total = 0
     current = start
     while current <= end:
-        # weekday(): Monday=0, Sunday=6
         if current.weekday() < 5 and current.isoformat() not in holidays:
             total += 1
             if current == start and start_day_type != 'full':
@@ -118,6 +128,100 @@ def calculate_total_days(start_date, end_date, start_day_type='full', end_day_ty
         current += timedelta(days=1)
 
     return total
+
+
+def calculate_total_hours(
+    start_date,
+    end_date,
+    start_time=None,
+    end_time=None,
+    holidays=None,
+    start_day_type='full',
+    end_day_type='full',
+):
+    """Compute total leave hours excluding weekends and configured holidays."""
+
+    if not start_date or not end_date:
+        return 0.0
+
+    holidays = holidays or set()
+
+    if start_time or end_time:
+        start_time_str = start_time or (
+            '13:00' if start_day_type == 'pm' else '00:00'
+        )
+        end_time_str = end_time or (
+            '12:00' if end_day_type == 'am' else '23:59'
+        )
+
+        try:
+            start_dt = datetime.strptime(
+                f"{start_date} {start_time_str}", "%Y-%m-%d %H:%M"
+            )
+            end_dt = datetime.strptime(
+                f"{end_date} {end_time_str}", "%Y-%m-%d %H:%M"
+            )
+        except ValueError:
+            return 0.0
+
+        if end_dt <= start_dt:
+            return 0.0
+
+        total_hours = 0.0
+        current_date = start_dt.date()
+        final_date = end_dt.date()
+
+        while current_date <= final_date:
+            day_start = datetime.combine(current_date, datetime.min.time())
+            day_end = day_start + timedelta(days=1)
+            window_start = max(start_dt, day_start)
+            window_end = min(end_dt, day_end)
+
+            if window_end > window_start:
+                iso_date = current_date.isoformat()
+                if current_date.weekday() < 5 and iso_date not in holidays:
+                    delta = window_end - window_start
+                    total_hours += delta.total_seconds() / 3600.0
+
+            current_date += timedelta(days=1)
+
+        return round(total_hours, 2)
+
+    legacy_days = _calculate_total_days_legacy(
+        start_date,
+        end_date,
+        start_day_type,
+        end_day_type,
+        holidays,
+    )
+    return round(legacy_days * WORK_HOURS_PER_DAY, 2)
+
+
+def calculate_total_days(
+    start_date,
+    end_date,
+    start_day_type='full',
+    end_day_type='full',
+    holidays=None,
+    start_time=None,
+    end_time=None,
+):
+    """Return total leave in working days derived from hourly calculation."""
+
+    total_hours = calculate_total_hours(
+        start_date,
+        end_date,
+        start_time=start_time,
+        end_time=end_time,
+        holidays=holidays,
+        start_day_type=start_day_type,
+        end_day_type=end_day_type,
+    )
+
+    if total_hours == 0:
+        return 0
+
+    return round(total_hours / WORK_HOURS_PER_DAY, 4)
 
 def next_workday(date_str: str, holidays: set[str] | None = None) -> str | None:
     """Return the next working day after ``date_str``.
@@ -167,15 +271,31 @@ def format_leave_request_email(
     application_id,
     leave_type,
     start_date,
-    start_day_type,
+    start_time,
     end_date,
-    end_day_type,
+    end_time,
     return_date,
+    total_hours,
     total_days,
     reason,
     date_applied,
 ):
     """Build a multi-line email body for a leave request notification."""
+
+    def _format_datetime(date_str: str, time_str: str | None) -> str:
+        if not date_str:
+            return ""
+        if time_str:
+            try:
+                dt = datetime.fromisoformat(f"{date_str}T{time_str}")
+                return dt.strftime("%B %d, %Y %I:%M %p")
+            except Exception:  # noqa: BLE001 - fall back to raw values
+                return f"{date_str} {time_str}"
+        try:
+            dt = datetime.fromisoformat(date_str)
+            return dt.strftime("%B %d, %Y")
+        except Exception:  # noqa: BLE001 - fall back to raw value
+            return date_str
 
     try:
         applied_dt = datetime.fromisoformat(date_applied)
@@ -183,23 +303,30 @@ def format_leave_request_email(
     except Exception:  # noqa: BLE001 - if parsing fails, use raw value
         formatted_applied = date_applied
 
-    
+    start_display = _format_datetime(start_date, start_time)
+    end_display = _format_datetime(end_date, end_time)
+
+    total_hours_display = f"{float(total_hours):.2f}" if total_hours else "0.00"
+    total_days_display = f"{float(total_days):.2f}" if total_days else "0.00"
+
     return f"""A new leave request has been submitted and requires your approval.
 
  Employee Details
-- Employee Name: {employee_name}
-- Application ID: {application_id}
+ - Employee Name: {employee_name}
+ - Application ID: {application_id}
 
  Leave Request Details
  - Leave Type: {leave_type}
- - Start Date: {start_date} ({start_day_type})
- - End Date: {end_date} ({end_day_type})
+ - Start: {start_display}
+ - End: {end_display}
  - Return Date: {return_date}
- - Total Days: {total_days}
+ - Total Hours: {total_hours_display}
+ - Equivalent Days: {total_days_display}
 
 Reason for Leave
-- Reason: {reason}
-- Date Applied: {formatted_applied}
+{reason or 'No additional details provided.'}
+
+Submitted On: {formatted_applied}
 
 Please log in to the Leave Management System to review and take action.
 Status: Pending Approval
@@ -430,24 +557,41 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             # Recalculate total days server-side ignoring client-provided value
                             cursor = conn.execute('SELECT date FROM holidays')
                             holidays = {row['date'] for row in cursor.fetchall()}
+                            start_time = data.get('start_time')
+                            end_time = data.get('end_time')
+
+                            total_hours = calculate_total_hours(
+                                data.get('start_date', ''),
+                                data.get('end_date', ''),
+                                start_time,
+                                end_time,
+                                holidays,
+                                data.get('start_day_type', 'full'),
+                                data.get('end_day_type', 'full'),
+                            )
                             total_days = calculate_total_days(
                                 data.get('start_date', ''),
                                 data.get('end_date', ''),
                                 data.get('start_day_type', 'full'),
                                 data.get('end_day_type', 'full'),
                                 holidays,
+                                start_time=start_time,
+                                end_time=end_time,
                             )
-                            return_date = next_workday(data.get('end_date', ''), holidays)
-                            if return_date is None:
-                                return_date = ""
+
+                            if total_hours and total_hours < WORK_HOURS_PER_DAY:
+                                return_date = data.get('end_date', '')
+                            else:
+                                return_date = next_workday(data.get('end_date', ''), holidays) or ""
 
                             conn.execute(
                                 '''
                                 INSERT INTO leave_applications (
                                     id, application_id, employee_id, employee_name, start_date, end_date,
-                                    start_day_type, end_day_type, leave_type, selected_reasons, reason,
-                                    total_days, status, date_applied, created_at, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    start_time, end_time, start_day_type, end_day_type, leave_type,
+                                    selected_reasons, reason, total_hours, total_days, status, date_applied,
+                                    created_at, updated_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 ''',
                                 (
                                     record_id,
@@ -456,11 +600,14 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     data.get('employee_name', ''),
                                     data.get('start_date', ''),
                                     data.get('end_date', ''),
+                                    start_time,
+                                    end_time,
                                     data.get('start_day_type', 'full'),
                                     data.get('end_day_type', 'full'),
                                     data.get('leave_type', ''),
                                     json.dumps(data.get('selected_reasons', [])),
                                     data.get('reason', ''),
+                                    total_hours,
                                     total_days,
                                     data.get('status', 'Pending'),
                                     current_time,
@@ -470,6 +617,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             )
 
                             # Update data with server-calculated fields
+                            data['total_hours'] = total_hours
                             data['total_days'] = total_days
                             data['return_date'] = return_date
                             data['application_id'] = app_id
@@ -522,10 +670,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                     data.get('application_id', ''),
                     data.get('leave_type', ''),
                     data.get('start_date', ''),
-                    data.get('start_day_type', 'full'),
+                    data.get('start_time'),
                     data.get('end_date', ''),
-                    data.get('end_day_type', 'full'),
+                    data.get('end_time'),
                     data.get('return_date', ''),
+                    data.get('total_hours', 0),
                     data.get('total_days', 0),
                     data.get('reason', ''),
                     data.get('date_applied', ''),
@@ -681,7 +830,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         try:
 
                             cursor = conn.execute(
-                                'SELECT employee_id, employee_name, start_date, end_date, total_days, application_id, leave_type FROM leave_applications WHERE id = ?',
+                                'SELECT employee_id, employee_name, start_date, end_date, start_time, end_time, total_hours, total_days, application_id, leave_type FROM leave_applications WHERE id = ?',
                                 (record_id,),
                             )
                             app_info = cursor.fetchone()
@@ -698,7 +847,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
                                 start_date = app_info['start_date']
                                 end_date = app_info['end_date']
-                                total_days = app_info['total_days']
+                                start_time = app_info['start_time']
+                                end_time = app_info['end_time']
+                                raw_hours = app_info['total_hours']
+                                raw_days = app_info['total_days']
+                                total_hours = float(raw_hours) if raw_hours is not None else 0.0
+                                total_days = float(raw_days) if raw_days is not None else 0.0
                                 employee_name = app_info['employee_name']
                                 cursor = conn.execute('SELECT date FROM holidays')
                                 holidays = {row['date'] for row in cursor.fetchall()}
@@ -711,22 +865,24 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     f"Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.\n\n"
                                     "Request Details:\n"
                                     f"- Leave Type: {leave_type}\n"
-                                    f"- Start Date: {start_date}\n"
-                                    f"- End Date: {end_date}\n"
+                                    f"- Start: {start_date} {start_time or ''}\n"
+                                    f"- End: {end_date} {end_time or ''}\n"
                                     f"- Return Date: {return_date}\n"
-                                    f"- Total Days: {total_days}\n"
+                                    f"- Total Hours: {total_hours}\n"
+                                    f"- Equivalent Days: {total_days}\n"
                                 )
                                 employee_subject = f"Your leave application has been {status_word}"
-                                
+
                                 employee_body = f"""Dear {employee_name},
 
 Your leave request (Application ID: {app_id}) has been {status_word}.
 
 Request Details:
 - Leave Type: {leave_type}
-- Start Date: {start_date}
-- End Date: {end_date}
-- Total Days: {total_days}
+- Start: {start_date} {start_time or ''}
+- End: {end_date} {end_time or ''}
+- Total Hours: {total_hours}
+- Equivalent Days: {total_days}
 
 Please plan accordingly.
 
@@ -741,9 +897,11 @@ HR Department
                                         end_date,
                                         summary=f"Leave for {employee_name}",
                                         description=(
-                                            f"Approved leave from {start_date} to {end_date} "
-                                            f"({total_days} days)"
+                                            f"Approved leave from {start_date} {start_time or ''} to {end_date} {end_time or ''} "
+                                            f"({total_hours} hours / {total_days} days)"
                                         ),
+                                        start_time=start_time,
+                                        end_time=end_time,
                                     )
 
                                 admin_email = ADMIN_EMAIL

@@ -260,6 +260,9 @@ const room = window.room;
 // Global cache for holiday dates (ISO YYYY-MM-DD)
 const holidayDates = new Set();
 
+// Standard number of working hours that make up a full leave day.
+const WORK_HOURS_PER_DAY = 8;
+
 // Authentication globals
 let currentUserType = null;
 let currentUser = null;
@@ -1387,14 +1390,13 @@ function setupDateCalculation() {
 
     const startDate = document.getElementById('startDate');
     const endDate = document.getElementById('endDate');
-    const startDayRadios = document.querySelectorAll('input[name="startDayType"]');
-    const endDayRadios = document.querySelectorAll('input[name="endDayType"]');
+    const startTime = document.getElementById('startTime');
+    const endTime = document.getElementById('endTime');
 
-    if (startDate && endDate && enableAutoCalculation) {
-        startDate.addEventListener('change', calculateLeaveDuration);
-        endDate.addEventListener('change', calculateLeaveDuration);
-        startDayRadios.forEach(radio => radio.addEventListener('change', calculateLeaveDuration));
-        endDayRadios.forEach(radio => radio.addEventListener('change', calculateLeaveDuration));
+    if (startDate && endDate && startTime && endTime && enableAutoCalculation) {
+        [startDate, endDate, startTime, endTime].forEach(field =>
+            field.addEventListener('change', calculateLeaveDuration)
+        );
     }
 }
 
@@ -1402,18 +1404,23 @@ function calculateLeaveDuration() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
     const durationText = document.getElementById('durationText');
-    const startDayType = document.querySelector('input[name="startDayType"]:checked')?.value || 'full';
-    const endDayType = document.querySelector('input[name="endDayType"]:checked')?.value || 'full';
+    const startTime = document.getElementById('startTime')?.value;
+    const endTime = document.getElementById('endTime')?.value;
 
-    if (startDate && endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+    if (startDate && endDate && startTime && endTime) {
+        const start = new Date(`${startDate}T${startTime}`);
+        const end = new Date(`${endDate}T${endTime}`);
 
-        if (end >= start) {
-            const dayDiff = calculateTotalDays(startDate, endDate, startDayType, endDayType);
-            durationText.textContent = `Duration: ${dayDiff} day(s)`;
+        if (end > start) {
+            const hours = calculateTotalHours(startDate, endDate, startTime, endTime);
+            if (hours > 0) {
+                const days = Math.round((hours / WORK_HOURS_PER_DAY) * 100) / 100;
+                durationText.textContent = `Duration: ${hours.toFixed(2)} hour(s) (${days.toFixed(2)} day(s))`;
+            } else {
+                durationText.textContent = 'Duration will be calculated automatically';
+            }
         } else {
-            durationText.textContent = 'End date must be after start date';
+            durationText.textContent = 'End date/time must be after start date/time';
         }
     } else {
         durationText.textContent = 'Duration will be calculated automatically';
@@ -1442,37 +1449,39 @@ function setupLeaveTypeHandling() {
 
 async function submitLeaveApplication(event, returnDate = null) {
     event.preventDefault();
-    
+
     try {
         showLoading();
-        
+
         const formData = new FormData(event.target);
         const selectedLeaveType = formData.get('leaveType');
+        const startDate = formData.get('startDate');
+        const endDate = formData.get('endDate');
+        const startTime = formData.get('startTime');
+        const endTime = formData.get('endTime');
+        const totalHours = calculateTotalHours(startDate, endDate, startTime, endTime);
+        const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
+
         if (!returnDate) {
-            const endDate = formData.get('endDate');
-            returnDate = getNextWorkday(endDate);
+            returnDate = determineReturnDate(endDate, totalHours);
         }
 
         const applicationData = {
-        employee_id: currentUser.id,
-        employee_name: `${currentUser.first_name} ${currentUser.surname}`,
-        start_date: formData.get('startDate'),
-        end_date: formData.get('endDate'),
-        start_day_type: formData.get('startDayType'),
-        end_day_type: formData.get('endDayType'),
-        leave_type: selectedLeaveType,
-        selected_reasons: selectedLeaveType ? [selectedLeaveType] : [],
-        reason: formData.get('reason'),
-        total_days: calculateTotalDays(
-            formData.get('startDate'),
-            formData.get('endDate'),
-            formData.get('startDayType'),
-            formData.get('endDayType')
-        ),
-        status: 'Pending',
-        return_date: returnDate
-    };
-        
+            employee_id: currentUser.id,
+            employee_name: `${currentUser.first_name} ${currentUser.surname}`,
+            start_date: startDate,
+            end_date: endDate,
+            start_time: startTime,
+            end_time: endTime,
+            leave_type: selectedLeaveType,
+            selected_reasons: selectedLeaveType ? [selectedLeaveType] : [],
+            reason: formData.get('reason'),
+            total_hours: totalHours,
+            total_days: totalDays,
+            status: 'Pending',
+            return_date: returnDate
+        };
+
         const result = await room.collection('leave_application').create(applicationData);
 
         // Show success modal
@@ -1491,40 +1500,78 @@ async function submitLeaveApplication(event, returnDate = null) {
     }
 }
 
-function calculateTotalDays(startDate, endDate, startDayType, endDayType) {
+function calculateTotalHours(startDate, endDate, startTime, endTime) {
     if (!startDate || !endDate) return 0;
 
-    // Normalize dates to local midnight to avoid timezone issues
-    const start = new Date(startDate + 'T00:00');
-    const end = new Date(endDate + 'T00:00');
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-    if (end < start) return 0;
+    const startClock = startTime || '00:00';
+    const endClock = endTime || '23:59';
 
-    const startType = startDayType || document.querySelector('input[name="startDayType"]:checked')?.value || 'full';
-    const endType = endDayType || document.querySelector('input[name="endDayType"]:checked')?.value || 'full';
+    const start = new Date(`${startDate}T${startClock}`);
+    const end = new Date(`${endDate}T${endClock}`);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+        return 0;
+    }
+
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
 
     let total = 0;
-    const current = new Date(start);
-    current.setHours(0, 0, 0, 0);
-    while (current <= end) {
-        const iso = current.toISOString().split('T')[0];
-        const day = current.getDay();
-        // Skip weekends (Saturday=6, Sunday=0)
-        if (day !== 0 && day !== 6 && !holidayDates.has(iso)) {
-            total += 1;
-            if (current.getTime() === start.getTime() && startType !== 'full') {
-                total -= 0.5;
-            }
-            if (current.getTime() === end.getTime() && endType !== 'full') {
-                total -= 0.5;
+    const current = new Date(startDay);
+
+    while (current <= endDay) {
+        const dayStart = new Date(current);
+        const dayEnd = new Date(current);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        const windowStart = new Date(Math.max(dayStart.getTime(), start.getTime()));
+        const windowEnd = new Date(Math.min(dayEnd.getTime(), end.getTime()));
+
+        if (windowEnd > windowStart) {
+            const iso = dayStart.toISOString().split('T')[0];
+            const day = dayStart.getDay();
+            if (day !== 0 && day !== 6 && !holidayDates.has(iso)) {
+                total += (windowEnd - windowStart) / (1000 * 60 * 60);
             }
         }
+
         current.setDate(current.getDate() + 1);
         current.setHours(0, 0, 0, 0);
     }
 
-    return total;
+    return Math.round(total * 100) / 100;
+}
+
+function getApplicationHours(app) {
+    if (!app) return 0;
+    if (typeof app.total_hours === 'number') {
+        return app.total_hours;
+    }
+    if (app.total_hours) {
+        const parsed = parseFloat(app.total_hours);
+        if (!Number.isNaN(parsed)) {
+            return parsed;
+        }
+    }
+    if (app.total_days) {
+        const days = parseFloat(app.total_days);
+        if (!Number.isNaN(days)) {
+            return days * WORK_HOURS_PER_DAY;
+        }
+    }
+    if (app.start_date && app.end_date) {
+        return calculateTotalHours(app.start_date, app.end_date, app.start_time, app.end_time);
+    }
+    return 0;
+}
+
+function formatDurationFromHours(hours) {
+    const totalHours = Number.isFinite(hours) ? hours : parseFloat(hours) || 0;
+    const roundedHours = Math.round(totalHours * 100) / 100;
+    const days = Math.round((roundedHours / WORK_HOURS_PER_DAY) * 100) / 100;
+    return `${roundedHours.toFixed(2)} h (${days.toFixed(2)} d)`;
 }
 
 function getNextWorkday(dateStr) {
@@ -1540,6 +1587,18 @@ function getNextWorkday(dateStr) {
             return iso;
         }
     }
+}
+
+function determineReturnDate(endDate, totalHours) {
+    if (!endDate) {
+        return '';
+    }
+
+    if (totalHours > 0 && totalHours < WORK_HOURS_PER_DAY) {
+        return endDate;
+    }
+
+    return getNextWorkday(endDate) || endDate;
 }
 
 async function loadLeaveApplications() {
@@ -1559,9 +1618,9 @@ async function loadLeaveApplications() {
                 <td>${app.application_id || app.id}</td>
                 <td>${app.employee_name || app.employee_id}</td>
                 <td>${app.leave_type}</td>
-                <td>${app.start_date}</td>
-                <td>${app.end_date}</td>
-                <td>${app.total_days}</td>
+                <td>${app.start_date} ${app.start_time || ''}</td>
+                <td>${app.end_date} ${app.end_time || ''}</td>
+                <td>${formatDurationFromHours(getApplicationHours(app))}</td>
                 <td>${app.status}</td>
                 <td class="application-actions">
                     <button class="btn btn-success approve-btn">Approve</button>
@@ -1646,7 +1705,8 @@ async function loadEmployeeSummary() {
             if (!info) return;
 
             const type = (app.leave_type || '').trim().toLowerCase();
-            const days = parseFloat(app.total_days) || 0;
+            const hours = getApplicationHours(app);
+            const days = hours / WORK_HOURS_PER_DAY;
 
             if (app.status === 'Pending') {
                 info.activeRequests += 1;
@@ -1792,9 +1852,9 @@ async function loadLeaveHistory(employeeId, status = null) {
             row.innerHTML = `
                 <td>${app.application_id || app.id}</td>
                 <td>${app.leave_type}</td>
-                <td>${app.start_date}</td>
-                <td>${app.end_date}</td>
-                <td>${app.total_days}</td>
+                <td>${app.start_date} ${app.start_time || ''}</td>
+                <td>${app.end_date} ${app.end_time || ''}</td>
+                <td>${formatDurationFromHours(getApplicationHours(app))}</td>
                 <td><span class="status-badge status-${(app.status || '').toLowerCase()}">${app.status}</span></td>
             `;
             tbody.appendChild(row);
@@ -1842,7 +1902,7 @@ async function loadAdminLeaveHistory(search = '') {
 
         filtered.forEach(app => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} - ${app.end_date}</td><td>${app.total_days ?? calculateTotalDays(app.start_date, app.end_date, app.start_day_type, app.end_day_type)}</td>`;
+            tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td><td>${formatDurationFromHours(getApplicationHours(app))}</td>`;
             tbody.appendChild(tr);
         });
 
