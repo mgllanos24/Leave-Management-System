@@ -48,20 +48,24 @@ class BackendCollection {
         const url = `${this.database.baseUrl}/${this.name}${path}`;
         
         for (let attempt = 1; attempt <= this.database.maxRetries; attempt++) {
-            let controller;
-            let timeoutId;
+            const methodUpper = method.toUpperCase();
+            const shouldUseTimeout = this.database.requestTimeout > 0 && !['POST', 'PUT'].includes(methodUpper);
+            let controller = null;
+            let timeoutId = null;
             try {
-                controller = new AbortController();
-                timeoutId = setTimeout(() => controller.abort(), this.database.requestTimeout);
-
                 const options = {
                     method: method,
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    signal: controller.signal,
                     credentials: 'include'
                 };
+
+                if (shouldUseTimeout) {
+                    controller = new AbortController();
+                    timeoutId = setTimeout(() => controller.abort(), this.database.requestTimeout);
+                    options.signal = controller.signal;
+                }
 
                 if (sessionToken) {
                     options.headers['Authorization'] = `Bearer ${sessionToken}`;
@@ -76,8 +80,10 @@ class BackendCollection {
                 }
                 
                 const response = await fetch(url, options);
-                clearTimeout(timeoutId);
-                
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+
                 if (!response.ok) {
                     const errorText = await response.text().catch(() => 'Unknown error');
                     throw new Error(`HTTP ${response.status}: ${errorText}`);
@@ -96,12 +102,20 @@ class BackendCollection {
                     clearTimeout(timeoutId);
                 }
 
+                let isTimeoutError = false;
                 if (error.name === 'AbortError') {
                     console.error(`TIMEOUT ${method} ${url} timed out after ${this.database.requestTimeout}ms`);
-                    error = new Error(`Request timed out after ${this.database.requestTimeout}ms`);
+                    const timeoutError = new Error(`Request timed out after ${this.database.requestTimeout}ms`);
+                    timeoutError.name = 'TimeoutError';
+                    error = timeoutError;
+                    isTimeoutError = true;
+                } else if (error.name === 'TimeoutError' || /timed out/i.test(error.message)) {
+                    isTimeoutError = true;
                 }
 
-                if (attempt === this.database.maxRetries) {
+                const shouldStopRetrying = attempt === this.database.maxRetries || (methodUpper === 'PUT' && isTimeoutError);
+
+                if (shouldStopRetrying) {
                     console.error(`ERROR ${method} ${url} failed after ${attempt} attempts:`, error);
                     throw error;
                 } else {
