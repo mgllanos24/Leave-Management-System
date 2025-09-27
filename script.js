@@ -2034,7 +2034,7 @@ async function loadAdminLeaveHistory(search = '') {
                 <td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(totalHours)}</td>
                 <td>${formatHours(paidHours)}</td>
-                <td>${formatHours(unpaidHours)}</td>
+                <td class="unpaid-hours">${formatHours(unpaidHours)}</td>
             `;
             tbody.appendChild(tr);
         });
