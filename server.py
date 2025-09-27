@@ -984,7 +984,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         # Process balance changes if status changed
                         if current_status and current_status != new_status:
                             try:
-                                process_leave_application_balance(record_id, new_status, 'ADMIN')
+                                process_leave_application_balance(
+                                    record_id,
+                                    new_status,
+                                    'ADMIN',
+                                    conn=conn,
+                                )
                             except ValueError as balance_error:
                                 conn.rollback()
                                 self.send_error(400, str(balance_error))
