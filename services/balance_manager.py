@@ -10,6 +10,7 @@ from datetime import datetime
 import uuid
 import time
 import os
+from contextlib import nullcontext
 
 # Moved from server.py - balance management functions
 # @tweakable balance management configuration
@@ -143,38 +144,45 @@ def update_leave_balance(
     application_id=None,
     changed_by='SYSTEM',
     prevent_negative=None,
+    conn=None,
+    lock=None,
 ):
     """Update employee leave balance and create audit record"""
     if not AUTO_UPDATE_BALANCES:
         return False
-    
+
     current_time = datetime.now().isoformat()
     current_year = datetime.now().year
 
-    balance_record = None
-    with db_lock:
-        conn = get_db_connection()
-        try:
-            cursor = conn.execute('''
+    created_connection = conn is None
+    connection = conn or get_db_connection()
+
+    def _lock_context():
+        if lock is not None:
+            return lock
+        return db_lock if created_connection else nullcontext()
+
+    with _lock_context():
+        cursor = connection.execute(
+            '''
                 SELECT * FROM leave_balances
                 WHERE employee_id = ? AND balance_type = ? AND year = ?
-            ''', (employee_id, balance_type, current_year))
-            balance_record = cursor.fetchone()
-        finally:
-            conn.close()
+            ''',
+            (employee_id, balance_type, current_year),
+        )
+        balance_record = cursor.fetchone()
 
     if not balance_record:
         initialize_employee_balances(employee_id, current_year)
-        with db_lock:
-            conn = get_db_connection()
-            try:
-                cursor = conn.execute('''
+        with _lock_context():
+            cursor = connection.execute(
+                '''
                     SELECT * FROM leave_balances
                     WHERE employee_id = ? AND balance_type = ? AND year = ?
-                ''', (employee_id, balance_type, current_year))
-                balance_record = cursor.fetchone()
-            finally:
-                conn.close()
+                ''',
+                (employee_id, balance_type, current_year),
+            )
+            balance_record = cursor.fetchone()
 
     if not balance_record:
         raise ValueError(f"Could not initialize balance for employee {employee_id}")
@@ -196,43 +204,58 @@ def update_leave_balance(
             f"but only {available:.2f} days remain."
         )
 
-    with db_lock:
-        conn = get_db_connection()
-        try:
-            conn.execute('''
-                UPDATE leave_balances
-                SET used_days = ?, remaining_days = ?, last_updated = ?
-                WHERE employee_id = ? AND balance_type = ? AND year = ?
-            ''', (new_used, new_remaining, current_time, employee_id, balance_type, current_year))
+    try:
+        with _lock_context():
+            connection.execute(
+                '''
+                    UPDATE leave_balances
+                    SET used_days = ?, remaining_days = ?, last_updated = ?
+                    WHERE employee_id = ? AND balance_type = ? AND year = ?
+                ''',
+                (new_used, new_remaining, current_time, employee_id, balance_type, current_year),
+            )
 
             if ENABLE_BALANCE_AUDIT:
-                conn.execute('''
-                    INSERT INTO leave_balance_history
-                    (id, employee_id, balance_type, change_type, change_amount, previous_balance, new_balance, reason, application_id, changed_by, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    str(uuid.uuid4()),
-                    employee_id,
-                    balance_type,
-                    'DEDUCTION' if change_amount > 0 else 'ADDITION',
-                    abs(change_amount),
-                    previous_remaining,
-                    new_remaining,
-                    reason,
-                    application_id,
-                    changed_by,
-                    current_time
-                ))
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            conn.close()
+                connection.execute(
+                    '''
+                        INSERT INTO leave_balance_history
+                        (id, employee_id, balance_type, change_type, change_amount, previous_balance, new_balance, reason, application_id, changed_by, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''',
+                    (
+                        str(uuid.uuid4()),
+                        employee_id,
+                        balance_type,
+                        'DEDUCTION' if change_amount > 0 else 'ADDITION',
+                        abs(change_amount),
+                        previous_remaining,
+                        new_remaining,
+                        reason,
+                        application_id,
+                        changed_by,
+                        current_time,
+                    ),
+                )
+
+            if created_connection:
+                connection.commit()
+    except Exception as e:
+        if created_connection:
+            connection.rollback()
+        raise e
+    finally:
+        if created_connection:
+            connection.close()
 
     return True
 
-def process_leave_application_balance(application_id, new_status, changed_by='SYSTEM'):
+def process_leave_application_balance(
+    application_id,
+    new_status,
+    changed_by='SYSTEM',
+    conn=None,
+    lock=None,
+): 
     """Adjust leave balances when an application's status changes."""
     employee_id = None
     balance_type = None
@@ -243,10 +266,17 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
     is_non_deductible = False
     is_cash_out = False
 
-    with db_lock:
-        conn = get_db_connection()
+    using_external_conn = conn is not None
+
+    if conn is None:
+        lock_context = lock or db_lock
+    else:
+        lock_context = lock or nullcontext()
+
+    with lock_context:
+        connection = conn or get_db_connection()
         try:
-            cursor = conn.execute(
+            cursor = connection.execute(
                 'SELECT employee_id, leave_type, total_days, total_hours FROM leave_applications WHERE id = ?',
                 (application_id,),
             )
@@ -277,19 +307,20 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
                     else 'SICK'
                 )
 
-                cursor = conn.execute(
+                cursor = connection.execute(
                     'SELECT id FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',
                     (employee_id, balance_type, current_year),
                 )
                 balance_exists = cursor.fetchone()
 
-            cursor = conn.execute(
+            cursor = connection.execute(
                 'SELECT change_type FROM leave_balance_history WHERE application_id = ? ORDER BY created_at DESC LIMIT 1',
                 (application_id,),
             )
             last_action = cursor.fetchone()
         finally:
-            conn.close()
+            if conn is None:
+                connection.close()
 
     if is_non_deductible:
         return True
@@ -309,6 +340,8 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
                 application_id=application_id,
                 changed_by=changed_by,
                 prevent_negative=is_cash_out,
+                conn=connection if using_external_conn else None,
+                lock=lock if using_external_conn else None,
             )
     else:
         if last_action and last_action['change_type'] == 'DEDUCTION':
@@ -320,6 +353,8 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
                 application_id=application_id,
                 changed_by=changed_by,
                 prevent_negative=is_cash_out,
+                conn=connection if using_external_conn else None,
+                lock=lock if using_external_conn else None,
             )
 
     return True
