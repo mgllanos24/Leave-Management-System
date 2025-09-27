@@ -1724,7 +1724,7 @@ async function loadEmployeeSummary() {
             }
 
             if (app.status === 'Approved') {
-                const privilegeTypes = ['privilege', 'pl', 'vacation-annual', 'personal'];
+                const privilegeTypes = ['privilege', 'pl', 'vacation-annual', 'personal', 'cash-out'];
                 const sickTypes = ['sick', 'sl'];
 
                 if (privilegeTypes.includes(type)) {
