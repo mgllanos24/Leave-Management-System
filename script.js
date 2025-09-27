@@ -1518,23 +1518,33 @@ function calculateTotalHours(startDate, endDate, startTime, endTime) {
     const endDay = new Date(end);
     endDay.setHours(0, 0, 0, 0);
 
+    const msPerHour = 1000 * 60 * 60;
     let total = 0;
     const current = new Date(startDay);
 
     while (current <= endDay) {
-        const dayStart = new Date(current);
-        const dayEnd = new Date(current);
-        dayEnd.setDate(dayEnd.getDate() + 1);
+        const iso = current.toISOString().split('T')[0];
+        const day = current.getDay();
+        const isWeekend = day === 0 || day === 6;
+        const isHoliday = holidayDates.has(iso);
 
-        const windowStart = new Date(Math.max(dayStart.getTime(), start.getTime()));
-        const windowEnd = new Date(Math.min(dayEnd.getTime(), end.getTime()));
+        if (!isWeekend && !isHoliday) {
+            const isFirstDay = current.getTime() === startDay.getTime();
+            const isLastDay = current.getTime() === endDay.getTime();
+            let hoursForDay = WORK_HOURS_PER_DAY;
 
-        if (windowEnd > windowStart) {
-            const iso = dayStart.toISOString().split('T')[0];
-            const day = dayStart.getDay();
-            if (day !== 0 && day !== 6 && !holidayDates.has(iso)) {
-                total += (windowEnd - windowStart) / (1000 * 60 * 60);
+            if (isFirstDay && isLastDay) {
+                hoursForDay = Math.max(0, (end.getTime() - start.getTime()) / msPerHour);
+            } else if (isFirstDay) {
+                const nextDayStart = new Date(current);
+                nextDayStart.setDate(nextDayStart.getDate() + 1);
+                hoursForDay = Math.max(0, (nextDayStart.getTime() - start.getTime()) / msPerHour);
+            } else if (isLastDay) {
+                const dayStart = new Date(current);
+                hoursForDay = Math.max(0, (end.getTime() - dayStart.getTime()) / msPerHour);
             }
+
+            total += Math.min(hoursForDay, WORK_HOURS_PER_DAY);
         }
 
         current.setDate(current.getDate() + 1);
