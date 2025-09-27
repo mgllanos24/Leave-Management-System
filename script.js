@@ -1844,24 +1844,70 @@ async function updateApplicationStatus(id, newStatus) {
 }
 
 
+function buildUnpaidApplicationSet(balanceHistory = [], employeeId = null) {
+    const unpaidIds = new Set();
+    const allowedTypes = new Set(['PRIVILEGE', 'SICK']);
+    const targetEmployeeId = employeeId != null ? String(employeeId) : null;
+
+    balanceHistory.forEach(entry => {
+        if (!entry) return;
+
+        const entryEmployeeId = entry.employee_id != null ? String(entry.employee_id) : null;
+        if (targetEmployeeId && entryEmployeeId && entryEmployeeId !== targetEmployeeId) {
+            return;
+        }
+
+        const changeType = (entry.change_type || '').toUpperCase();
+        const balanceType = (entry.balance_type || '').toUpperCase();
+        const newBalance = parseFloat(entry.new_balance);
+        const rawId = entry.application_id || entry.applicationId || entry.leave_application_id || entry.leaveApplicationId;
+
+        if (!rawId) return;
+
+        if (
+            changeType === 'DEDUCTION' &&
+            allowedTypes.has(balanceType) &&
+            !Number.isNaN(newBalance) &&
+            newBalance < 0
+        ) {
+            unpaidIds.add(String(rawId));
+        }
+    });
+
+    return unpaidIds;
+}
+
 async function loadLeaveHistory(employeeId, status = null) {
     try {
         const statusParam = status ? `&status=${encodeURIComponent(status)}` : '';
-        const apps = await room
-            .collection('leave_application')
-            .makeRequest(
-                'GET',
-                `?employee_id=${encodeURIComponent(employeeId)}${statusParam}`
-            );
+        const [apps, balanceHistory] = await Promise.all([
+            room
+                .collection('leave_application')
+                .makeRequest(
+                    'GET',
+                    `?employee_id=${encodeURIComponent(employeeId)}${statusParam}`
+                ),
+            room
+                .collection('leave_balance_history')
+                .makeRequest('GET')
+        ]);
+
+        const unpaidApplicationIds = buildUnpaidApplicationSet(balanceHistory, employeeId);
 
         const tbody = document.getElementById('employeeHistoryTableBody');
         tbody.innerHTML = '';
 
         apps.forEach(app => {
+            const normalizedId = app.application_id ?? app.id;
+            const normalizedKey = normalizedId != null ? String(normalizedId) : null;
+            const displayId = normalizedId != null ? normalizedId : '';
+            const leaveLabel = normalizedKey && unpaidApplicationIds.has(normalizedKey)
+                ? 'Unpaid Leave'
+                : app.leave_type;
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${app.application_id || app.id}</td>
-                <td>${app.leave_type}</td>
+                <td>${displayId}</td>
+                <td>${leaveLabel}</td>
                 <td>${app.start_date} ${app.start_time || ''}</td>
                 <td>${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(getApplicationHours(app))}</td>
@@ -1894,10 +1940,15 @@ async function loadAdminLeaveHistory(search = '') {
     if (!tbody) return;
     tbody.innerHTML = '';
     try {
-        const apps = await room.collection('leave_application').getList({ status: 'Approved' });
+        const [apps, balanceHistory] = await Promise.all([
+            room.collection('leave_application').getList({ status: 'Approved' }),
+            room.collection('leave_balance_history').getList()
+        ]);
         if (requestId !== adminHistoryRequestId) return;
 
         const { start: fiscalStart, end: fiscalEnd } = getFiscalYearRange();
+
+        const unpaidApplicationIds = buildUnpaidApplicationSet(balanceHistory);
 
         const filtered = apps.filter(app => {
             const name = (app.employee_name || '').toLowerCase();
@@ -1911,8 +1962,13 @@ async function loadAdminLeaveHistory(search = '') {
         filtered.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
         filtered.forEach(app => {
+            const normalizedId = app.application_id ?? app.id;
+            const normalizedKey = normalizedId != null ? String(normalizedId) : null;
+            const leaveLabel = normalizedKey && unpaidApplicationIds.has(normalizedKey)
+                ? 'Unpaid Leave'
+                : app.leave_type;
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${app.employee_name}</td><td>${app.leave_type}</td><td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td><td>${formatDurationFromHours(getApplicationHours(app))}</td>`;
+            tr.innerHTML = `<td>${app.employee_name}</td><td>${leaveLabel}</td><td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td><td>${formatDurationFromHours(getApplicationHours(app))}</td>`;
             tbody.appendChild(tr);
         });
 
