@@ -20,7 +20,7 @@ ENABLE_BALANCE_AUDIT = True
 # These correspond to the `value` attributes in index.html
 # Store privilege leave types as lowercase values to allow
 # case-insensitive matching when processing leave types
-PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual'}}
+PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual', 'cash-out'}}
 NON_DEDUCTIBLE_LEAVE_TYPES = {'leave-without-pay'}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
 DEFAULT_PRIVILEGE_LEAVE = 15
@@ -135,7 +135,15 @@ def initialize_employee_balances(employee_id, year=None):
     
     return False
 
-def update_leave_balance(employee_id, balance_type, change_amount, reason, application_id=None, changed_by='SYSTEM'):
+def update_leave_balance(
+    employee_id,
+    balance_type,
+    change_amount,
+    reason,
+    application_id=None,
+    changed_by='SYSTEM',
+    prevent_negative=None,
+):
     """Update employee leave balance and create audit record"""
     if not AUTO_UPDATE_BALANCES:
         return False
@@ -177,8 +185,16 @@ def update_leave_balance(employee_id, balance_type, change_amount, reason, appli
     new_used = previous_used + change_amount
     new_remaining = balance_record['allocated_days'] + balance_record['carryforward_days'] - new_used
 
-    if PREVENT_NEGATIVE_BALANCES and new_remaining < 0:
-        raise ValueError(f"Insufficient {balance_type.lower()} leave balance. Required: {change_amount}, Available: {previous_remaining}")
+    if prevent_negative is None:
+        prevent_negative = PREVENT_NEGATIVE_BALANCES
+
+    if prevent_negative and new_remaining < -1e-6:
+        requested = abs(float(change_amount))
+        available = float(previous_remaining)
+        raise ValueError(
+            f"Insufficient {balance_type.lower()} leave balance: requested {requested:.2f} days, "
+            f"but only {available:.2f} days remain."
+        )
 
     with db_lock:
         conn = get_db_connection()
@@ -225,6 +241,7 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
     balance_exists = None
     current_year = datetime.now().year
     is_non_deductible = False
+    is_cash_out = False
 
     with db_lock:
         conn = get_db_connection()
@@ -251,6 +268,7 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
             # Normalize the single leave type to lowercase for matching
             leave_token = (leave_type or '').strip().lower()
             is_non_deductible = leave_token in NON_DEDUCTIBLE_LEAVE_TYPES
+            is_cash_out = leave_token == 'cash-out'
 
             if not is_non_deductible:
                 balance_type = (
@@ -290,6 +308,7 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
                 reason,
                 application_id=application_id,
                 changed_by=changed_by,
+                prevent_negative=is_cash_out,
             )
     else:
         if last_action and last_action['change_type'] == 'DEDUCTION':
@@ -300,6 +319,7 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
                 reason,
                 application_id=application_id,
                 changed_by=changed_by,
+                prevent_negative=is_cash_out,
             )
 
     return True

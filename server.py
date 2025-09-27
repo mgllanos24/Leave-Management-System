@@ -93,6 +93,147 @@ AUTO_CREATE_BALANCE_RECORDS = True
 # Track active admin session tokens
 active_admin_tokens = set()
 
+
+def _extract_numeric_field(payload, keys):
+    """Return the first numeric value found for the given keys."""
+    for key in keys:
+        value = payload.get(key)
+        if value in (None, ""):
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def compute_cash_out_request(data, total_days, total_hours):
+    """Determine the requested cash-out amount in days and hours."""
+
+    requested_days = None
+    requested_hours = None
+    preferred_unit = None
+
+    if total_days:
+        try:
+            requested_days = float(total_days)
+            preferred_unit = 'days'
+        except (TypeError, ValueError):
+            requested_days = None
+
+    if total_hours:
+        try:
+            requested_hours = float(total_hours)
+            if preferred_unit is None:
+                preferred_unit = 'hours'
+        except (TypeError, ValueError):
+            requested_hours = None
+
+    if requested_days is None:
+        fallback_days = _extract_numeric_field(
+            data,
+            (
+                'total_days',
+                'cash_out_days',
+                'cashOutDays',
+                'requested_days',
+                'requestedDays',
+            ),
+        )
+        if fallback_days is not None:
+            requested_days = fallback_days
+            preferred_unit = preferred_unit or 'days'
+
+    if requested_hours is None:
+        fallback_hours = _extract_numeric_field(
+            data,
+            (
+                'total_hours',
+                'cash_out_hours',
+                'cashOutHours',
+                'requested_hours',
+                'requestedHours',
+            ),
+        )
+        if fallback_hours is not None:
+            requested_hours = fallback_hours
+            preferred_unit = preferred_unit or 'hours'
+
+    if requested_days is None and requested_hours is not None and WORK_HOURS_PER_DAY:
+        requested_days = requested_hours / WORK_HOURS_PER_DAY
+        if preferred_unit is None:
+            preferred_unit = 'hours'
+
+    if requested_hours is None and requested_days is not None and WORK_HOURS_PER_DAY:
+        requested_hours = requested_days * WORK_HOURS_PER_DAY
+        if preferred_unit is None:
+            preferred_unit = 'days'
+
+    requested_days = float(requested_days or 0.0)
+    requested_hours = float(requested_hours or 0.0)
+    preferred_unit = preferred_unit or 'days'
+
+    return requested_days, requested_hours, preferred_unit
+
+
+def ensure_cash_out_balance(employee_id, requested_days, requested_hours, preferred_unit='days'):
+    """Ensure the employee has enough Privilege Leave for a cash-out request."""
+
+    if not employee_id:
+        raise ValueError("Employee ID is required for cash-out requests.")
+
+    try:
+        requested_days = float(requested_days)
+    except (TypeError, ValueError):
+        requested_days = 0.0
+
+    try:
+        requested_hours = float(requested_hours)
+    except (TypeError, ValueError):
+        requested_hours = 0.0
+
+    current_year = datetime.now().year
+    balances = get_employee_balances(employee_id) or []
+    privilege_balance = next(
+        (
+            balance
+            for balance in balances
+            if balance.get('balance_type') == 'PRIVILEGE'
+            and balance.get('year') == current_year
+        ),
+        None,
+    )
+
+    if privilege_balance is None:
+        privilege_balance = next(
+            (
+                balance
+                for balance in balances
+                if balance.get('balance_type') == 'PRIVILEGE'
+            ),
+            None,
+        )
+
+    remaining_days = float(privilege_balance.get('remaining_days', 0)) if privilege_balance else 0.0
+    remaining_hours = remaining_days * WORK_HOURS_PER_DAY if WORK_HOURS_PER_DAY else 0.0
+
+    tolerance = 1e-6
+
+    if preferred_unit == 'hours' and WORK_HOURS_PER_DAY:
+        if requested_hours > remaining_hours + tolerance:
+            raise ValueError(
+                f"Cash-out request of {requested_hours:.2f} hours exceeds remaining Privilege Leave "
+                f"({remaining_hours:.2f} hours)."
+            )
+    else:
+        if requested_days > remaining_days + tolerance:
+            raise ValueError(
+                f"Cash-out request of {requested_days:.2f} days exceeds remaining Privilege Leave "
+                f"({remaining_days:.2f} days)."
+            )
+
+    return remaining_days
+
 def _calculate_total_days_legacy(
     start_date,
     end_date,
@@ -590,6 +731,25 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 end_time=end_time,
                             )
 
+                            leave_type_token = (data.get('leave_type') or '').strip().lower()
+                            if leave_type_token == 'cash-out':
+                                requested_days, requested_hours, preferred_unit = compute_cash_out_request(
+                                    data,
+                                    total_days,
+                                    total_hours,
+                                )
+                                try:
+                                    ensure_cash_out_balance(
+                                        data.get('employee_id'),
+                                        requested_days,
+                                        requested_hours,
+                                        preferred_unit,
+                                    )
+                                except ValueError as balance_error:
+                                    conn.rollback()
+                                    self.send_error(400, str(balance_error))
+                                    return
+
                             if total_hours and total_hours < WORK_HOURS_PER_DAY:
                                 return_date = data.get('end_date', '')
                             else:
@@ -817,23 +977,27 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         ))
 
                         if cursor.rowcount == 0:
+                            conn.rollback()
                             self.send_error(404, "Record not found")
                             return
-
-                        # Commit status update before processing balances
-                        conn.commit()
 
                         # Process balance changes if status changed
                         if current_status and current_status != new_status:
                             try:
                                 process_leave_application_balance(record_id, new_status, 'ADMIN')
+                            except ValueError as balance_error:
+                                conn.rollback()
+                                self.send_error(400, str(balance_error))
+                                return
                             except Exception as balance_error:
+                                conn.rollback()
                                 logging.warning(
                                     "Balance processing error for %s: %s",
                                     record_id,
                                     balance_error,
                                 )
-                                # Don't fail the entire request if balance update fails
+                                self.send_error(500, f"Balance processing failed: {balance_error}")
+                                return
 
                         conn.commit()
 
