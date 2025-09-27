@@ -20,7 +20,7 @@ ENABLE_BALANCE_AUDIT = True
 # These correspond to the `value` attributes in index.html
 # Store privilege leave types as lowercase values to allow
 # case-insensitive matching when processing leave types
-PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual'}}
+PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual', 'cash-out'}}
 NON_DEDUCTIBLE_LEAVE_TYPES = {'leave-without-pay'}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
 DEFAULT_PRIVILEGE_LEAVE = 15
