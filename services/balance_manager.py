@@ -21,6 +21,7 @@ ENABLE_BALANCE_AUDIT = True
 # Store privilege leave types as lowercase values to allow
 # case-insensitive matching when processing leave types
 PRIVILEGE_LEAVE_TYPES = {t.lower() for t in {'personal', 'vacation-annual'}}
+NON_DEDUCTIBLE_LEAVE_TYPES = {'leave-without-pay'}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
 DEFAULT_PRIVILEGE_LEAVE = 15
 DEFAULT_SICK_LEAVE = 5
@@ -223,6 +224,7 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
     last_action = None
     balance_exists = None
     current_year = datetime.now().year
+    is_non_deductible = False
 
     with db_lock:
         conn = get_db_connection()
@@ -248,17 +250,20 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
 
             # Normalize the single leave type to lowercase for matching
             leave_token = (leave_type or '').strip().lower()
-            balance_type = (
-                'PRIVILEGE'
-                if leave_token in PRIVILEGE_LEAVE_TYPES
-                else 'SICK'
-            )
+            is_non_deductible = leave_token in NON_DEDUCTIBLE_LEAVE_TYPES
 
-            cursor = conn.execute(
-                'SELECT id FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',
-                (employee_id, balance_type, current_year),
-            )
-            balance_exists = cursor.fetchone()
+            if not is_non_deductible:
+                balance_type = (
+                    'PRIVILEGE'
+                    if leave_token in PRIVILEGE_LEAVE_TYPES
+                    else 'SICK'
+                )
+
+                cursor = conn.execute(
+                    'SELECT id FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',
+                    (employee_id, balance_type, current_year),
+                )
+                balance_exists = cursor.fetchone()
 
             cursor = conn.execute(
                 'SELECT change_type FROM leave_balance_history WHERE application_id = ? ORDER BY created_at DESC LIMIT 1',
@@ -267,6 +272,9 @@ def process_leave_application_balance(application_id, new_status, changed_by='SY
             last_action = cursor.fetchone()
         finally:
             conn.close()
+
+    if is_non_deductible:
+        return True
 
     if not balance_exists:
         initialize_employee_balances(employee_id, current_year)
