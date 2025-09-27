@@ -1922,12 +1922,17 @@ async function loadLeaveHistory(employeeId, status = null) {
         tbody.innerHTML = '';
 
         apps.forEach(app => {
-            const normalizedId = app.application_id ?? app.id;
-            const normalizedKey = normalizedId != null ? String(normalizedId) : null;
-            const displayId = normalizedId != null ? normalizedId : '';
+            const primaryKey = app?.id != null ? String(app.id) : null;
+            const fallbackKey = app?.application_id != null ? String(app.application_id) : null;
+            const displayId = app?.application_id != null ? app.application_id : (primaryKey || '');
             const totalHours = getApplicationHours(app);
 
-            const historyInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            let historyInfo = null;
+            if (primaryKey && unpaidApplicationMap.has(primaryKey)) {
+                historyInfo = unpaidApplicationMap.get(primaryKey);
+            } else if (fallbackKey && unpaidApplicationMap.has(fallbackKey)) {
+                historyInfo = unpaidApplicationMap.get(fallbackKey);
+            }
             let paidHours = totalHours;
             let unpaidHours = 0;
 
@@ -2005,11 +2010,16 @@ async function loadAdminLeaveHistory(search = '') {
         filtered.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
         filtered.forEach(app => {
-            const normalizedId = app.application_id ?? app.id;
-            const normalizedKey = normalizedId != null ? String(normalizedId) : null;
+            const primaryKey = app?.id != null ? String(app.id) : null;
+            const fallbackKey = app?.application_id != null ? String(app.application_id) : null;
             const totalHours = getApplicationHours(app);
 
-            const historyInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            let historyInfo = null;
+            if (primaryKey && unpaidApplicationMap.has(primaryKey)) {
+                historyInfo = unpaidApplicationMap.get(primaryKey);
+            } else if (fallbackKey && unpaidApplicationMap.has(fallbackKey)) {
+                historyInfo = unpaidApplicationMap.get(fallbackKey);
+            }
             let paidHours = totalHours;
             let unpaidHours = 0;
 
