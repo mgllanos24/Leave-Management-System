@@ -1844,8 +1844,8 @@ async function updateApplicationStatus(id, newStatus) {
 }
 
 
-function buildUnpaidApplicationSet(balanceHistory = [], employeeId = null) {
-    const unpaidIds = new Set();
+function buildUnpaidApplicationMap(balanceHistory = [], employeeId = null) {
+    const unpaidMap = new Map();
     const allowedTypes = new Set(['PRIVILEGE', 'SICK']);
     const targetEmployeeId = employeeId != null ? String(employeeId) : null;
 
@@ -1870,11 +1870,15 @@ function buildUnpaidApplicationSet(balanceHistory = [], employeeId = null) {
             !Number.isNaN(newBalance) &&
             newBalance < 0
         ) {
-            unpaidIds.add(String(rawId));
+            const normalizedId = String(rawId);
+            unpaidMap.set(normalizedId, {
+                hours: newBalance,
+                formatted: formatDurationFromHours(newBalance)
+            });
         }
     });
 
-    return unpaidIds;
+    return unpaidMap;
 }
 
 async function loadLeaveHistory(employeeId, status = null) {
@@ -1892,7 +1896,7 @@ async function loadLeaveHistory(employeeId, status = null) {
                 .makeRequest('GET')
         ]);
 
-        const unpaidApplicationIds = buildUnpaidApplicationSet(balanceHistory, employeeId);
+        const unpaidApplicationMap = buildUnpaidApplicationMap(balanceHistory, employeeId);
 
         const tbody = document.getElementById('employeeHistoryTableBody');
         tbody.innerHTML = '';
@@ -1901,7 +1905,8 @@ async function loadLeaveHistory(employeeId, status = null) {
             const normalizedId = app.application_id ?? app.id;
             const normalizedKey = normalizedId != null ? String(normalizedId) : null;
             const displayId = normalizedId != null ? normalizedId : '';
-            const leaveLabel = normalizedKey && unpaidApplicationIds.has(normalizedKey)
+            const unpaidInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            const leaveLabel = normalizedKey && unpaidInfo
                 ? 'Unpaid Leave'
                 : app.leave_type;
             const row = document.createElement('tr');
@@ -1911,6 +1916,7 @@ async function loadLeaveHistory(employeeId, status = null) {
                 <td>${app.start_date} ${app.start_time || ''}</td>
                 <td>${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(getApplicationHours(app))}</td>
+                <td>${unpaidInfo ? unpaidInfo.formatted : ''}</td>
                 <td><span class="status-badge status-${(app.status || '').toLowerCase()}">${app.status}</span></td>
             `;
             tbody.appendChild(row);
@@ -1918,7 +1924,7 @@ async function loadLeaveHistory(employeeId, status = null) {
 
         if (apps.length === 0) {
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="6">No leave applications found</td>';
+            row.innerHTML = '<td colspan="7">No leave applications found</td>';
             tbody.appendChild(row);
         }
     } catch (error) {
@@ -1948,7 +1954,7 @@ async function loadAdminLeaveHistory(search = '') {
 
         const { start: fiscalStart, end: fiscalEnd } = getFiscalYearRange();
 
-        const unpaidApplicationIds = buildUnpaidApplicationSet(balanceHistory);
+        const unpaidApplicationMap = buildUnpaidApplicationMap(balanceHistory);
 
         const filtered = apps.filter(app => {
             const name = (app.employee_name || '').toLowerCase();
@@ -1964,17 +1970,24 @@ async function loadAdminLeaveHistory(search = '') {
         filtered.forEach(app => {
             const normalizedId = app.application_id ?? app.id;
             const normalizedKey = normalizedId != null ? String(normalizedId) : null;
-            const leaveLabel = normalizedKey && unpaidApplicationIds.has(normalizedKey)
+            const unpaidInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            const leaveLabel = normalizedKey && unpaidInfo
                 ? 'Unpaid Leave'
                 : app.leave_type;
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${app.employee_name}</td><td>${leaveLabel}</td><td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td><td>${formatDurationFromHours(getApplicationHours(app))}</td>`;
+            tr.innerHTML = `
+                <td>${app.employee_name}</td>
+                <td>${leaveLabel}</td>
+                <td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td>
+                <td>${formatDurationFromHours(getApplicationHours(app))}</td>
+                <td>${unpaidInfo ? unpaidInfo.formatted : ''}</td>
+            `;
             tbody.appendChild(tr);
         });
 
         if (filtered.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="4">No leave applications found</td>';
+            tr.innerHTML = '<td colspan="5">No leave applications found</td>';
             tbody.appendChild(tr);
         }
     } catch (error) {
