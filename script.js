@@ -1584,6 +1584,12 @@ function formatDurationFromHours(hours) {
     return `${roundedHours.toFixed(2)} h (${days.toFixed(2)} d)`;
 }
 
+function formatHours(hours) {
+    const totalHours = Number.isFinite(hours) ? hours : parseFloat(hours) || 0;
+    const roundedHours = Math.round(totalHours * 100) / 100;
+    return `${roundedHours.toFixed(2)} h`;
+}
+
 function getNextWorkday(dateStr) {
     if (!dateStr) return null;
     const date = new Date(dateStr + 'T00:00');
@@ -1859,23 +1865,37 @@ function buildUnpaidApplicationMap(balanceHistory = [], employeeId = null) {
 
         const changeType = (entry.change_type || '').toUpperCase();
         const balanceType = (entry.balance_type || '').toUpperCase();
-        const newBalance = parseFloat(entry.new_balance);
         const rawId = entry.application_id || entry.applicationId || entry.leave_application_id || entry.leaveApplicationId;
 
-        if (!rawId) return;
-
-        if (
-            changeType === 'DEDUCTION' &&
-            allowedTypes.has(balanceType) &&
-            !Number.isNaN(newBalance) &&
-            newBalance < 0
-        ) {
-            const normalizedId = String(rawId);
-            unpaidMap.set(normalizedId, {
-                hours: newBalance,
-                formatted: formatDurationFromHours(newBalance)
-            });
+        if (!rawId || changeType !== 'DEDUCTION' || !allowedTypes.has(balanceType)) {
+            return;
         }
+
+        const changeAmountRaw = entry.change_amount ?? entry.changeAmount;
+        const previousBalanceRaw = entry.previous_balance ?? entry.previousBalance;
+
+        const changeAmount = Number.parseFloat(changeAmountRaw);
+        if (!Number.isFinite(changeAmount) || Math.abs(changeAmount) === 0) {
+            return;
+        }
+
+        const requestedDays = Math.abs(changeAmount);
+        const previousBalance = Number.parseFloat(previousBalanceRaw);
+        const availableDays = Number.isFinite(previousBalance) ? Math.max(previousBalance, 0) : 0;
+
+        const paidDays = Math.min(requestedDays, availableDays);
+        const unpaidDays = Math.max(0, requestedDays - paidDays);
+
+        const paidHours = Math.round(paidDays * WORK_HOURS_PER_DAY * 100) / 100;
+        const unpaidHours = Math.round(unpaidDays * WORK_HOURS_PER_DAY * 100) / 100;
+
+        const normalizedId = String(rawId);
+        const existing = unpaidMap.get(normalizedId) || { paidHours: 0, unpaidHours: 0 };
+
+        existing.paidHours += paidHours;
+        existing.unpaidHours += unpaidHours;
+
+        unpaidMap.set(normalizedId, existing);
     });
 
     return unpaidMap;
@@ -1905,18 +1925,35 @@ async function loadLeaveHistory(employeeId, status = null) {
             const normalizedId = app.application_id ?? app.id;
             const normalizedKey = normalizedId != null ? String(normalizedId) : null;
             const displayId = normalizedId != null ? normalizedId : '';
-            const unpaidInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
-            const leaveLabel = normalizedKey && unpaidInfo
-                ? 'Unpaid Leave'
-                : app.leave_type;
+            const totalHours = getApplicationHours(app);
+
+            const historyInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            let paidHours = totalHours;
+            let unpaidHours = 0;
+
+            if (historyInfo) {
+                if (Number.isFinite(historyInfo.paidHours)) {
+                    paidHours = historyInfo.paidHours;
+                }
+                if (Number.isFinite(historyInfo.unpaidHours)) {
+                    unpaidHours = historyInfo.unpaidHours;
+                }
+                if (paidHours === 0 && unpaidHours === 0 && totalHours) {
+                    paidHours = totalHours;
+                }
+            }
+
+            const hasUnpaid = Math.abs(unpaidHours) > 0.01;
+            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : app.leave_type;
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${displayId}</td>
                 <td>${leaveLabel}</td>
                 <td>${app.start_date} ${app.start_time || ''}</td>
                 <td>${app.end_date} ${app.end_time || ''}</td>
-                <td>${formatDurationFromHours(getApplicationHours(app))}</td>
-                <td>${unpaidInfo ? unpaidInfo.formatted : ''}</td>
+                <td>${formatDurationFromHours(totalHours)}</td>
+                <td>${formatHours(paidHours)}</td>
+                <td>${formatHours(unpaidHours)}</td>
                 <td><span class="status-badge status-${(app.status || '').toLowerCase()}">${app.status}</span></td>
             `;
             tbody.appendChild(row);
@@ -1924,7 +1961,7 @@ async function loadLeaveHistory(employeeId, status = null) {
 
         if (apps.length === 0) {
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="7">No leave applications found</td>';
+            row.innerHTML = '<td colspan="8">No leave applications found</td>';
             tbody.appendChild(row);
         }
     } catch (error) {
@@ -1970,24 +2007,41 @@ async function loadAdminLeaveHistory(search = '') {
         filtered.forEach(app => {
             const normalizedId = app.application_id ?? app.id;
             const normalizedKey = normalizedId != null ? String(normalizedId) : null;
-            const unpaidInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
-            const leaveLabel = normalizedKey && unpaidInfo
-                ? 'Unpaid Leave'
-                : app.leave_type;
+            const totalHours = getApplicationHours(app);
+
+            const historyInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            let paidHours = totalHours;
+            let unpaidHours = 0;
+
+            if (historyInfo) {
+                if (Number.isFinite(historyInfo.paidHours)) {
+                    paidHours = historyInfo.paidHours;
+                }
+                if (Number.isFinite(historyInfo.unpaidHours)) {
+                    unpaidHours = historyInfo.unpaidHours;
+                }
+                if (paidHours === 0 && unpaidHours === 0 && totalHours) {
+                    paidHours = totalHours;
+                }
+            }
+
+            const hasUnpaid = Math.abs(unpaidHours) > 0.01;
+            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : app.leave_type;
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${app.employee_name}</td>
                 <td>${leaveLabel}</td>
                 <td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td>
-                <td>${formatDurationFromHours(getApplicationHours(app))}</td>
-                <td>${unpaidInfo ? unpaidInfo.formatted : ''}</td>
+                <td>${formatDurationFromHours(totalHours)}</td>
+                <td>${formatHours(paidHours)}</td>
+                <td>${formatHours(unpaidHours)}</td>
             `;
             tbody.appendChild(tr);
         });
 
         if (filtered.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="5">No leave applications found</td>';
+            tr.innerHTML = '<td colspan="6">No leave applications found</td>';
             tbody.appendChild(tr);
         }
     } catch (error) {
