@@ -168,20 +168,31 @@ def calculate_total_hours(
             return 0.0
 
         total_hours = 0.0
-        current_date = start_dt.date()
-        final_date = end_dt.date()
+        start_day = start_dt.date()
+        end_day = end_dt.date()
+        current_date = start_day
 
-        while current_date <= final_date:
-            day_start = datetime.combine(current_date, datetime.min.time())
-            day_end = day_start + timedelta(days=1)
-            window_start = max(start_dt, day_start)
-            window_end = min(end_dt, day_end)
+        while current_date <= end_day:
+            iso_date = current_date.isoformat()
+            is_weekday = current_date.weekday() < 5
+            if is_weekday and iso_date not in holidays:
+                is_first_day = current_date == start_day
+                is_last_day = current_date == end_day
+                hours_for_day = WORK_HOURS_PER_DAY
 
-            if window_end > window_start:
-                iso_date = current_date.isoformat()
-                if current_date.weekday() < 5 and iso_date not in holidays:
-                    delta = window_end - window_start
-                    total_hours += delta.total_seconds() / 3600.0
+                if is_first_day and is_last_day:
+                    delta = end_dt - start_dt
+                    hours_for_day = max(delta.total_seconds() / 3600.0, 0.0)
+                elif is_first_day:
+                    next_day_start = datetime.combine(current_date, datetime.min.time()) + timedelta(days=1)
+                    delta = next_day_start - start_dt
+                    hours_for_day = max(delta.total_seconds() / 3600.0, 0.0)
+                elif is_last_day:
+                    day_start = datetime.combine(current_date, datetime.min.time())
+                    delta = end_dt - day_start
+                    hours_for_day = max(delta.total_seconds() / 3600.0, 0.0)
+
+                total_hours += min(hours_for_day, WORK_HOURS_PER_DAY)
 
             current_date += timedelta(days=1)
 
