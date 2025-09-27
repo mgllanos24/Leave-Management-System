@@ -378,6 +378,11 @@ th, td {
     min-width: 120px;
 }
 
+.unpaid-hours {
+    color: var(--error-color);
+    font-weight: 600;
+}
+
 th {
     background: var(--background);
     font-weight: 600;
