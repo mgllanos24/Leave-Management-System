@@ -1871,29 +1871,34 @@ function buildUnpaidApplicationMap(balanceHistory = [], employeeId = null) {
             return;
         }
 
+        const normalizedId = String(rawId);
+        const existing = unpaidMap.get(normalizedId) || { hours: 0, formatted: formatDurationFromHours(0) };
+
         const changeAmountRaw = entry.change_amount ?? entry.changeAmount;
         const previousBalanceRaw = entry.previous_balance ?? entry.previousBalance;
+        const newBalanceRaw = entry.new_balance ?? entry.newBalance;
 
         const changeAmount = Number.parseFloat(changeAmountRaw);
-        if (!Number.isFinite(changeAmount) || Math.abs(changeAmount) === 0) {
+        const previousBalance = Number.parseFloat(previousBalanceRaw);
+        const newBalance = Number.parseFloat(newBalanceRaw);
+
+        let unpaidHours = 0;
+
+        if (Number.isFinite(newBalance) && newBalance < 0) {
+            unpaidHours = Math.abs(newBalance) * WORK_HOURS_PER_DAY;
+        } else if (Number.isFinite(changeAmount) && Math.abs(changeAmount) > 0) {
+            const requestedDays = Math.abs(changeAmount);
+            const availableDays = Number.isFinite(previousBalance) ? Math.max(previousBalance, 0) : 0;
+            const unpaidDays = Math.max(0, requestedDays - availableDays);
+            unpaidHours = unpaidDays * WORK_HOURS_PER_DAY;
+        }
+
+        if (unpaidHours <= 0) {
             return;
         }
 
-        const requestedDays = Math.abs(changeAmount);
-        const previousBalance = Number.parseFloat(previousBalanceRaw);
-        const availableDays = Number.isFinite(previousBalance) ? Math.max(previousBalance, 0) : 0;
-
-        const paidDays = Math.min(requestedDays, availableDays);
-        const unpaidDays = Math.max(0, requestedDays - paidDays);
-
-        const paidHours = Math.round(paidDays * WORK_HOURS_PER_DAY * 100) / 100;
-        const unpaidHours = Math.round(unpaidDays * WORK_HOURS_PER_DAY * 100) / 100;
-
-        const normalizedId = String(rawId);
-        const existing = unpaidMap.get(normalizedId) || { paidHours: 0, unpaidHours: 0 };
-
-        existing.paidHours += paidHours;
-        existing.unpaidHours += unpaidHours;
+        existing.hours += unpaidHours;
+        existing.formatted = formatDurationFromHours(existing.hours);
 
         unpaidMap.set(normalizedId, existing);
     });
@@ -1925,23 +1930,14 @@ async function loadLeaveHistory(employeeId, status = null) {
             const normalizedId = app.application_id ?? app.id;
             const normalizedKey = normalizedId != null ? String(normalizedId) : null;
             const displayId = normalizedId != null ? normalizedId : '';
-            const totalHours = getApplicationHours(app);
+            const totalHoursRaw = getApplicationHours(app);
+            const totalHours = Number.isFinite(totalHoursRaw) ? totalHoursRaw : 0;
 
-            const historyInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
-            let paidHours = totalHours;
-            let unpaidHours = 0;
-
-            if (historyInfo) {
-                if (Number.isFinite(historyInfo.paidHours)) {
-                    paidHours = historyInfo.paidHours;
-                }
-                if (Number.isFinite(historyInfo.unpaidHours)) {
-                    unpaidHours = historyInfo.unpaidHours;
-                }
-                if (paidHours === 0 && unpaidHours === 0 && totalHours) {
-                    paidHours = totalHours;
-                }
-            }
+            const unpaidInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            const unpaidHours = Number.isFinite(unpaidInfo?.hours) ? unpaidInfo.hours : 0;
+            const paidHours = Math.max(totalHours - unpaidHours, 0);
+            const paidFormatted = formatDurationFromHours(paidHours);
+            const unpaidFormatted = unpaidInfo?.formatted ?? formatDurationFromHours(unpaidHours);
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
             const leaveLabel = hasUnpaid ? 'Unpaid Leave' : app.leave_type;
@@ -1952,8 +1948,8 @@ async function loadLeaveHistory(employeeId, status = null) {
                 <td>${app.start_date} ${app.start_time || ''}</td>
                 <td>${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(totalHours)}</td>
-                <td>${formatHours(paidHours)}</td>
-                <td>${formatHours(unpaidHours)}</td>
+                <td>${paidFormatted}</td>
+                <td>${unpaidFormatted}</td>
                 <td><span class="status-badge status-${(app.status || '').toLowerCase()}">${app.status}</span></td>
             `;
             tbody.appendChild(row);
@@ -2007,23 +2003,14 @@ async function loadAdminLeaveHistory(search = '') {
         filtered.forEach(app => {
             const normalizedId = app.application_id ?? app.id;
             const normalizedKey = normalizedId != null ? String(normalizedId) : null;
-            const totalHours = getApplicationHours(app);
+            const totalHoursRaw = getApplicationHours(app);
+            const totalHours = Number.isFinite(totalHoursRaw) ? totalHoursRaw : 0;
 
-            const historyInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
-            let paidHours = totalHours;
-            let unpaidHours = 0;
-
-            if (historyInfo) {
-                if (Number.isFinite(historyInfo.paidHours)) {
-                    paidHours = historyInfo.paidHours;
-                }
-                if (Number.isFinite(historyInfo.unpaidHours)) {
-                    unpaidHours = historyInfo.unpaidHours;
-                }
-                if (paidHours === 0 && unpaidHours === 0 && totalHours) {
-                    paidHours = totalHours;
-                }
-            }
+            const unpaidInfo = normalizedKey ? unpaidApplicationMap.get(normalizedKey) : null;
+            const unpaidHours = Number.isFinite(unpaidInfo?.hours) ? unpaidInfo.hours : 0;
+            const paidHours = Math.max(totalHours - unpaidHours, 0);
+            const paidFormatted = formatDurationFromHours(paidHours);
+            const unpaidFormatted = unpaidInfo?.formatted ?? formatDurationFromHours(unpaidHours);
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
             const leaveLabel = hasUnpaid ? 'Unpaid Leave' : app.leave_type;
@@ -2033,8 +2020,8 @@ async function loadAdminLeaveHistory(search = '') {
                 <td>${leaveLabel}</td>
                 <td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(totalHours)}</td>
-                <td>${formatHours(paidHours)}</td>
-                <td>${formatHours(unpaidHours)}</td>
+                <td>${paidFormatted}</td>
+                <td>${unpaidFormatted}</td>
             `;
             tbody.appendChild(tr);
         });
