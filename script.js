@@ -1962,8 +1962,14 @@ async function loadLeaveHistory(employeeId, status = null) {
                 }
             }
 
+            const leaveTypeValue = (app.leave_type ?? '').toString().trim();
+            const normalizedLeaveType = leaveTypeValue.replace(/\s+/g, ' ').toLowerCase();
+            const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
+
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
-            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : app.leave_type;
+            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : leaveTypeValue;
+            const paidHoursStyleAttr = isCashOut ? ' style="color: #2e7d32; font-weight: 600;"' : '';
+            const unpaidHoursStyleAttr = hasUnpaid ? ' style="color: #c62828; font-weight: 600;"' : '';
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${displayId}</td>
@@ -1971,8 +1977,8 @@ async function loadLeaveHistory(employeeId, status = null) {
                 <td>${app.start_date} ${app.start_time || ''}</td>
                 <td>${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(totalHours)}</td>
-                <td>${formatHours(paidHours)}</td>
-                <td>${formatHours(unpaidHours)}</td>
+                <td${paidHoursStyleAttr}>${formatHours(paidHours)}</td>
+                <td${unpaidHoursStyleAttr}>${formatHours(unpaidHours)}</td>
                 <td><span class="status-badge status-${(app.status || '').toLowerCase()}">${app.status}</span></td>
             `;
             tbody.appendChild(row);
