@@ -2476,6 +2476,18 @@ async function loadLeaveHistory(employeeId, status = null) {
                 }
             }
 
+            const normalizedTotalHours = Number.isFinite(totalHours)
+                ? totalHours
+                : parseFloat(totalHours) || 0;
+            const normalizedPaidHours = Number.isFinite(paidHours)
+                ? paidHours
+                : parseFloat(paidHours) || 0;
+            const currentUnpaidHours = Number.isFinite(unpaidHours)
+                ? unpaidHours
+                : parseFloat(unpaidHours) || 0;
+            const unpaidFromTotal = Math.max(0, normalizedTotalHours - normalizedPaidHours);
+            unpaidHours = Math.max(currentUnpaidHours, unpaidFromTotal);
+
             const rawLeaveType = app.leave_type ?? '';
             const leaveTypeValue = rawLeaveType != null ? rawLeaveType.toString().trim() : '';
             const normalizedLeaveType = leaveTypeValue
@@ -2580,6 +2592,18 @@ async function loadAdminLeaveHistory(search = '') {
                     paidHours = totalHours;
                 }
             }
+
+            const normalizedTotalHours = Number.isFinite(totalHours)
+                ? totalHours
+                : parseFloat(totalHours) || 0;
+            const normalizedPaidHours = Number.isFinite(paidHours)
+                ? paidHours
+                : parseFloat(paidHours) || 0;
+            const currentUnpaidHours = Number.isFinite(unpaidHours)
+                ? unpaidHours
+                : parseFloat(unpaidHours) || 0;
+            const unpaidFromTotal = Math.max(0, normalizedTotalHours - normalizedPaidHours);
+            unpaidHours = Math.max(currentUnpaidHours, unpaidFromTotal);
 
             const rawLeaveType = app.leave_type ?? '';
             const leaveTypeValue = rawLeaveType != null ? rawLeaveType.toString().trim() : '';
