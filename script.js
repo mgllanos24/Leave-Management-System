@@ -676,10 +676,28 @@ function setupCriticalFormHandlers() {
             if (debugImmediateSetup) {
                 console.log('SUCCESS Vacation form submitted via immediate handler');
             }
+
             const formData = new FormData(e.target);
+            const startDate = formData.get('startDate');
             const endDate = formData.get('endDate');
-            const returnDate = getNextWorkday(endDate);
-            const message = `You are expected to return on ${returnDate}. Continue?`;
+            const startTime = formData.get('startTime') || null;
+            const endTime = formData.get('endTime') || null;
+            const durationText = document.getElementById('durationText');
+
+            const validation = validateSingleDayTimeWindow(startDate, endDate, startTime, endTime);
+            if (!validation.valid) {
+                if (durationText) {
+                    durationText.textContent = validation.message;
+                }
+                return;
+            }
+
+            const totalHours = calculateTotalHours(startDate, endDate, startTime, endTime);
+            const returnDate = determineReturnDate(endDate, totalHours);
+            const message = returnDate
+                ? `You are expected to return on ${returnDate}. Continue?`
+                : 'Submit leave request?';
+
             if (confirm(message)) {
                 await submitLeaveApplication(e, returnDate);
             }
