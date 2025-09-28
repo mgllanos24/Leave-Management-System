@@ -80,6 +80,9 @@ DEFAULT_SICK_LEAVE = 5
 # hourly requests and legacy day-based balance tracking.
 WORK_HOURS_PER_DAY = float(os.getenv("WORK_HOURS_PER_DAY", 8))
 
+EARLIEST_LEAVE_TIME = datetime.strptime("06:30", "%H:%M").time()
+LATEST_LEAVE_TIME = datetime.strptime("15:00", "%H:%M").time()
+
 # @tweakable server configuration
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "mgllanos@gmail.com")
 if not ADMIN_EMAIL:
@@ -304,6 +307,19 @@ def calculate_total_hours(
             )
         except ValueError:
             return 0.0
+
+        provided_start_time = bool(start_time)
+        provided_end_time = bool(end_time)
+
+        if provided_start_time:
+            start_clock = start_dt.time()
+            if start_clock < EARLIEST_LEAVE_TIME or start_clock > LATEST_LEAVE_TIME:
+                raise ValueError("Start time must be between 06:30 and 15:00.")
+
+        if provided_end_time:
+            end_clock = end_dt.time()
+            if end_clock < EARLIEST_LEAVE_TIME or end_clock > LATEST_LEAVE_TIME:
+                raise ValueError("End time must be between 06:30 and 15:00.")
 
         if end_dt.date() < start_dt.date():
             return 0.0
@@ -725,24 +741,29 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             start_time = data.get('start_time')
                             end_time = data.get('end_time')
 
-                            total_hours = calculate_total_hours(
-                                data.get('start_date', ''),
-                                data.get('end_date', ''),
-                                start_time,
-                                end_time,
-                                holidays,
-                                data.get('start_day_type', 'full'),
-                                data.get('end_day_type', 'full'),
-                            )
-                            total_days = calculate_total_days(
-                                data.get('start_date', ''),
-                                data.get('end_date', ''),
-                                data.get('start_day_type', 'full'),
-                                data.get('end_day_type', 'full'),
-                                holidays,
-                                start_time=start_time,
-                                end_time=end_time,
-                            )
+                            try:
+                                total_hours = calculate_total_hours(
+                                    data.get('start_date', ''),
+                                    data.get('end_date', ''),
+                                    start_time,
+                                    end_time,
+                                    holidays,
+                                    data.get('start_day_type', 'full'),
+                                    data.get('end_day_type', 'full'),
+                                )
+                                total_days = calculate_total_days(
+                                    data.get('start_date', ''),
+                                    data.get('end_date', ''),
+                                    data.get('start_day_type', 'full'),
+                                    data.get('end_day_type', 'full'),
+                                    holidays,
+                                    start_time=start_time,
+                                    end_time=end_time,
+                                )
+                            except ValueError as time_error:
+                                conn.rollback()
+                                self.send_error(400, str(time_error))
+                                return
 
                             leave_type_token = (data.get('leave_type') or '').strip().lower()
                             if leave_type_token == 'cash-out':
