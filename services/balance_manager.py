@@ -255,7 +255,7 @@ def process_leave_application_balance(
     changed_by='SYSTEM',
     conn=None,
     lock=None,
-): 
+):
     """Adjust leave balances when an application's status changes."""
     employee_id = None
     balance_type = None
@@ -265,15 +265,88 @@ def process_leave_application_balance(
     current_year = datetime.now().year
     is_non_deductible = False
     is_cash_out = False
+    is_leave_without_pay = False
+    privilege_remaining = None
+    last_deduction_entry = None
 
     using_external_conn = conn is not None
 
-    if conn is None:
-        lock_context = lock or db_lock
-    else:
-        lock_context = lock or nullcontext()
+    def _lock_context():
+        if conn is None:
+            return lock or db_lock
+        return lock or nullcontext()
 
-    with lock_context:
+    def _fetch_privilege_remaining():
+        nonlocal privilege_remaining, balance_exists
+        local_conn = conn or get_db_connection()
+        created_connection = conn is None
+        try:
+            with _lock_context():
+                cursor = local_conn.execute(
+                    'SELECT id, remaining_days FROM leave_balances WHERE employee_id = ? AND balance_type = "PRIVILEGE" AND year = ?',
+                    (employee_id, current_year),
+                )
+                row = cursor.fetchone()
+            if row:
+                privilege_remaining = float(row['remaining_days'])
+                balance_exists = row
+            else:
+                privilege_remaining = 0.0
+                balance_exists = None
+        finally:
+            if created_connection:
+                local_conn.close()
+
+    def _record_unpaid_history(unpaid_days, reference_balance=None):
+        if not ENABLE_BALANCE_AUDIT:
+            return
+
+        local_conn = conn or get_db_connection()
+        created_connection = conn is None
+        try:
+            with _lock_context():
+                local_conn.execute(
+                    'DELETE FROM leave_balance_history WHERE application_id = ? AND change_type = ?',
+                    (application_id, 'UNPAID'),
+                )
+
+                if unpaid_days > 1e-6:
+                    remaining_snapshot = reference_balance if reference_balance is not None else 0.0
+                    current_time = datetime.now().isoformat()
+                    local_conn.execute(
+                        '''
+                            INSERT INTO leave_balance_history
+                            (id, employee_id, balance_type, change_type, change_amount,
+                             previous_balance, new_balance, reason, application_id,
+                             changed_by, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''',
+                        (
+                            str(uuid.uuid4()),
+                            employee_id,
+                            'PRIVILEGE',
+                            'UNPAID',
+                            unpaid_days,
+                            remaining_snapshot,
+                            remaining_snapshot,
+                            'Unpaid remainder recorded for leave-without-pay application',
+                            application_id,
+                            changed_by,
+                            current_time,
+                        ),
+                    )
+
+                if created_connection:
+                    local_conn.commit()
+        except Exception:
+            if created_connection:
+                local_conn.rollback()
+            raise
+        finally:
+            if created_connection:
+                local_conn.close()
+
+    with _lock_context():
         connection = conn or get_db_connection()
         try:
             cursor = connection.execute(
@@ -295,29 +368,46 @@ def process_leave_application_balance(
             else:
                 total_days = 0.0
 
-            # Normalize the single leave type to lowercase for matching
             leave_token = (leave_type or '').strip().lower()
-            is_non_deductible = leave_token in NON_DEDUCTIBLE_LEAVE_TYPES
+            is_leave_without_pay = leave_token == 'leave-without-pay'
+            is_non_deductible = leave_token in NON_DEDUCTIBLE_LEAVE_TYPES and not is_leave_without_pay
             is_cash_out = leave_token == 'cash-out'
 
             if not is_non_deductible:
                 balance_type = (
                     'PRIVILEGE'
-                    if leave_token in PRIVILEGE_LEAVE_TYPES
+                    if leave_token in PRIVILEGE_LEAVE_TYPES or is_leave_without_pay
                     else 'SICK'
                 )
 
                 cursor = connection.execute(
-                    'SELECT id FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',
+                    'SELECT id, remaining_days FROM leave_balances WHERE employee_id = ? AND balance_type = ? AND year = ?',
                     (employee_id, balance_type, current_year),
                 )
                 balance_exists = cursor.fetchone()
+                if balance_exists and balance_type == 'PRIVILEGE':
+                    privilege_remaining = float(balance_exists['remaining_days'])
 
             cursor = connection.execute(
-                'SELECT change_type FROM leave_balance_history WHERE application_id = ? ORDER BY created_at DESC LIMIT 1',
+                '''
+                    SELECT change_type FROM leave_balance_history
+                    WHERE application_id = ? AND change_type IN ('DEDUCTION', 'ADDITION')
+                    ORDER BY created_at DESC LIMIT 1
+                ''',
                 (application_id,),
             )
             last_action = cursor.fetchone()
+
+            cursor = connection.execute(
+                '''
+                    SELECT change_amount, balance_type
+                    FROM leave_balance_history
+                    WHERE application_id = ? AND change_type = 'DEDUCTION'
+                    ORDER BY created_at DESC LIMIT 1
+                ''',
+                (application_id,),
+            )
+            last_deduction_entry = cursor.fetchone()
         finally:
             if conn is None:
                 connection.close()
@@ -328,34 +418,61 @@ def process_leave_application_balance(
     if not balance_exists:
         initialize_employee_balances(employee_id, current_year)
 
+    if balance_type == 'PRIVILEGE' and privilege_remaining is None:
+        _fetch_privilege_remaining()
+
+    previous_privilege_balance = privilege_remaining if privilege_remaining is not None else 0.0
+
     reason = f"Leave application status changed to {new_status}"
+
+    conn_for_update = conn if using_external_conn else None
+    lock_for_update = lock if using_external_conn else None
 
     if new_status == 'Approved':
         if not last_action or last_action['change_type'] != 'DEDUCTION':
-            update_leave_balance(
-                employee_id,
-                balance_type,
-                total_days,
-                reason,
-                application_id=application_id,
-                changed_by=changed_by,
-                prevent_negative=is_cash_out,
-                conn=connection if using_external_conn else None,
-                lock=lock if using_external_conn else None,
-            )
+            deduction_days = total_days
+            if is_leave_without_pay:
+                available_days = max(previous_privilege_balance, 0.0)
+                deduction_days = min(total_days, available_days)
+
+            if deduction_days > 1e-6:
+                update_leave_balance(
+                    employee_id,
+                    balance_type,
+                    deduction_days,
+                    reason,
+                    application_id=application_id,
+                    changed_by=changed_by,
+                    prevent_negative=is_cash_out,
+                    conn=conn_for_update,
+                    lock=lock_for_update,
+                )
+
+            if is_leave_without_pay:
+                unpaid_days = max(0.0, total_days - deduction_days)
+                remaining_after_deduction = max(previous_privilege_balance - deduction_days, 0.0)
+                _record_unpaid_history(unpaid_days, remaining_after_deduction)
     else:
         if last_action and last_action['change_type'] == 'DEDUCTION':
-            update_leave_balance(
-                employee_id,
-                balance_type,
-                -total_days,
-                reason,
-                application_id=application_id,
-                changed_by=changed_by,
-                prevent_negative=is_cash_out,
-                conn=connection if using_external_conn else None,
-                lock=lock if using_external_conn else None,
-            )
+            deduction_to_reverse = total_days
+            if is_leave_without_pay and last_deduction_entry:
+                deduction_to_reverse = float(last_deduction_entry['change_amount'] or 0.0)
+
+            if deduction_to_reverse > 1e-6:
+                update_leave_balance(
+                    employee_id,
+                    balance_type,
+                    -deduction_to_reverse,
+                    reason,
+                    application_id=application_id,
+                    changed_by=changed_by,
+                    prevent_negative=is_cash_out,
+                    conn=conn_for_update,
+                    lock=lock_for_update,
+                )
+
+            if is_leave_without_pay:
+                _record_unpaid_history(0.0)
 
     return True
 
