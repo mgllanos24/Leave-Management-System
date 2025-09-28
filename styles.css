@@ -110,6 +110,18 @@ header p {
     transition: border-color 0.2s ease;
 }
 
+.locked-time-input {
+    background-color: #e2e8f0;
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+.locked-time-input:focus {
+    outline: none;
+    border-color: var(--border-color);
+    box-shadow: none;
+}
+
 .date-group input[type="date"]:focus {
     outline: none;
     border-color: var(--primary-color);

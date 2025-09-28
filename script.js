@@ -403,6 +403,29 @@ const SERVICE_LENGTH_MAP = {
     '8+': 15
 };
 
+function initializeFixedTimeInputs() {
+    const inputs = [
+        document.getElementById('startTime'),
+        document.getElementById('endTime')
+    ];
+
+    inputs.forEach(input => {
+        if (!input) {
+            return;
+        }
+
+        const defaultTime = input.getAttribute('data-default-time') || input.value;
+        if (defaultTime) {
+            input.value = defaultTime;
+            input.dataset.defaultTime = defaultTime;
+        }
+
+        input.readOnly = true;
+        input.classList.add('locked-time-input');
+        input.setAttribute('aria-readonly', 'true');
+    });
+}
+
 // Handle login and app initialization
 document.addEventListener('DOMContentLoaded', function() {
     /* @tweakable whether to show debug messages during login flow initialization */
@@ -437,6 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('- Script Loading Time:', new Date().toISOString());
     }
 
+    initializeFixedTimeInputs();
     initEntryButtons();
     restoreAuthenticationState();
     
@@ -1589,15 +1613,25 @@ function calculateLeaveDuration() {
     const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
 
     if (startTimeInput && endTimeInput) {
-        startTimeInput.disabled = isMultiDay;
-        endTimeInput.disabled = isMultiDay;
+        const defaultStartTime = startTimeInput.dataset.defaultTime || startTimeInput.getAttribute('data-default-time') || '06:30';
+        const defaultEndTime = endTimeInput.dataset.defaultTime || endTimeInput.getAttribute('data-default-time') || '15:00';
 
-        if (isMultiDay) {
-            if (startTimeInput.value) {
-                startTimeInput.value = '';
+        startTimeInput.readOnly = true;
+        endTimeInput.readOnly = true;
+        startTimeInput.required = !isMultiDay;
+        endTimeInput.required = !isMultiDay;
+
+        startTimeInput.classList.add('locked-time-input');
+        endTimeInput.classList.add('locked-time-input');
+        startTimeInput.setAttribute('aria-readonly', 'true');
+        endTimeInput.setAttribute('aria-readonly', 'true');
+
+        if (!isMultiDay) {
+            if (!startTimeInput.value) {
+                startTimeInput.value = defaultStartTime;
             }
-            if (endTimeInput.value) {
-                endTimeInput.value = '';
+            if (!endTimeInput.value) {
+                endTimeInput.value = defaultEndTime;
             }
         }
     }
