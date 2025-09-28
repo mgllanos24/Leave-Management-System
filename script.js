@@ -2122,16 +2122,25 @@ async function loadAdminLeaveHistory(search = '') {
                 }
             }
 
+            const rawLeaveType = app.leave_type ?? '';
+            const leaveTypeValue = rawLeaveType != null ? rawLeaveType.toString().trim() : '';
+            const normalizedLeaveType = leaveTypeValue
+                .toLowerCase()
+                .replace(/[-\s]+/g, ' ')
+                .trim();
+            const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
+
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
-            const formattedLeaveType = formatLeaveTypeLabel(app.leave_type);
+            const formattedLeaveType = formatLeaveTypeLabel(leaveTypeValue || rawLeaveType);
             const leaveLabel = hasUnpaid ? 'Unpaid Leave' : formattedLeaveType;
+            const paidHoursStyleAttr = isCashOut ? ' style="color: #2e7d32; font-weight: 600;"' : '';
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${app.employee_name}</td>
                 <td>${leaveLabel}</td>
                 <td>${app.start_date} ${app.start_time || ''} - ${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(totalHours)}</td>
-                <td>${formatHours(paidHours)}</td>
+                <td${paidHoursStyleAttr}>${formatHours(paidHours)}</td>
                 <td class="unpaid-hours">${formatHours(unpaidHours)}</td>
             `;
             tbody.appendChild(tr);
