@@ -1078,7 +1078,41 @@ async function updateLeaveBalanceDisplay() {
         if (!resp.ok) throw new Error('Failed to fetch leave balances');
         const balances = await resp.json();
 
-        const priv = balances.find(b => b.balance_type === 'PRIVILEGE');
+        const currentYear = new Date().getFullYear();
+        const selectMostRelevantBalance = (entries) => {
+            if (!entries || entries.length === 0) {
+                return null;
+            }
+
+            const withYear = entries.map(entry => ({
+                entry,
+                year: Number.parseInt(entry.year, 10)
+            }));
+
+            const exactMatch = withYear.find(item => item.year === currentYear);
+            if (exactMatch) {
+                return exactMatch.entry;
+            }
+
+            let mostRecent = null;
+            for (const item of withYear) {
+                if (!Number.isFinite(item.year)) {
+                    continue;
+                }
+                if (!mostRecent || item.year > mostRecent.year) {
+                    mostRecent = item;
+                }
+            }
+
+            if (mostRecent) {
+                return mostRecent.entry;
+            }
+
+            return entries[0];
+        };
+
+        const privilegeBalances = balances.filter(b => b.balance_type === 'PRIVILEGE');
+        const priv = selectMostRelevantBalance(privilegeBalances);
         const sick = balances.find(b => b.balance_type === 'SICK');
 
         const parsedPrivilege = priv && priv.remaining_days != null
@@ -1089,7 +1123,19 @@ async function updateLeaveBalanceDisplay() {
         const privEl = document.getElementById('privilegeLeaveBalance');
         const sickEl = document.getElementById('sickLeaveBalance');
         if (privEl) {
-            privEl.textContent = priv ? `${priv.remaining_days} days` : '-- days';
+            if (priv && priv.remaining_days != null) {
+                privEl.textContent = `${priv.remaining_days} days`;
+                if (priv.year != null) {
+                    privEl.dataset.year = priv.year;
+                } else if (privEl.dataset && privEl.dataset.year) {
+                    delete privEl.dataset.year;
+                }
+            } else {
+                privEl.textContent = '-- days';
+                if (privEl.dataset && privEl.dataset.year) {
+                    delete privEl.dataset.year;
+                }
+            }
         }
         if (sickEl) {
             sickEl.textContent = sick ? `${sick.remaining_days} days` : '-- days';
