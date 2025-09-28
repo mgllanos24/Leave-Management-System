@@ -1576,6 +1576,88 @@ function validateSingleDayTimeWindow(startDate, endDate, startTime, endTime) {
     };
 }
 
+function syncTimeInputLockState(startInput, endInput, isMultiDay) {
+    if (!startInput || !endInput) {
+        return;
+    }
+
+    const defaultStartTime = startInput.dataset.defaultTime || DEFAULT_WORKDAY_START_TIME;
+    const defaultEndTime = endInput.dataset.defaultTime || DEFAULT_WORKDAY_END_TIME;
+
+    if (startInput.dataset.originalRequired === undefined) {
+        startInput.dataset.originalRequired = startInput.required ? 'true' : 'false';
+    }
+    if (endInput.dataset.originalRequired === undefined) {
+        endInput.dataset.originalRequired = endInput.required ? 'true' : 'false';
+    }
+
+    if (!startInput.dataset.defaultTime) {
+        startInput.dataset.defaultTime = defaultStartTime;
+    }
+    if (!endInput.dataset.defaultTime) {
+        endInput.dataset.defaultTime = defaultEndTime;
+    }
+
+    if (isMultiDay) {
+        const wasLocked = startInput.dataset.locked === 'true';
+
+        if (!wasLocked) {
+            startInput.dataset.previousValue = startInput.value || '';
+            endInput.dataset.previousValue = endInput.value || '';
+        }
+
+        startInput.value = defaultStartTime;
+        endInput.value = defaultEndTime;
+
+        startInput.dataset.locked = 'true';
+        endInput.dataset.locked = 'true';
+
+        startInput.setAttribute('readonly', 'readonly');
+        endInput.setAttribute('readonly', 'readonly');
+        startInput.setAttribute('aria-readonly', 'true');
+        endInput.setAttribute('aria-readonly', 'true');
+        startInput.setAttribute('aria-disabled', 'true');
+        endInput.setAttribute('aria-disabled', 'true');
+
+        startInput.classList.add('time-input--locked');
+        endInput.classList.add('time-input--locked');
+
+        startInput.required = false;
+        endInput.required = false;
+    } else {
+        if (startInput.dataset.locked === 'true') {
+            if (startInput.dataset.previousValue !== undefined) {
+                startInput.value = startInput.dataset.previousValue || '';
+            }
+            if (endInput.dataset.previousValue !== undefined) {
+                endInput.value = endInput.dataset.previousValue || '';
+            }
+        }
+
+        startInput.dataset.locked = 'false';
+        endInput.dataset.locked = 'false';
+
+        delete startInput.dataset.previousValue;
+        delete endInput.dataset.previousValue;
+
+        startInput.removeAttribute('readonly');
+        endInput.removeAttribute('readonly');
+        startInput.removeAttribute('aria-readonly');
+        endInput.removeAttribute('aria-readonly');
+        startInput.removeAttribute('aria-disabled');
+        endInput.removeAttribute('aria-disabled');
+
+        startInput.classList.remove('time-input--locked');
+        endInput.classList.remove('time-input--locked');
+
+        startInput.required = startInput.dataset.originalRequired === 'true';
+        endInput.required = endInput.dataset.originalRequired === 'true';
+    }
+
+    startInput.disabled = isMultiDay;
+    endInput.disabled = isMultiDay;
+}
+
 function calculateLeaveDuration() {
     const startDateInput = document.getElementById('startDate');
     const endDateInput = document.getElementById('endDate');
@@ -1592,8 +1674,7 @@ function calculateLeaveDuration() {
     const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
 
     if (startTimeInput && endTimeInput) {
-        startTimeInput.disabled = isMultiDay;
-        endTimeInput.disabled = isMultiDay;
+        syncTimeInputLockState(startTimeInput, endTimeInput, isMultiDay);
     }
 
     if (!startDate || !endDate) {
