@@ -1751,8 +1751,7 @@ async function loadEmployeeSummary() {
                 privilegeRemaining: 0,
                 sickAllocated: 0,
                 sickUsed: 0,
-                sickRemaining: 0,
-                activeRequests: 0
+                sickRemaining: 0
             });
         });
 
@@ -1781,7 +1780,6 @@ async function loadEmployeeSummary() {
             const days = hours / WORK_HOURS_PER_DAY;
 
             if (app.status === 'Pending') {
-                info.activeRequests += 1;
                 return;
             }
 
@@ -1827,7 +1825,6 @@ async function loadEmployeeSummary() {
                 <td>${info.sickAllocated}</td>
                 <td>${info.sickUsed}</td>
                 <td class="${sClass}">${info.sickRemaining}</td>
-                <td>${info.activeRequests}</td>
             `;
             tbody.appendChild(row);
             hasRows = true;
@@ -1835,7 +1832,7 @@ async function loadEmployeeSummary() {
 
         if (!hasRows) {
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="8">No employee data found</td>';
+            row.innerHTML = '<td colspan="7">No employee data found</td>';
             tbody.appendChild(row);
         }
     } catch (error) {
