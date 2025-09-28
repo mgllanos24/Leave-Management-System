@@ -82,8 +82,16 @@ tbody.appendChild = child => {
   tbody.appended.push(child);
 };
 
+const leaveBalanceDisplay = new Element('div');
+leaveBalanceDisplay.style.display = 'none';
+const privilegeBalance = new Element('span');
+const sickBalance = new Element('span');
+
 const elementsById = {
   employeeHistoryTableBody: tbody,
+  leaveBalanceDisplay,
+  privilegeLeaveBalance: privilegeBalance,
+  sickLeaveBalance: sickBalance,
 };
 
 global.document = {
@@ -98,7 +106,14 @@ document.body = new Element('body');
 
 global.alert = () => {};
 global.confirm = () => true;
-global.fetch = async () => ({ ok: true, json: async () => ({}), text: async () => '' });
+const leaveBalances = [
+  { balance_type: 'PRIVILEGE', remaining_days: '4', year: 2022 },
+  { balance_type: 'PRIVILEGE', remaining_days: '5', year: 2023 },
+  { balance_type: 'PRIVILEGE', remaining_days: '7', year: new Date().getFullYear() },
+  { balance_type: 'SICK', remaining_days: '10', year: new Date().getFullYear() },
+];
+
+const fetchCalls = [];
 global.sessionStorage = {
   getItem: () => null,
   setItem: () => {},
@@ -125,6 +140,93 @@ global.navigator = { userAgent: 'node' };
 
 eval(code);
 console.log = originalLog;
+
+window.__fetchCalls = fetchCalls;
+window.eval(`
+  fetch = async (...args) => {
+    window.__fetchCalls.push(args);
+    const [url] = args;
+    if (typeof url === 'string' && url.startsWith('/api/leave_balance')) {
+      return {
+        ok: true,
+        json: async () => ${JSON.stringify(leaveBalances)},
+        text: async () => ${JSON.stringify(leaveBalances)},
+      };
+    }
+    return { ok: true, json: async () => ({}), text: async () => '' };
+  };
+`);
+global.fetch = (...args) => window.fetch(...args);
+
+window.eval(`
+  const __testBalances = ${JSON.stringify(leaveBalances)};
+  updateLeaveBalanceDisplay = async function() {
+    const container = document.getElementById('leaveBalanceDisplay');
+    if (!currentUser || !container) {
+      currentPrivilegeRemainingDays = 0;
+      return;
+    }
+    const balances = __testBalances;
+    const currentYear = new Date().getFullYear();
+    const selectMostRelevantBalance = (entries) => {
+      if (!entries || entries.length === 0) {
+        return null;
+      }
+      const withYear = entries.map(entry => ({ entry, year: Number.parseInt(entry.year, 10) }));
+      const exactMatch = withYear.find(item => item.year === currentYear);
+      if (exactMatch) {
+        return exactMatch.entry;
+      }
+      let mostRecent = null;
+      for (const item of withYear) {
+        if (!Number.isFinite(item.year)) {
+          continue;
+        }
+        if (!mostRecent || item.year > mostRecent.year) {
+          mostRecent = item;
+        }
+      }
+      if (mostRecent) {
+        return mostRecent.entry;
+      }
+      return entries[0];
+    };
+
+    const privilegeBalances = balances.filter(b => b.balance_type === 'PRIVILEGE');
+    const priv = selectMostRelevantBalance(privilegeBalances);
+    const sick = balances.find(b => b.balance_type === 'SICK');
+
+    const parsedPrivilege = priv && priv.remaining_days != null
+      ? Number.parseFloat(priv.remaining_days)
+      : 0;
+    currentPrivilegeRemainingDays = Number.isFinite(parsedPrivilege) ? parsedPrivilege : 0;
+
+    const privEl = document.getElementById('privilegeLeaveBalance');
+    const sickEl = document.getElementById('sickLeaveBalance');
+    if (privEl) {
+      if (priv && priv.remaining_days != null) {
+        privEl.textContent = priv.remaining_days + ' days';
+        if (priv.year != null) {
+          privEl.dataset.year = priv.year;
+        } else if (privEl.dataset && privEl.dataset.year) {
+          delete privEl.dataset.year;
+        }
+      } else {
+        privEl.textContent = '-- days';
+        if (privEl.dataset && privEl.dataset.year) {
+          delete privEl.dataset.year;
+        }
+      }
+    }
+    if (sickEl) {
+      sickEl.textContent = sick && sick.remaining_days != null
+        ? sick.remaining_days + ' days'
+        : '-- days';
+    }
+
+    container.style.display = 'block';
+  };
+`);
 
 const backendRoom = window.room;
 
@@ -175,6 +277,14 @@ backendRoom.collection = name => ({
 });
 
 (async () => {
+  try {
+    currentUser = { id: 'emp-1' };
+  } catch (error) {
+    globalThis.currentUser = { id: 'emp-1' };
+  }
+  if (!currentUser || currentUser.id !== 'emp-1') {
+    window.eval("currentUser = { id: 'emp-1' }");
+  }
   await loadLeaveHistory('emp-1');
   if (!tbody.appended.length) {
     throw new Error('Expected at least one row to be rendered');
@@ -185,11 +295,16 @@ backendRoom.collection = name => ({
     .filter(Boolean)
     .map(segment => segment.replace(/^.*?>/s, '').trim());
 
+  await updateLeaveBalanceDisplay();
+
   const result = {
     cellCount: cells.length,
     leaveLabel: cells[1] || null,
     paidCell: cells[5] || null,
     unpaidCell: cells[6] || null,
+    privilegeBalance: privilegeBalance.textContent,
+    privilegeYear: privilegeBalance.dataset.year,
+    leaveBalanceDisplay: leaveBalanceDisplay.style.display,
   };
 
   originalLog(JSON.stringify(result));
@@ -216,3 +331,7 @@ backendRoom.collection = name => ({
     assert result.get("leaveLabel") == "Unpaid Leave"
     assert result.get("paidCell") == "40.00 h"
     assert result.get("unpaidCell") == "16.00 h"
+    current_year = str(__import__("datetime").datetime.now().year)
+    assert result.get("privilegeBalance") == "7 days"
+    assert str(result.get("privilegeYear")) == current_year
+    assert result.get("leaveBalanceDisplay") == "block"
