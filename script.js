@@ -915,6 +915,17 @@ function showEmployeeLogin() {
     document.getElementById('employeeLoginContainer').style.display = 'block';
     document.getElementById('adminLoginContainer').style.display = 'none';
     document.getElementById('appContainer').style.display = 'none';
+
+    const employeeEmailInput = document.getElementById('loginEmployeeEmail');
+    if (employeeEmailInput && typeof employeeEmailInput.focus === 'function') {
+        const scheduleFocus = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame
+            : (cb) => setTimeout(cb, 0);
+
+        scheduleFocus(() => {
+            employeeEmailInput.focus();
+        });
+    }
 }
 
 function showAdminLogin() {
@@ -934,6 +945,17 @@ function showAdminLogin() {
     document.getElementById('employeeLoginContainer').style.display = 'none';
     document.getElementById('adminLoginContainer').style.display = 'block';
     document.getElementById('appContainer').style.display = 'none';
+
+    const adminUsernameInput = document.getElementById('loginAdminUsername');
+    if (adminUsernameInput && typeof adminUsernameInput.focus === 'function') {
+        const scheduleFocus = typeof requestAnimationFrame === 'function'
+            ? requestAnimationFrame
+            : (cb) => setTimeout(cb, 0);
+
+        scheduleFocus(() => {
+            adminUsernameInput.focus();
+        });
+    }
 }
 
 async function setupLoginHandlers() {
