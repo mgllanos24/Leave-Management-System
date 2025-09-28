@@ -240,7 +240,11 @@ def ensure_cash_out_balance(employee_id, requested_days, requested_hours, prefer
     return remaining_days
 
 
-def ensure_leave_without_pay_allowed(employee_id):
+def ensure_leave_without_pay_allowed(
+    employee_id,
+    requested_days=None,
+    requested_hours=None,
+):
     """Prevent Leave Without Pay when Privilege Leave remains."""
 
     if not employee_id:
@@ -264,7 +268,51 @@ def ensure_leave_without_pay_allowed(employee_id):
     except (TypeError, ValueError):
         remaining_days = 0.0
 
-    if remaining_days > 0:
+    tolerance = 1e-6
+
+    remaining_hours = (
+        remaining_days * WORK_HOURS_PER_DAY if WORK_HOURS_PER_DAY else None
+    )
+
+    requested_days_value = None
+    if requested_days is not None:
+        try:
+            requested_days_value = float(requested_days)
+        except (TypeError, ValueError):
+            requested_days_value = None
+
+    requested_hours_value = None
+    if requested_hours is not None:
+        try:
+            requested_hours_value = float(requested_hours)
+        except (TypeError, ValueError):
+            requested_hours_value = None
+
+    if requested_days_value is None and requested_hours_value is not None and WORK_HOURS_PER_DAY:
+        requested_days_value = requested_hours_value / WORK_HOURS_PER_DAY
+
+    if requested_hours_value is None and requested_days_value is not None and WORK_HOURS_PER_DAY:
+        requested_hours_value = requested_days_value * WORK_HOURS_PER_DAY
+
+    if (
+        requested_hours_value is not None
+        and remaining_hours is not None
+        and requested_hours_value <= (remaining_hours + tolerance)
+    ):
+        raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
+
+    if (
+        requested_hours_value is None
+        and requested_days_value is not None
+        and requested_days_value <= (remaining_days + tolerance)
+    ):
+        raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
+
+    if (
+        requested_days_value is None
+        and requested_hours_value is None
+        and remaining_days > tolerance
+    ):
         raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
 
 def _calculate_total_days_legacy(
@@ -798,7 +846,11 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             leave_type_token = (data.get('leave_type') or '').strip().lower()
                             if leave_type_token == 'leave-without-pay':
                                 try:
-                                    ensure_leave_without_pay_allowed(data.get('employee_id'))
+                                    ensure_leave_without_pay_allowed(
+                                        data.get('employee_id'),
+                                        requested_days=total_days,
+                                        requested_hours=total_hours,
+                                    )
                                 except ValueError as leave_error:
                                     conn.rollback()
                                     self.send_error(400, str(leave_error))
