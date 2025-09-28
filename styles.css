@@ -120,6 +120,22 @@ header p {
     border-color: var(--primary-color);
 }
 
+.date-group input[type="time"]:disabled,
+.date-group input[type="time"].time-input--locked {
+    background-color: #e2e8f0;
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    opacity: 0.9;
+}
+
+.date-group input[type="time"]:disabled::-webkit-calendar-picker-indicator,
+.date-group input[type="time"].time-input--locked::-webkit-calendar-picker-indicator {
+    filter: grayscale(100%);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Duration display */
 .duration-display {
     text-align: center;
