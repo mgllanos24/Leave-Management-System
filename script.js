@@ -1619,6 +1619,32 @@ function formatHours(hours) {
     return `${roundedHours.toFixed(2)} h`;
 }
 
+function formatLeaveTypeLabel(leaveType) {
+    if (leaveType == null) {
+        return '';
+    }
+
+    const normalized = String(leaveType).trim();
+    if (!normalized) {
+        return '';
+    }
+
+    return normalized
+        .split(/\s+/)
+        .map(word =>
+            word
+                .split('-')
+                .map(segment => {
+                    if (!segment) {
+                        return segment;
+                    }
+                    return segment.charAt(0).toUpperCase() + segment.slice(1);
+                })
+                .join('-')
+        )
+        .join(' ');
+}
+
 function getNextWorkday(dateStr) {
     if (!dateStr) return null;
     const date = new Date(dateStr + 'T00:00');
@@ -1659,10 +1685,11 @@ async function loadLeaveApplications() {
 
         applications.forEach(app => {
             const row = document.createElement('tr');
+            const leaveLabel = formatLeaveTypeLabel(app.leave_type);
             row.innerHTML = `
                 <td>${app.application_id || app.id}</td>
                 <td>${app.employee_name || app.employee_id}</td>
-                <td>${app.leave_type}</td>
+                <td>${leaveLabel}</td>
                 <td>${app.start_date} ${app.start_time || ''}</td>
                 <td>${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(getApplicationHours(app))}</td>
@@ -1997,7 +2024,8 @@ async function loadLeaveHistory(employeeId, status = null) {
                 }
             }
 
-            const leaveTypeValue = (app.leave_type ?? '').toString().trim();
+            const rawLeaveType = app.leave_type ?? '';
+            const leaveTypeValue = rawLeaveType != null ? rawLeaveType.toString().trim() : '';
             const normalizedLeaveType = leaveTypeValue
                 .toLowerCase()
                 .replace(/[-\s]+/g, ' ')
@@ -2005,7 +2033,8 @@ async function loadLeaveHistory(employeeId, status = null) {
             const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
-            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : leaveTypeValue;
+            const formattedLeaveType = formatLeaveTypeLabel(leaveTypeValue || rawLeaveType);
+            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : formattedLeaveType;
             const paidHoursStyleAttr = isCashOut ? ' style="color: #2e7d32; font-weight: 600;"' : '';
             const unpaidHoursStyleAttr = hasUnpaid ? ' style="color: #c62828; font-weight: 600;"' : '';
             const row = document.createElement('tr');
@@ -2094,7 +2123,8 @@ async function loadAdminLeaveHistory(search = '') {
             }
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
-            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : app.leave_type;
+            const formattedLeaveType = formatLeaveTypeLabel(app.leave_type);
+            const leaveLabel = hasUnpaid ? 'Unpaid Leave' : formattedLeaveType;
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${app.employee_name}</td>
