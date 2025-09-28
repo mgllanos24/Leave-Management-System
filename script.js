@@ -310,7 +310,7 @@ let currentPrivilegeRemainingDays = 0;
 let lastValidLeaveTypeValue = null;
 
 const LEAVE_WITHOUT_PAY_VALUE = 'leave-without-pay';
-const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'Please use your remaining Privilege Leave before requesting Leave Without Pay.';
+const PRIVILEGE_LEAVE_WARNING_SUFFIX = 'Please use your remaining Privilege Leave before requesting Leave Without Pay.';
 
 // Track whether holiday form handlers have been initialized
 let holidayFormInitialized = false;
@@ -1762,14 +1762,32 @@ function getAvailablePrivilegeLeaveHours() {
 }
 
 function canCoverWithPrivilegeLeave(totalHours) {
-    const availableHours = getAvailablePrivilegeLeaveHours();
-    if (!Number.isFinite(totalHours) || totalHours <= 0 || !Number.isFinite(availableHours) || availableHours <= 0) {
-        return false;
+    const availableHoursRaw = getAvailablePrivilegeLeaveHours();
+    const normalizedTotal = Number.isFinite(totalHours) ? Math.max(0, totalHours) : 0;
+    const normalizedAvailable = Number.isFinite(availableHoursRaw) && availableHoursRaw > 0
+        ? availableHoursRaw
+        : 0;
+
+    if (normalizedTotal <= 0) {
+        return {
+            canCover: false,
+            availableHours: normalizedAvailable,
+            paidHours: 0,
+            unpaidHours: 0,
+        };
     }
 
-    // Allow for tiny floating point differences when comparing totals
     const EPSILON = 0.001;
-    return totalHours <= availableHours + EPSILON;
+    const canCover = normalizedTotal <= normalizedAvailable + EPSILON;
+    const paidHours = Math.min(normalizedTotal, normalizedAvailable);
+    const unpaidHours = Math.max(0, normalizedTotal - normalizedAvailable);
+
+    return {
+        canCover,
+        availableHours: normalizedAvailable,
+        paidHours,
+        unpaidHours,
+    };
 }
 
 function computeRequestedTotalHours() {
@@ -1806,8 +1824,48 @@ function computeRequestedTotalHours() {
     return Number.isFinite(totalHours) && totalHours > 0 ? totalHours : null;
 }
 
-function showPrivilegeLeaveWarning() {
-    alert(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+function formatPrivilegeLeaveWarningMessage(paidHours, unpaidHours, { includeContinuationPrompt = false } = {}) {
+    const EPSILON = 0.001;
+    const safePaidHours = Number.isFinite(paidHours) && paidHours > 0 ? paidHours : 0;
+    const safeUnpaidHours = Number.isFinite(unpaidHours) && unpaidHours > 0 ? unpaidHours : 0;
+
+    const hasPaidHours = safePaidHours > EPSILON;
+    const hasUnpaidHours = safeUnpaidHours > EPSILON;
+
+    let message = '';
+
+    if (hasPaidHours) {
+        message += `Privilege Leave will cover ${formatDurationFromHours(safePaidHours)} of this request.`;
+    } else {
+        message += 'Privilege Leave cannot cover any portion of this request.';
+    }
+
+    if (hasUnpaidHours) {
+        message += ` The remaining ${formatDurationFromHours(safeUnpaidHours)} will be recorded as unpaid.`;
+    } else {
+        message += ' No unpaid hours will be recorded.';
+    }
+
+    message += ` ${PRIVILEGE_LEAVE_WARNING_SUFFIX}`;
+
+    if (includeContinuationPrompt) {
+        message += ' Do you want to continue with Leave Without Pay?';
+    }
+
+    return message;
+}
+
+function showPrivilegeLeaveWarning(paidHours, unpaidHours, options = {}) {
+    const message = formatPrivilegeLeaveWarningMessage(paidHours, unpaidHours, {
+        includeContinuationPrompt: Boolean(options.requireConfirmation),
+    });
+
+    if (options.requireConfirmation) {
+        return confirm(message);
+    }
+
+    alert(message);
+    return true;
 }
 
 function updateLeaveReasonState() {
@@ -1872,11 +1930,18 @@ function setupLeaveTypeHandling() {
         radio.addEventListener('change', function() {
             if (this.checked && this.value === LEAVE_WITHOUT_PAY_VALUE) {
                 const requestedHours = computeRequestedTotalHours();
-                if (requestedHours !== null && canCoverWithPrivilegeLeave(requestedHours)) {
-                    showPrivilegeLeaveWarning();
-                    revertLeaveWithoutPaySelection();
-                    updateLeaveReasonState();
-                    return;
+                if (requestedHours !== null) {
+                    const coverage = canCoverWithPrivilegeLeave(requestedHours);
+                    if (coverage.canCover) {
+                        showPrivilegeLeaveWarning(coverage.paidHours, coverage.unpaidHours);
+                        revertLeaveWithoutPaySelection();
+                        updateLeaveReasonState();
+                        return;
+                    }
+
+                    if (coverage.availableHours > 0 && coverage.unpaidHours > 0) {
+                        showPrivilegeLeaveWarning(coverage.paidHours, coverage.unpaidHours);
+                    }
                 }
             }
 
@@ -1939,12 +2004,19 @@ async function submitLeaveApplication(event, returnDate = null) {
         );
         const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
 
-        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave(totalHours)) {
-            hideLoading();
-            showPrivilegeLeaveWarning();
-            revertLeaveWithoutPaySelection();
-            updateLeaveReasonState();
-            return;
+        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE) {
+            const coverage = canCoverWithPrivilegeLeave(totalHours);
+            if (coverage.canCover) {
+                hideLoading();
+                showPrivilegeLeaveWarning(coverage.paidHours, coverage.unpaidHours);
+                revertLeaveWithoutPaySelection();
+                updateLeaveReasonState();
+                return;
+            }
+
+            if (coverage.availableHours > 0 && coverage.unpaidHours > 0) {
+                showPrivilegeLeaveWarning(coverage.paidHours, coverage.unpaidHours);
+            }
         }
 
         if (!returnDate) {
