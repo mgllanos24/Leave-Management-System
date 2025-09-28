@@ -2029,9 +2029,12 @@ async function loadLeaveHistory(employeeId, status = null) {
             const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
+            const hasPaidHours = Math.abs(paidHours) > 0.01;
             const formattedLeaveType = formatLeaveTypeLabel(leaveTypeValue || rawLeaveType);
             const leaveLabel = hasUnpaid ? 'Unpaid Leave' : formattedLeaveType;
-            const paidHoursStyleAttr = isCashOut ? ' style="color: #2e7d32; font-weight: 600;"' : '';
+            const paidHoursStyleAttr = isCashOut
+                ? ' style="color: #2e7d32; font-weight: 600;"'
+                : (hasPaidHours ? ' style="color: #1565c0; font-weight: 600;"' : '');
             const unpaidHoursStyleAttr = hasUnpaid ? ' style="color: #c62828; font-weight: 600;"' : '';
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -2127,9 +2130,12 @@ async function loadAdminLeaveHistory(search = '') {
             const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
+            const hasPaidHours = Math.abs(paidHours) > 0.01;
             const formattedLeaveType = formatLeaveTypeLabel(leaveTypeValue || rawLeaveType);
             const leaveLabel = hasUnpaid ? 'Unpaid Leave' : formattedLeaveType;
-            const paidHoursStyleAttr = isCashOut ? ' style="color: #2e7d32; font-weight: 600;"' : '';
+            const paidHoursStyleAttr = isCashOut
+                ? ' style="color: #2e7d32; font-weight: 600;"'
+                : (hasPaidHours ? ' style="color: #1565c0; font-weight: 600;"' : '');
             const unpaidHoursClassAttr = hasUnpaid ? ' class="unpaid-hours"' : '';
             const tr = document.createElement('tr');
             tr.innerHTML = `
