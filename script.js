@@ -1693,7 +1693,6 @@ async function loadLeaveApplications() {
                 <td>${app.start_date} ${app.start_time || ''}</td>
                 <td>${app.end_date} ${app.end_time || ''}</td>
                 <td>${formatDurationFromHours(getApplicationHours(app))}</td>
-                <td>${app.status}</td>
                 <td class="application-actions">
                     <button class="btn btn-success approve-btn">Approve</button>
                     <button class="btn btn-danger reject-btn">Reject</button>
@@ -1717,7 +1716,7 @@ async function loadLeaveApplications() {
 
         if (applications.length === 0) {
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="8">No leave applications found</td>';
+            row.innerHTML = '<td colspan="7">No leave applications found</td>';
             tbody.appendChild(row);
         }
 
