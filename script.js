@@ -2234,6 +2234,10 @@ async function loadLeaveHistory(employeeId, status = null) {
                 .toLowerCase()
                 .replace(/[-\s]+/g, ' ')
                 .trim();
+            if (normalizedLeaveType === 'leave without pay' && Math.abs(unpaidHours) <= 0.01) {
+                paidHours = 0;
+                unpaidHours = Number.isFinite(totalHours) ? totalHours : 0;
+            }
             const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
@@ -2335,6 +2339,10 @@ async function loadAdminLeaveHistory(search = '') {
                 .toLowerCase()
                 .replace(/[-\s]+/g, ' ')
                 .trim();
+            if (normalizedLeaveType === 'leave without pay' && Math.abs(unpaidHours) <= 0.01) {
+                paidHours = 0;
+                unpaidHours = Number.isFinite(totalHours) ? totalHours : 0;
+            }
             const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;

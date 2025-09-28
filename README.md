@@ -60,3 +60,22 @@ ADMIN_EMAIL=admin@example.com
 Make sure to provide a real address in production so alerts reach the
 appropriate person.
 
+### Manual Verification
+
+#### Leave Without Pay History Display
+
+To confirm that leave without pay records appear under **Unpaid Hours** in the
+Leave History views:
+
+1. Start the development server as described in the Quick Start Guide.
+2. Create or update a leave application with the leave type set to
+   `Leave-Without-Pay` (hyphenated) or `Leave without pay` (spaced). Ensure it
+   spans at least one working day.
+3. Refresh the **Leave History** tab (or **Admin Leave History** for admin
+   users).
+4. Verify that the entry shows `0` under **Paid Hours** and the full duration of
+   the leave under **Unpaid Hours**.
+
+These steps confirm the UI correctly classifies leave without pay as unpaid
+even when no balance history record is associated with the application.
+
