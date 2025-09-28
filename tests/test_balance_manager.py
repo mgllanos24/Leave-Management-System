@@ -3,7 +3,7 @@ import uuid
 from services import balance_manager, database_service, employee_service
 
 
-def test_leave_without_pay_does_not_adjust_balances(tmp_path):
+def test_leave_without_pay_partially_deducts_privilege_leave(tmp_path):
     original_db_path = database_service.DATABASE_PATH
     test_db_path = tmp_path / 'test_leave_without_pay.db'
     database_service.DATABASE_PATH = str(test_db_path)
@@ -16,7 +16,7 @@ def test_leave_without_pay_does_not_adjust_balances(tmp_path):
                 'first_name': 'Test',
                 'surname': 'User',
                 'personal_email': 'test.user@example.com',
-                'annual_leave': 10,
+                'annual_leave': 5,
                 'sick_leave': 5,
             }
         )
@@ -41,7 +41,19 @@ def test_leave_without_pay_does_not_adjust_balances(tmp_path):
             finally:
                 conn.close()
 
+        def fetch_history():
+            conn = database_service.get_db_connection()
+            try:
+                cursor = conn.execute(
+                    'SELECT change_type, change_amount, previous_balance, new_balance, balance_type FROM leave_balance_history WHERE application_id = ? ORDER BY created_at',
+                    (application_id,),
+                )
+                return [dict(row) for row in cursor.fetchall()]
+            finally:
+                conn.close()
+
         initial_balances = fetch_balances()
+        initial_privilege = initial_balances['PRIVILEGE']
 
         application_id = str(uuid.uuid4())
         public_application_id = str(uuid.uuid4())
@@ -72,7 +84,7 @@ def test_leave_without_pay_does_not_adjust_balances(tmp_path):
                         '',
                         '',
                         0.0,
-                        1.0,
+                        7.0,
                         'Pending',
                     ),
                 )
@@ -82,13 +94,33 @@ def test_leave_without_pay_does_not_adjust_balances(tmp_path):
 
         balance_manager.process_leave_application_balance(application_id, 'Approved', changed_by='TEST')
         after_approval = fetch_balances()
+        privilege_after = after_approval['PRIVILEGE']
 
-        assert after_approval == initial_balances
+        assert abs(privilege_after['used'] - (initial_privilege['used'] + 5.0)) < 1e-6
+        assert abs(privilege_after['remaining'] - (initial_privilege['remaining'] - 5.0)) < 1e-6
+
+        history_after_approval = fetch_history()
+        deduction_entries = [h for h in history_after_approval if h['change_type'] == 'DEDUCTION']
+        unpaid_entries = [h for h in history_after_approval if h['change_type'] == 'UNPAID']
+
+        assert deduction_entries, 'Expected a deduction entry for leave-without-pay approval'
+        assert unpaid_entries, 'Expected an unpaid entry for leave-without-pay approval'
+        assert abs(deduction_entries[-1]['change_amount'] - 5.0) < 1e-6
+        assert deduction_entries[-1]['balance_type'] == 'PRIVILEGE'
+        assert abs(unpaid_entries[-1]['change_amount'] - 2.0) < 1e-6
 
         balance_manager.process_leave_application_balance(application_id, 'Rejected', changed_by='TEST')
         after_rejection = fetch_balances()
 
-        assert after_rejection == initial_balances
+        assert abs(after_rejection['PRIVILEGE']['used'] - initial_privilege['used']) < 1e-6
+        assert abs(after_rejection['PRIVILEGE']['remaining'] - initial_privilege['remaining']) < 1e-6
+
+        history_after_rejection = fetch_history()
+        unpaid_after_rejection = [h for h in history_after_rejection if h['change_type'] == 'UNPAID']
+        addition_entries = [h for h in history_after_rejection if h['change_type'] == 'ADDITION']
+
+        assert not unpaid_after_rejection
+        assert addition_entries and abs(addition_entries[-1]['change_amount'] - 5.0) < 1e-6
     finally:
         database_service.DATABASE_PATH = original_db_path
 

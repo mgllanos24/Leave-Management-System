@@ -132,12 +132,12 @@ const applications = [
   {
     id: '101',
     application_id: 'APP-101',
-    total_hours: 8,
-    start_date: '2024-01-01',
-    end_date: '2024-01-01',
-    start_time: '06:30',
-    end_time: '15:00',
-    leave_type: 'Privilege Leave',
+    total_hours: 56,
+    start_date: '2024-03-01',
+    end_date: '2024-03-07',
+    start_time: '08:00',
+    end_time: '17:00',
+    leave_type: 'Leave Without Pay',
     status: 'Approved',
   },
 ];
@@ -148,8 +148,18 @@ const balanceHistory = [
     application_id: '101',
     change_type: 'DEDUCTION',
     balance_type: 'PRIVILEGE',
-    change_amount: -0.5,
-    previous_balance: 0.5,
+    change_amount: 5,
+    previous_balance: 5,
+    new_balance: 0,
+  },
+  {
+    employee_id: 'emp-1',
+    application_id: '101',
+    change_type: 'UNPAID',
+    balance_type: 'PRIVILEGE',
+    change_amount: 2,
+    previous_balance: 0,
+    new_balance: 0,
   },
 ];
 
@@ -178,6 +188,7 @@ backendRoom.collection = name => ({
   const result = {
     cellCount: cells.length,
     leaveLabel: cells[1] || null,
+    paidCell: cells[5] || null,
     unpaidCell: cells[6] || null,
   };
 
@@ -203,4 +214,5 @@ backendRoom.collection = name => ({
     result = json.loads(output)
     assert result.get("cellCount") >= 8
     assert result.get("leaveLabel") == "Unpaid Leave"
-    assert result.get("unpaidCell") == "4.00 h"
+    assert result.get("paidCell") == "40.00 h"
+    assert result.get("unpaidCell") == "16.00 h"
