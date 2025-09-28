@@ -564,7 +564,8 @@ tr:hover {
 .application-actions {
     display: flex;
     gap: 5px;
-    flex-wrap: wrap;
+    min-width: 190px;
+    flex-wrap: nowrap;
 }
 
 .application-actions button {
