@@ -76,6 +76,8 @@ logging.basicConfig(
 # Default sick leave allocation
 DEFAULT_SICK_LEAVE = 5
 
+LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE = "Please use your remaining Privilege Leave before requesting Leave Without Pay."
+
 # Standard number of working hours in a full day. Used to translate between
 # hourly requests and legacy day-based balance tracking.
 WORK_HOURS_PER_DAY = float(os.getenv("WORK_HOURS_PER_DAY", 8))
@@ -236,6 +238,34 @@ def ensure_cash_out_balance(employee_id, requested_days, requested_hours, prefer
             )
 
     return remaining_days
+
+
+def ensure_leave_without_pay_allowed(employee_id):
+    """Prevent Leave Without Pay when Privilege Leave remains."""
+
+    if not employee_id:
+        return
+
+    balances = get_employee_balances(employee_id) or []
+    privilege_balance = next(
+        (
+            balance
+            for balance in balances
+            if str(balance.get('balance_type', '')).upper() == 'PRIVILEGE'
+        ),
+        None,
+    )
+
+    if privilege_balance is None:
+        return
+
+    try:
+        remaining_days = float(privilege_balance.get('remaining_days', 0) or 0)
+    except (TypeError, ValueError):
+        remaining_days = 0.0
+
+    if remaining_days > 0:
+        raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
 
 def _calculate_total_days_legacy(
     start_date,
@@ -766,6 +796,13 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 return
 
                             leave_type_token = (data.get('leave_type') or '').strip().lower()
+                            if leave_type_token == 'leave-without-pay':
+                                try:
+                                    ensure_leave_without_pay_allowed(data.get('employee_id'))
+                                except ValueError as leave_error:
+                                    conn.rollback()
+                                    self.send_error(400, str(leave_error))
+                                    return
                             if leave_type_token == 'cash-out':
                                 requested_days, requested_hours, preferred_unit = compute_cash_out_request(
                                     data,
