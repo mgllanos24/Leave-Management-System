@@ -496,6 +496,16 @@ document.addEventListener('DOMContentLoaded', function() {
         errorModalOk.addEventListener('click', closeErrorModal);
     }
 
+    const timeWarningClose = document.getElementById('timeWarningClose');
+    if (timeWarningClose) {
+        timeWarningClose.addEventListener('click', closeTimeWarningModal);
+    }
+
+    const timeWarningOk = document.getElementById('timeWarningOk');
+    if (timeWarningOk) {
+        timeWarningOk.addEventListener('click', closeTimeWarningModal);
+    }
+
     const editModalClose = document.getElementById('editModalClose');
     if (editModalClose) {
         editModalClose.addEventListener('click', closeEditModal);
@@ -685,6 +695,7 @@ function setupCriticalFormHandlers() {
             const durationText = document.getElementById('durationText');
 
             const validation = validateSingleDayTimeWindow(startDate, endDate, startTime, endTime);
+            showTimeWarningIfNeeded(validation);
             if (!validation.valid) {
                 if (durationText) {
                     durationText.textContent = validation.message;
@@ -1449,6 +1460,10 @@ function setupDateCalculation() {
 
 const EARLIEST_LEAVE_MINUTES = 6 * 60 + 30;
 const LATEST_LEAVE_MINUTES = 15 * 60;
+const TIME_WINDOW_ERROR_CODES = {
+    START_OUTSIDE_WORKING_HOURS: 'START_OUTSIDE_WORKING_HOURS',
+    END_OUTSIDE_WORKING_HOURS: 'END_OUTSIDE_WORKING_HOURS',
+};
 
 function parseTimeToMinutes(timeValue) {
     if (!timeValue || typeof timeValue !== 'string') {
@@ -1474,9 +1489,45 @@ function parseTimeToMinutes(timeValue) {
     return hours * 60 + minutes;
 }
 
+function showTimeWarningModal(message) {
+    const modal = document.getElementById('timeWarningModal');
+    const messageElement = document.getElementById('timeWarningMessage');
+
+    if (!modal) {
+        return;
+    }
+
+    if (messageElement && typeof message === 'string' && message.trim().length > 0) {
+        messageElement.textContent = message;
+    }
+
+    modal.classList.add('show');
+}
+
+function closeTimeWarningModal() {
+    const modal = document.getElementById('timeWarningModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+function showTimeWarningIfNeeded(validation) {
+    if (!validation || validation.valid) {
+        return;
+    }
+
+    if (
+        validation.code === TIME_WINDOW_ERROR_CODES.START_OUTSIDE_WORKING_HOURS ||
+        validation.code === TIME_WINDOW_ERROR_CODES.END_OUTSIDE_WORKING_HOURS
+    ) {
+        const message = validation.message || 'Selected times must fall within working hours (06:30–15:00).';
+        showTimeWarningModal(message);
+    }
+}
+
 function validateSingleDayTimeWindow(startDate, endDate, startTime, endTime) {
     if (!startDate || !endDate || startDate !== endDate) {
-        return { valid: true };
+        return { valid: true, code: null };
     }
 
     const startMinutes = parseTimeToMinutes(startTime);
@@ -1485,6 +1536,7 @@ function validateSingleDayTimeWindow(startDate, endDate, startTime, endTime) {
     if (startMinutes == null || endMinutes == null) {
         return {
             valid: false,
+            code: 'INVALID_TIME_FORMAT',
             message: 'Enter a valid start and end time in HH:MM format.',
         };
     }
@@ -1492,26 +1544,30 @@ function validateSingleDayTimeWindow(startDate, endDate, startTime, endTime) {
     if (startMinutes < EARLIEST_LEAVE_MINUTES || startMinutes > LATEST_LEAVE_MINUTES) {
         return {
             valid: false,
-            message: 'Start time must be between 06:30 and 15:00.',
+            code: TIME_WINDOW_ERROR_CODES.START_OUTSIDE_WORKING_HOURS,
+            message: 'Start time must fall within working hours (06:30–15:00).',
         };
     }
 
     if (endMinutes < EARLIEST_LEAVE_MINUTES || endMinutes > LATEST_LEAVE_MINUTES) {
         return {
             valid: false,
-            message: 'End time must be between 06:30 and 15:00.',
+            code: TIME_WINDOW_ERROR_CODES.END_OUTSIDE_WORKING_HOURS,
+            message: 'End time must fall within working hours (06:30–15:00).',
         };
     }
 
     if (endMinutes <= startMinutes) {
         return {
             valid: false,
+            code: 'END_BEFORE_START',
             message: 'End time must be after the start time.',
         };
     }
 
     return {
         valid: true,
+        code: null,
         startMinutes,
         endMinutes,
     };
@@ -1561,6 +1617,7 @@ function calculateLeaveDuration() {
 
     if (!isMultiDay && startTime && endTime) {
         const validation = validateSingleDayTimeWindow(startDate, endDate, startTime, endTime);
+        showTimeWarningIfNeeded(validation);
         if (!validation.valid) {
             durationText.textContent = validation.message;
             return;
@@ -1622,6 +1679,7 @@ async function submitLeaveApplication(event, returnDate = null) {
             }
 
             const validation = validateSingleDayTimeWindow(startDate, endDate, startTime, endTime);
+            showTimeWarningIfNeeded(validation);
             if (!validation.valid) {
                 if (durationText) {
                     durationText.textContent = validation.message;
@@ -2629,5 +2687,6 @@ window.deleteEmployee = deleteEmployee;
 window.resetAllLeaveBalances = resetAllLeaveBalances;
 window.closeErrorModal = closeErrorModal;
 window.closeEditModal = closeEditModal;
+window.closeTimeWarningModal = closeTimeWarningModal;
 window.updateApplicationStatus = updateApplicationStatus;
 window.loadEmployeeSummary = loadEmployeeSummary;
