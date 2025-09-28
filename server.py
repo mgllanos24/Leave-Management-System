@@ -245,20 +245,59 @@ def ensure_leave_without_pay_allowed(
     requested_days=None,
     requested_hours=None,
 ):
-    """Prevent Leave Without Pay when Privilege Leave remains."""
+    """Prevent Leave Without Pay when Privilege Leave remains.
+
+    The privilege balance for the current calendar year is preferred when
+    multiple yearly records exist. If the current year's record is missing we
+    fall back to the most recent year to ensure the validation tracks the
+    latest balances in the database.
+    """
 
     if not employee_id:
         return
 
     balances = get_employee_balances(employee_id) or []
-    privilege_balance = next(
-        (
-            balance
-            for balance in balances
-            if str(balance.get('balance_type', '')).upper() == 'PRIVILEGE'
-        ),
-        None,
-    )
+    privilege_balances = [
+        balance
+        for balance in balances
+        if str(balance.get('balance_type', '')).upper() == 'PRIVILEGE'
+    ]
+
+    if not privilege_balances:
+        return
+
+    current_year = datetime.now().year
+
+    def _coerce_year(balance):
+        try:
+            return int(balance.get('year'))
+        except (TypeError, ValueError):
+            return None
+
+    privilege_balance = None
+    latest_balance = None
+    latest_year = None
+
+    for candidate in privilege_balances:
+        candidate_year = _coerce_year(candidate)
+        if candidate_year == current_year:
+            privilege_balance = candidate
+            break
+
+        if latest_balance is None:
+            latest_balance = candidate
+            latest_year = candidate_year
+            continue
+
+        if candidate_year is None:
+            continue
+
+        if latest_year is None or candidate_year > latest_year:
+            latest_balance = candidate
+            latest_year = candidate_year
+
+    if privilege_balance is None:
+        privilege_balance = latest_balance
 
     if privilege_balance is None:
         return
