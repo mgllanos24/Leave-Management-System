@@ -378,6 +378,18 @@ th, td {
     min-width: 120px;
 }
 
+/* Application Status table overrides */
+#application-status #applicationsTable {
+    min-width: 0;
+    white-space: normal;
+}
+
+#application-status #applicationsTable th,
+#application-status #applicationsTable td {
+    min-width: auto;
+    white-space: normal;
+}
+
 .unpaid-hours {
     color: var(--error-color);
     font-weight: 600;
@@ -564,8 +576,8 @@ tr:hover {
 .application-actions {
     display: flex;
     gap: 5px;
-    min-width: 190px;
-    flex-wrap: nowrap;
+    min-width: 140px;
+    flex-wrap: wrap;
 }
 
 .application-actions button {
