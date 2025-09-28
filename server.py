@@ -305,6 +305,19 @@ def calculate_total_hours(
         except ValueError:
             return 0.0
 
+        if end_dt.date() < start_dt.date():
+            return 0.0
+
+        if end_dt.date() != start_dt.date():
+            legacy_days = _calculate_total_days_legacy(
+                start_date,
+                end_date,
+                start_day_type,
+                end_day_type,
+                holidays,
+            )
+            return round(legacy_days * WORK_HOURS_PER_DAY, 2)
+
         if end_dt <= start_dt:
             return 0.0
 

@@ -1430,27 +1430,62 @@ function setupDateCalculation() {
 }
 
 function calculateLeaveDuration() {
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const startTimeInput = document.getElementById('startTime');
+    const endTimeInput = document.getElementById('endTime');
     const durationText = document.getElementById('durationText');
-    const startTime = document.getElementById('startTime')?.value;
-    const endTime = document.getElementById('endTime')?.value;
 
-    if (startDate && endDate && startTime && endTime) {
+    if (!durationText) {
+        return;
+    }
+
+    const startDate = startDateInput?.value;
+    const endDate = endDateInput?.value;
+    const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
+
+    if (startTimeInput && endTimeInput) {
+        startTimeInput.disabled = isMultiDay;
+        endTimeInput.disabled = isMultiDay;
+
+        if (isMultiDay) {
+            if (startTimeInput.value) {
+                startTimeInput.value = '';
+            }
+            if (endTimeInput.value) {
+                endTimeInput.value = '';
+            }
+        }
+    }
+
+    if (!startDate || !endDate) {
+        durationText.textContent = 'Duration will be calculated automatically';
+        return;
+    }
+
+    const startTime = !isMultiDay ? startTimeInput?.value : null;
+    const endTime = !isMultiDay ? endTimeInput?.value : null;
+
+    if (!isMultiDay && (!startTime || !endTime)) {
+        durationText.textContent = 'Please select start and end times to calculate duration';
+        return;
+    }
+
+    if (!isMultiDay && startTime && endTime) {
         const start = new Date(`${startDate}T${startTime}`);
         const end = new Date(`${endDate}T${endTime}`);
 
-        if (end > start) {
-            const hours = calculateTotalHours(startDate, endDate, startTime, endTime);
-            if (hours > 0) {
-                const days = Math.round((hours / WORK_HOURS_PER_DAY) * 100) / 100;
-                durationText.textContent = `Duration: ${hours.toFixed(2)} hour(s) (${days.toFixed(2)} day(s))`;
-            } else {
-                durationText.textContent = 'Duration will be calculated automatically';
-            }
-        } else {
+        if (!(end > start)) {
             durationText.textContent = 'End date/time must be after start date/time';
+            return;
         }
+    }
+
+    const hours = calculateTotalHours(startDate, endDate, startTime, endTime);
+
+    if (hours > 0) {
+        const days = Math.round((hours / WORK_HOURS_PER_DAY) * 100) / 100;
+        durationText.textContent = `Duration: ${hours.toFixed(2)} hour(s) (${days.toFixed(2)} day(s))`;
     } else {
         durationText.textContent = 'Duration will be calculated automatically';
     }
@@ -1488,7 +1523,15 @@ async function submitLeaveApplication(event, returnDate = null) {
         const endDate = formData.get('endDate');
         const startTime = formData.get('startTime');
         const endTime = formData.get('endTime');
-        const totalHours = calculateTotalHours(startDate, endDate, startTime, endTime);
+        const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
+        const effectiveStartTime = isMultiDay ? null : (startTime || null);
+        const effectiveEndTime = isMultiDay ? null : (endTime || null);
+        const totalHours = calculateTotalHours(
+            startDate,
+            endDate,
+            effectiveStartTime,
+            effectiveEndTime
+        );
         const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
 
         if (!returnDate) {
@@ -1500,8 +1543,8 @@ async function submitLeaveApplication(event, returnDate = null) {
             employee_name: `${currentUser.first_name} ${currentUser.surname}`,
             start_date: startDate,
             end_date: endDate,
-            start_time: startTime,
-            end_time: endTime,
+            start_time: effectiveStartTime,
+            end_time: effectiveEndTime,
             leave_type: selectedLeaveType,
             selected_reasons: selectedLeaveType ? [selectedLeaveType] : [],
             reason: formData.get('reason'),
