@@ -300,6 +300,18 @@ let currentUserType = null;
 let currentUser = null;
 let sessionToken = null;
 
+// Track remaining Privilege Leave for the logged-in employee so validations can
+// be enforced before sending requests to the server.
+let currentPrivilegeRemainingDays = 0;
+
+// Remember the last valid leave type selection so we can restore it if a user
+// attempts to select Leave Without Pay while Privilege Leave is still
+// available.
+let lastValidLeaveTypeValue = null;
+
+const LEAVE_WITHOUT_PAY_VALUE = 'leave-without-pay';
+const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'Please use your remaining Privilege Leave before requesting Leave Without Pay.';
+
 // Track whether holiday form handlers have been initialized
 let holidayFormInitialized = false;
 
@@ -1032,6 +1044,7 @@ async function updateEmployeeInfo() {
 async function updateLeaveBalanceDisplay() {
     const container = document.getElementById('leaveBalanceDisplay');
     if (!currentUser || !container) {
+        currentPrivilegeRemainingDays = 0;
         return;
     }
 
@@ -1046,6 +1059,11 @@ async function updateLeaveBalanceDisplay() {
         const priv = balances.find(b => b.balance_type === 'PRIVILEGE');
         const sick = balances.find(b => b.balance_type === 'SICK');
 
+        const parsedPrivilege = priv && priv.remaining_days != null
+            ? Number.parseFloat(priv.remaining_days)
+            : 0;
+        currentPrivilegeRemainingDays = Number.isFinite(parsedPrivilege) ? parsedPrivilege : 0;
+
         const privEl = document.getElementById('privilegeLeaveBalance');
         const sickEl = document.getElementById('sickLeaveBalance');
         if (privEl) {
@@ -1058,6 +1076,7 @@ async function updateLeaveBalanceDisplay() {
         container.style.display = 'block';
     } catch (err) {
         console.error('Error loading leave balances:', err);
+        currentPrivilegeRemainingDays = 0;
         container.style.display = 'none';
     }
 }
@@ -1713,22 +1732,84 @@ function calculateLeaveDuration() {
     }
 }
 
-function setupLeaveTypeHandling() {
+function hasRemainingPrivilegeLeave() {
+    return Number.isFinite(currentPrivilegeRemainingDays) && currentPrivilegeRemainingDays > 0;
+}
+
+function showPrivilegeLeaveWarning() {
+    alert(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+}
+
+function updateLeaveReasonState() {
     const radios = document.querySelectorAll('input[name="leaveType"]');
     const reasonTextarea = document.getElementById('reason');
     const reasonNote = document.getElementById('reasonNote');
 
+    if (!reasonTextarea || !reasonNote) {
+        return;
+    }
+
+    const radioList = Array.from(radios);
+    const checkedRadio = radioList.find(rb => rb.checked) || null;
+    const anyChecked = Boolean(checkedRadio);
+
+    if (checkedRadio) {
+        lastValidLeaveTypeValue = checkedRadio.value;
+    } else {
+        lastValidLeaveTypeValue = null;
+    }
+
+    if (anyChecked) {
+        reasonTextarea.disabled = false;
+        reasonNote.textContent = 'Please provide details about your leave request.';
+    } else {
+        reasonTextarea.disabled = true;
+        reasonNote.textContent = 'Please select a leave type above to enable this field, or select "Other" to specify a custom reason.';
+    }
+}
+
+function revertLeaveWithoutPaySelection() {
+    const radios = Array.from(document.querySelectorAll('input[name="leaveType"]'));
+    const leaveWithoutPayRadio = radios.find(rb => rb.value === LEAVE_WITHOUT_PAY_VALUE);
+    if (leaveWithoutPayRadio) {
+        leaveWithoutPayRadio.checked = false;
+    }
+
+    if (lastValidLeaveTypeValue) {
+        const previousRadio = radios.find(rb => rb.value === lastValidLeaveTypeValue);
+        if (previousRadio) {
+            previousRadio.checked = true;
+        }
+    }
+
+    updateLeaveReasonState();
+}
+
+function setupLeaveTypeHandling() {
+    const radios = document.querySelectorAll('input[name="leaveType"]');
+    if (!radios.length) {
+        return;
+    }
+
+    const preselected = document.querySelector('input[name="leaveType"]:checked');
+    if (preselected) {
+        lastValidLeaveTypeValue = preselected.value;
+    }
+
+    updateLeaveReasonState();
+
     radios.forEach(radio => {
         radio.addEventListener('change', function() {
-            const anyChecked = Array.from(radios).some(rb => rb.checked);
-
-            if (anyChecked) {
-                reasonTextarea.disabled = false;
-                reasonNote.textContent = 'Please provide details about your leave request.';
-            } else {
-                reasonTextarea.disabled = true;
-                reasonNote.textContent = 'Please select a leave type above to enable this field, or select "Other" to specify a custom reason.';
+            if (this.checked) {
+                if (this.value === LEAVE_WITHOUT_PAY_VALUE && hasRemainingPrivilegeLeave()) {
+                    showPrivilegeLeaveWarning();
+                    revertLeaveWithoutPaySelection();
+                    return;
+                }
+                lastValidLeaveTypeValue = this.value;
             }
+
+            updateLeaveReasonState();
         });
     });
 }
@@ -1741,6 +1822,12 @@ async function submitLeaveApplication(event, returnDate = null) {
 
         const formData = new FormData(event.target);
         const selectedLeaveType = formData.get('leaveType');
+        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && hasRemainingPrivilegeLeave()) {
+            hideLoading();
+            showPrivilegeLeaveWarning();
+            revertLeaveWithoutPaySelection();
+            return;
+        }
         const startDate = formData.get('startDate');
         const endDate = formData.get('endDate');
         const startTime = formData.get('startTime');
