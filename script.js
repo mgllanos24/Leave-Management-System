@@ -1754,8 +1754,56 @@ function calculateLeaveDuration() {
     }
 }
 
-function hasRemainingPrivilegeLeave() {
-    return Number.isFinite(currentPrivilegeRemainingDays) && currentPrivilegeRemainingDays > 0;
+function getAvailablePrivilegeLeaveHours() {
+    if (!Number.isFinite(currentPrivilegeRemainingDays) || currentPrivilegeRemainingDays <= 0) {
+        return null;
+    }
+    return currentPrivilegeRemainingDays * WORK_HOURS_PER_DAY;
+}
+
+function canCoverWithPrivilegeLeave(totalHours) {
+    const availableHours = getAvailablePrivilegeLeaveHours();
+    if (!Number.isFinite(totalHours) || totalHours <= 0 || !Number.isFinite(availableHours) || availableHours <= 0) {
+        return false;
+    }
+
+    // Allow for tiny floating point differences when comparing totals
+    const EPSILON = 0.001;
+    return totalHours <= availableHours + EPSILON;
+}
+
+function computeRequestedTotalHours() {
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    if (!startDateInput || !endDateInput) {
+        return null;
+    }
+
+    const startDate = (startDateInput.value || '').trim();
+    const endDate = (endDateInput.value || '').trim();
+    if (!startDate || !endDate) {
+        return null;
+    }
+
+    const startTimeInput = document.getElementById('startTime');
+    const endTimeInput = document.getElementById('endTime');
+    const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
+
+    const rawStartTime = (startTimeInput?.value || '').trim();
+    const rawEndTime = (endTimeInput?.value || '').trim();
+
+    const defaultStartTime = rawStartTime || startTimeInput?.dataset?.defaultTime || DEFAULT_WORKDAY_START_TIME;
+    const defaultEndTime = rawEndTime || endTimeInput?.dataset?.defaultTime || DEFAULT_WORKDAY_END_TIME;
+
+    const effectiveStartTime = isMultiDay ? defaultStartTime : rawStartTime;
+    const effectiveEndTime = isMultiDay ? defaultEndTime : rawEndTime;
+
+    if (!isMultiDay && (!effectiveStartTime || !effectiveEndTime)) {
+        return null;
+    }
+
+    const totalHours = calculateTotalHours(startDate, endDate, effectiveStartTime, effectiveEndTime);
+    return Number.isFinite(totalHours) && totalHours > 0 ? totalHours : null;
 }
 
 function showPrivilegeLeaveWarning() {
@@ -1822,12 +1870,17 @@ function setupLeaveTypeHandling() {
 
     radios.forEach(radio => {
         radio.addEventListener('change', function() {
-            if (this.checked) {
-                if (this.value === LEAVE_WITHOUT_PAY_VALUE && hasRemainingPrivilegeLeave()) {
+            if (this.checked && this.value === LEAVE_WITHOUT_PAY_VALUE) {
+                const requestedHours = computeRequestedTotalHours();
+                if (requestedHours !== null && canCoverWithPrivilegeLeave(requestedHours)) {
                     showPrivilegeLeaveWarning();
                     revertLeaveWithoutPaySelection();
+                    updateLeaveReasonState();
                     return;
                 }
+            }
+
+            if (this.checked) {
                 lastValidLeaveTypeValue = this.value;
             }
 
@@ -1844,12 +1897,6 @@ async function submitLeaveApplication(event, returnDate = null) {
 
         const formData = new FormData(event.target);
         const selectedLeaveType = formData.get('leaveType');
-        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && hasRemainingPrivilegeLeave()) {
-            hideLoading();
-            showPrivilegeLeaveWarning();
-            revertLeaveWithoutPaySelection();
-            return;
-        }
         const startDate = formData.get('startDate');
         const endDate = formData.get('endDate');
         const startTime = formData.get('startTime');
@@ -1891,6 +1938,14 @@ async function submitLeaveApplication(event, returnDate = null) {
             effectiveEndTime
         );
         const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
+
+        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave(totalHours)) {
+            hideLoading();
+            showPrivilegeLeaveWarning();
+            revertLeaveWithoutPaySelection();
+            updateLeaveReasonState();
+            return;
+        }
 
         if (!returnDate) {
             returnDate = determineReturnDate(endDate, totalHours);
