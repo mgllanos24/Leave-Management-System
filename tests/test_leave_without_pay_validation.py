@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 import pytest
 
@@ -69,3 +70,49 @@ def test_leave_without_pay_allowed_when_request_exceeds_privilege_balance(test_d
         employee_id,
         requested_days=remaining + 1,
     )
+
+
+def test_leave_without_pay_uses_current_year_balance(test_database):
+    """Privilege balances prefer the current year when multiple records exist."""
+
+    employee_id = _create_employee_with_privilege_balance()
+    current_year = datetime.now().year
+    previous_year = current_year - 1
+
+    with db_lock:
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                'UPDATE leave_balances SET remaining_days = 0, used_days = allocated_days '
+                'WHERE employee_id = ? AND balance_type = "PRIVILEGE" AND year = ?',
+                (employee_id, current_year),
+            )
+            conn.execute(
+                (
+                    """
+                    INSERT INTO leave_balances (
+                        id, employee_id, balance_type, allocated_days, used_days,
+                        remaining_days, carryforward_days, year
+                    ) VALUES (?, ?, 'PRIVILEGE', ?, ?, ?, 0, ?)
+                    ON CONFLICT(employee_id, balance_type, year) DO UPDATE SET
+                        allocated_days=excluded.allocated_days,
+                        used_days=excluded.used_days,
+                        remaining_days=excluded.remaining_days
+                    """
+                ),
+                (
+                    str(uuid.uuid4()),
+                    employee_id,
+                    15,
+                    10,
+                    5,
+                    previous_year,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    # Request within the previous year's balance should still be allowed because
+    # the current year's balance is exhausted.
+    server.ensure_leave_without_pay_allowed(employee_id, requested_days=1)
