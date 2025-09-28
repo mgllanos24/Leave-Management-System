@@ -291,6 +291,9 @@ const holidayDates = new Set();
 
 // Standard number of working hours that make up a full leave day.
 const WORK_HOURS_PER_DAY = 8;
+// Default working hours applied to leave requests when specific times are unavailable.
+const DEFAULT_WORKDAY_START_TIME = '06:30';
+const DEFAULT_WORKDAY_END_TIME = '15:00';
 
 // Authentication globals
 let currentUserType = null;
@@ -1591,15 +1594,6 @@ function calculateLeaveDuration() {
     if (startTimeInput && endTimeInput) {
         startTimeInput.disabled = isMultiDay;
         endTimeInput.disabled = isMultiDay;
-
-        if (isMultiDay) {
-            if (startTimeInput.value) {
-                startTimeInput.value = '';
-            }
-            if (endTimeInput.value) {
-                endTimeInput.value = '';
-            }
-        }
     }
 
     if (!startDate || !endDate) {
@@ -1607,8 +1601,12 @@ function calculateLeaveDuration() {
         return;
     }
 
-    const startTime = !isMultiDay ? startTimeInput?.value : null;
-    const endTime = !isMultiDay ? endTimeInput?.value : null;
+    const rawStartTime = startTimeInput?.value || '';
+    const rawEndTime = endTimeInput?.value || '';
+    const defaultedStartTime = rawStartTime || DEFAULT_WORKDAY_START_TIME;
+    const defaultedEndTime = rawEndTime || DEFAULT_WORKDAY_END_TIME;
+    const startTime = isMultiDay ? defaultedStartTime : rawStartTime;
+    const endTime = isMultiDay ? defaultedEndTime : rawEndTime;
 
     if (!isMultiDay && (!startTime || !endTime)) {
         durationText.textContent = 'Please select start and end times to calculate duration';
@@ -1666,6 +1664,8 @@ async function submitLeaveApplication(event, returnDate = null) {
         const endDate = formData.get('endDate');
         const startTime = formData.get('startTime');
         const endTime = formData.get('endTime');
+        const startTimeInput = document.getElementById('startTime');
+        const endTimeInput = document.getElementById('endTime');
         const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
         const durationText = document.getElementById('durationText');
 
@@ -1689,8 +1689,11 @@ async function submitLeaveApplication(event, returnDate = null) {
             }
         }
 
-        const effectiveStartTime = isMultiDay ? null : (startTime || null);
-        const effectiveEndTime = isMultiDay ? null : (endTime || null);
+        const defaultedStartTime = (startTimeInput?.value || '').trim() || DEFAULT_WORKDAY_START_TIME;
+        const defaultedEndTime = (endTimeInput?.value || '').trim() || DEFAULT_WORKDAY_END_TIME;
+
+        const effectiveStartTime = isMultiDay ? defaultedStartTime : (startTime || null);
+        const effectiveEndTime = isMultiDay ? defaultedEndTime : (endTime || null);
         const totalHours = calculateTotalHours(
             startDate,
             endDate,
