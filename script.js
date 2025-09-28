@@ -1963,7 +1963,10 @@ async function loadLeaveHistory(employeeId, status = null) {
             }
 
             const leaveTypeValue = (app.leave_type ?? '').toString().trim();
-            const normalizedLeaveType = leaveTypeValue.replace(/\s+/g, ' ').toLowerCase();
+            const normalizedLeaveType = leaveTypeValue
+                .toLowerCase()
+                .replace(/[-\s]+/g, ' ')
+                .trim();
             const isCashOut = normalizedLeaveType === 'cash out' || normalizedLeaveType === 'cashout';
 
             const hasUnpaid = Math.abs(unpaidHours) > 0.01;
