@@ -85,10 +85,25 @@ class BackendCollection {
                 }
 
                 if (!response.ok) {
-                    const errorText = await response.text().catch(() => 'Unknown error');
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    const rawBody = await response.text().catch(() => '');
+                    let parsedData = null;
+                    if (rawBody) {
+                        try {
+                            parsedData = JSON.parse(rawBody);
+                        } catch (parseError) {
+                            // Leave parsedData as null if body is not valid JSON
+                        }
+                    }
+
+                    const error = new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());
+                    error.status = response.status;
+                    error.statusText = response.statusText;
+                    error.body = rawBody;
+                    error.data = parsedData;
+                    error.response = response;
+                    throw error;
                 }
-                
+
                 const result = await response.json();
                 
                 if (this.database.debugMode) {
@@ -1837,26 +1852,46 @@ async function updateApplicationStatus(id, newStatus) {
         }
     } catch (error) {
         const requestUrl = `leave_application/${id}`;
-        const status = error?.response?.status || error.status;
-        let responseBody = '';
+        const status = error?.status ?? error?.response?.status;
+        const statusText = error?.statusText ?? error?.response?.statusText;
+        const responseBody = typeof error?.body === 'string' ? error.body : '';
+        const responseData = error?.data;
 
-        if (error?.response) {
-            try {
-                responseBody = await error.response.text();
-            } catch (e) {
-                responseBody = error?.response?.body || e.message;
-            }
-        } else {
-            responseBody = error.message;
+        let backendMessage = '';
+        if (responseData && typeof responseData === 'object') {
+            backendMessage = responseData.message || responseData.error || responseData.detail || '';
+        }
+        if (!backendMessage && responseBody) {
+            backendMessage = responseBody;
+        }
+        if (!backendMessage && error?.message) {
+            backendMessage = error.message;
         }
 
         console.error('Error updating application status:', {
             requestUrl,
             status,
+            statusText,
             responseBody,
+            responseData,
             originalError: error,
         });
-        alert(`Failed to update application status for ID ${id}. ${status ? `Status: ${status}.` : ''}`);
+
+        let alertMessage = `Failed to update application status for ID ${id}.`;
+        if (status) {
+            alertMessage += ` Status: ${status}${statusText ? ` ${statusText}` : ''}.`;
+        }
+        if (backendMessage) {
+            const normalizedBackendMessage = String(backendMessage).trim();
+            if (normalizedBackendMessage) {
+                alertMessage += ` Reason: ${normalizedBackendMessage}`;
+                if (!/[.!?]$/.test(normalizedBackendMessage)) {
+                    alertMessage += '.';
+                }
+            }
+        }
+
+        alert(alertMessage);
     } finally {
         actionButtons.forEach(btn => (btn.disabled = false));
         hideLoading();
