@@ -1429,6 +1429,76 @@ function setupDateCalculation() {
     }
 }
 
+const EARLIEST_LEAVE_MINUTES = 6 * 60 + 30;
+const LATEST_LEAVE_MINUTES = 15 * 60;
+
+function parseTimeToMinutes(timeValue) {
+    if (!timeValue || typeof timeValue !== 'string') {
+        return null;
+    }
+
+    const [hoursPart, minutesPart] = timeValue.split(':');
+    if (hoursPart == null || minutesPart == null) {
+        return null;
+    }
+
+    const hours = Number.parseInt(hoursPart, 10);
+    const minutes = Number.parseInt(minutesPart, 10);
+
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+        return null;
+    }
+
+    if (minutes < 0 || minutes >= 60 || hours < 0 || hours > 23) {
+        return null;
+    }
+
+    return hours * 60 + minutes;
+}
+
+function validateSingleDayTimeWindow(startDate, endDate, startTime, endTime) {
+    if (!startDate || !endDate || startDate !== endDate) {
+        return { valid: true };
+    }
+
+    const startMinutes = parseTimeToMinutes(startTime);
+    const endMinutes = parseTimeToMinutes(endTime);
+
+    if (startMinutes == null || endMinutes == null) {
+        return {
+            valid: false,
+            message: 'Enter a valid start and end time in HH:MM format.',
+        };
+    }
+
+    if (startMinutes < EARLIEST_LEAVE_MINUTES || startMinutes > LATEST_LEAVE_MINUTES) {
+        return {
+            valid: false,
+            message: 'Start time must be between 06:30 and 15:00.',
+        };
+    }
+
+    if (endMinutes < EARLIEST_LEAVE_MINUTES || endMinutes > LATEST_LEAVE_MINUTES) {
+        return {
+            valid: false,
+            message: 'End time must be between 06:30 and 15:00.',
+        };
+    }
+
+    if (endMinutes <= startMinutes) {
+        return {
+            valid: false,
+            message: 'End time must be after the start time.',
+        };
+    }
+
+    return {
+        valid: true,
+        startMinutes,
+        endMinutes,
+    };
+}
+
 function calculateLeaveDuration() {
     const startDateInput = document.getElementById('startDate');
     const endDateInput = document.getElementById('endDate');
@@ -1472,11 +1542,9 @@ function calculateLeaveDuration() {
     }
 
     if (!isMultiDay && startTime && endTime) {
-        const start = new Date(`${startDate}T${startTime}`);
-        const end = new Date(`${endDate}T${endTime}`);
-
-        if (!(end > start)) {
-            durationText.textContent = 'End date/time must be after start date/time';
+        const validation = validateSingleDayTimeWindow(startDate, endDate, startTime, endTime);
+        if (!validation.valid) {
+            durationText.textContent = validation.message;
             return;
         }
     }
@@ -1524,6 +1592,27 @@ async function submitLeaveApplication(event, returnDate = null) {
         const startTime = formData.get('startTime');
         const endTime = formData.get('endTime');
         const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
+        const durationText = document.getElementById('durationText');
+
+        if (!isMultiDay) {
+            if (!startTime || !endTime) {
+                if (durationText) {
+                    durationText.textContent = 'Please select start and end times before submitting your request.';
+                }
+                hideLoading();
+                return;
+            }
+
+            const validation = validateSingleDayTimeWindow(startDate, endDate, startTime, endTime);
+            if (!validation.valid) {
+                if (durationText) {
+                    durationText.textContent = validation.message;
+                }
+                hideLoading();
+                return;
+            }
+        }
+
         const effectiveStartTime = isMultiDay ? null : (startTime || null);
         const effectiveEndTime = isMultiDay ? null : (endTime || null);
         const totalHours = calculateTotalHours(
