@@ -309,49 +309,7 @@ def ensure_leave_without_pay_allowed(
 
     tolerance = 1e-6
 
-    remaining_hours = (
-        remaining_days * WORK_HOURS_PER_DAY if WORK_HOURS_PER_DAY else None
-    )
-
-    requested_days_value = None
-    if requested_days is not None:
-        try:
-            requested_days_value = float(requested_days)
-        except (TypeError, ValueError):
-            requested_days_value = None
-
-    requested_hours_value = None
-    if requested_hours is not None:
-        try:
-            requested_hours_value = float(requested_hours)
-        except (TypeError, ValueError):
-            requested_hours_value = None
-
-    if requested_days_value is None and requested_hours_value is not None and WORK_HOURS_PER_DAY:
-        requested_days_value = requested_hours_value / WORK_HOURS_PER_DAY
-
-    if requested_hours_value is None and requested_days_value is not None and WORK_HOURS_PER_DAY:
-        requested_hours_value = requested_days_value * WORK_HOURS_PER_DAY
-
-    if (
-        requested_hours_value is not None
-        and remaining_hours is not None
-        and requested_hours_value <= (remaining_hours + tolerance)
-    ):
-        raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
-
-    if (
-        requested_hours_value is None
-        and requested_days_value is not None
-        and requested_days_value <= (remaining_days + tolerance)
-    ):
-        raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
-
-    if (
-        requested_days_value is None
-        and requested_hours_value is None
-        and remaining_days > tolerance
-    ):
+    if remaining_days > tolerance:
         raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
 
 def _calculate_total_days_legacy(
