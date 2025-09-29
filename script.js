@@ -1983,7 +1983,7 @@ async function submitLeaveApplication(event, returnDate = null) {
         showLoading();
 
         const formData = new FormData(event.target);
-        const selectedLeaveType = formData.get('leaveType');
+        let selectedLeaveType = formData.get('leaveType');
         const startDate = formData.get('startDate');
         const endDate = formData.get('endDate');
         const startTime = formData.get('startTime');
@@ -2043,13 +2043,81 @@ async function submitLeaveApplication(event, returnDate = null) {
             }
         }
 
+        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
+            const privilegeNotice = 'You still have Privilege Leave remaining. Your request has been updated to use Privilege Leave before unpaid leave.';
+            const radios = Array.from(document.querySelectorAll('input[name="leaveType"]'));
+            const leaveWithoutPayRadio = radios.find(rb => rb.value === LEAVE_WITHOUT_PAY_VALUE) || null;
+            const preferredValues = [];
+
+            if (lastValidLeaveTypeValue && lastValidLeaveTypeValue !== LEAVE_WITHOUT_PAY_VALUE) {
+                preferredValues.push(lastValidLeaveTypeValue);
+            }
+
+            ['vacation-leave', 'vacation-annual', 'personal', 'cash-out'].forEach(value => {
+                if (!preferredValues.includes(value)) {
+                    preferredValues.push(value);
+                }
+            });
+
+            let enforcedValue = null;
+            let enforcedRadio = null;
+            for (const value of preferredValues) {
+                const candidate = radios.find(rb => rb.value === value);
+                if (candidate) {
+                    enforcedValue = value;
+                    enforcedRadio = candidate;
+                    break;
+                }
+            }
+
+            if (enforcedRadio) {
+                if (leaveWithoutPayRadio) {
+                    leaveWithoutPayRadio.checked = false;
+                }
+                enforcedRadio.checked = true;
+                selectedLeaveType = enforcedValue;
+                if (typeof formData.set === 'function') {
+                    formData.set('leaveType', enforcedValue);
+                }
+                lastValidLeaveTypeValue = enforcedValue;
+                privilegeLeaveWarningAcknowledged = false;
+                updateLeaveReasonState();
+
+                if (durationText) {
+                    durationText.textContent = privilegeNotice;
+                } else if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+                    window.alert(privilegeNotice);
+                }
+            } else {
+                if (durationText) {
+                    durationText.textContent = privilegeNotice;
+                } else if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+                    window.alert(privilegeNotice);
+                }
+                hideLoading();
+                return;
+            }
+        }
+
         if (!returnDate) {
             returnDate = determineReturnDate(endDate, totalHours);
         }
 
+        const effectiveCurrentUser = currentUser || (typeof window !== 'undefined' ? window.currentUser : null);
+        if (!effectiveCurrentUser || !effectiveCurrentUser.id) {
+            const missingUserNotice = 'We could not verify your employee details. Please refresh and try again.';
+            if (durationText) {
+                durationText.textContent = missingUserNotice;
+            } else if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+                window.alert(missingUserNotice);
+            }
+            hideLoading();
+            return;
+        }
+
         const applicationData = {
-            employee_id: currentUser.id,
-            employee_name: `${currentUser.first_name} ${currentUser.surname}`,
+            employee_id: effectiveCurrentUser.id,
+            employee_name: `${effectiveCurrentUser.first_name} ${effectiveCurrentUser.surname}`.trim(),
             start_date: startDate,
             end_date: endDate,
             start_time: effectiveStartTime,
