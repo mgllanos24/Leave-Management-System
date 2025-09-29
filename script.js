@@ -310,7 +310,7 @@ let currentPrivilegeRemainingDays = 0;
 let lastValidLeaveTypeValue = null;
 
 const LEAVE_WITHOUT_PAY_VALUE = 'leave-without-pay';
-const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'Please use your remaining Privilege Leave before requesting Leave Without Pay.';
+const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'You still have available Privilege Leave, continuing will consume your available leave first.';
 
 // Track whether holiday form handlers have been initialized
 let holidayFormInitialized = false;
@@ -1842,7 +1842,15 @@ function computeRequestedTotalHours() {
 }
 
 function showPrivilegeLeaveWarning() {
-    alert(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        return window.confirm(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+    }
+
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+    }
+
+    return false;
 }
 
 function updateLeaveReasonState() {
@@ -1859,7 +1867,10 @@ function updateLeaveReasonState() {
     const anyChecked = Boolean(checkedRadio);
 
     if (checkedRadio) {
-        lastValidLeaveTypeValue = checkedRadio.value;
+        const isLeaveWithoutPay = checkedRadio.value === LEAVE_WITHOUT_PAY_VALUE;
+        if (!isLeaveWithoutPay || !canCoverWithPrivilegeLeave()) {
+            lastValidLeaveTypeValue = checkedRadio.value;
+        }
     } else {
         lastValidLeaveTypeValue = null;
     }
@@ -1907,14 +1918,16 @@ function setupLeaveTypeHandling() {
         radio.addEventListener('change', function() {
             if (this.checked && this.value === LEAVE_WITHOUT_PAY_VALUE) {
                 if (canCoverWithPrivilegeLeave()) {
-                    showPrivilegeLeaveWarning();
-                    revertLeaveWithoutPaySelection();
-                    updateLeaveReasonState();
-                    return;
+                    const proceed = showPrivilegeLeaveWarning();
+                    if (!proceed) {
+                        revertLeaveWithoutPaySelection();
+                        updateLeaveReasonState();
+                        return;
+                    }
+                } else {
+                    lastValidLeaveTypeValue = this.value;
                 }
-            }
-
-            if (this.checked) {
+            } else if (this.checked) {
                 lastValidLeaveTypeValue = this.value;
             }
 
@@ -1975,10 +1988,13 @@ async function submitLeaveApplication(event, returnDate = null) {
 
         if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
             hideLoading();
-            showPrivilegeLeaveWarning();
-            revertLeaveWithoutPaySelection();
-            updateLeaveReasonState();
-            return;
+            const proceed = showPrivilegeLeaveWarning();
+            if (!proceed) {
+                revertLeaveWithoutPaySelection();
+                updateLeaveReasonState();
+                return;
+            }
+            showLoading();
         }
 
         if (!returnDate) {
