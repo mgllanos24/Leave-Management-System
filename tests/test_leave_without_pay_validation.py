@@ -61,15 +61,19 @@ def test_leave_without_pay_rejected_when_request_within_privilege_balance(test_d
     assert _fetch_privilege_remaining_days(employee_id) > 0
 
 
-def test_leave_without_pay_allowed_when_request_exceeds_privilege_balance(test_database):
+def test_leave_without_pay_rejected_when_request_exceeds_privilege_balance(test_database):
     employee_id = _create_employee_with_privilege_balance()
     remaining = _fetch_privilege_remaining_days(employee_id)
 
-    # Request more than the remaining balance should be permitted
-    server.ensure_leave_without_pay_allowed(
-        employee_id,
-        requested_days=remaining + 1,
-    )
+    # Requesting more than the remaining balance must still be rejected when
+    # any privilege leave remains.
+    with pytest.raises(ValueError) as excinfo:
+        server.ensure_leave_without_pay_allowed(
+            employee_id,
+            requested_days=remaining + 1,
+        )
+
+    assert str(excinfo.value) == server.LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE
 
 
 def test_leave_without_pay_uses_current_year_balance(test_database):

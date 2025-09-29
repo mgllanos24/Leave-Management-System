@@ -1800,22 +1800,11 @@ function calculateLeaveDuration() {
     }
 }
 
-function getAvailablePrivilegeLeaveHours() {
-    if (!Number.isFinite(currentPrivilegeRemainingDays) || currentPrivilegeRemainingDays <= 0) {
-        return null;
-    }
-    return currentPrivilegeRemainingDays * WORK_HOURS_PER_DAY;
-}
-
-function canCoverWithPrivilegeLeave(totalHours) {
-    const availableHours = getAvailablePrivilegeLeaveHours();
-    if (!Number.isFinite(totalHours) || totalHours <= 0 || !Number.isFinite(availableHours) || availableHours <= 0) {
-        return false;
-    }
-
-    // Allow for tiny floating point differences when comparing totals
-    const EPSILON = 0.001;
-    return totalHours <= availableHours + EPSILON;
+function canCoverWithPrivilegeLeave() {
+    return (
+        Number.isFinite(currentPrivilegeRemainingDays) &&
+        currentPrivilegeRemainingDays > 0
+    );
 }
 
 function computeRequestedTotalHours() {
@@ -1917,8 +1906,7 @@ function setupLeaveTypeHandling() {
     radios.forEach(radio => {
         radio.addEventListener('change', function() {
             if (this.checked && this.value === LEAVE_WITHOUT_PAY_VALUE) {
-                const requestedHours = computeRequestedTotalHours();
-                if (requestedHours !== null && canCoverWithPrivilegeLeave(requestedHours)) {
+                if (canCoverWithPrivilegeLeave()) {
                     showPrivilegeLeaveWarning();
                     revertLeaveWithoutPaySelection();
                     updateLeaveReasonState();
@@ -1985,7 +1973,7 @@ async function submitLeaveApplication(event, returnDate = null) {
         );
         const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
 
-        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave(totalHours)) {
+        if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
             hideLoading();
             showPrivilegeLeaveWarning();
             revertLeaveWithoutPaySelection();
