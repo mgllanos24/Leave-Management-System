@@ -156,14 +156,20 @@ window.submitLeaveApplicationForTest = async function(event) {
   const selectedLeaveType = formData.get('leaveType');
 
   if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE_CONST && canCoverWithPrivilegeLeave()) {
-    hideLoading();
-    const proceed = showPrivilegeLeaveWarning();
-    if (!proceed) {
-      revertLeaveWithoutPaySelection();
-      updateLeaveReasonState();
-      return;
+    if (!privilegeLeaveWarningAcknowledged) {
+      hideLoading();
+      const proceed = showPrivilegeLeaveWarning();
+      if (!proceed) {
+        privilegeLeaveWarningAcknowledged = false;
+        revertLeaveWithoutPaySelection();
+        updateLeaveReasonState();
+        return;
+      }
+      privilegeLeaveWarningAcknowledged = true;
+      showLoading();
     }
-    showLoading();
+  } else {
+    privilegeLeaveWarningAcknowledged = false;
   }
 
   await room.collection('leave_application').create({
@@ -183,6 +189,8 @@ if (!changeHandlers.length) {
   throw new Error('Expected change handler to be registered');
 }
 const changeHandler = changeHandlers[0];
+const vacationChangeHandlers = vacationRadio.listeners.change || [];
+const vacationChangeHandler = vacationChangeHandlers[0] || null;
 
 const results = {};
 
@@ -240,8 +248,8 @@ const event = {
 };
 
 async function runSubmissionSequence() {
+  window.eval('(() => { lastValidLeaveTypeValue = "vacation-leave"; privilegeLeaveWarningAcknowledged = false; })();');
   nextWarningResponse = false;
-  window.eval('(() => { lastValidLeaveTypeValue = "vacation-leave"; })();');
   leaveWithoutPayRadio.checked = true;
   await submitLeaveApplicationForTest(event);
   results.cancelSubmission = {
@@ -250,8 +258,8 @@ async function runSubmissionSequence() {
     createCallCount,
   };
 
+  window.eval('(() => { lastValidLeaveTypeValue = "vacation-leave"; privilegeLeaveWarningAcknowledged = false; })();');
   nextWarningResponse = true;
-  window.eval('(() => { lastValidLeaveTypeValue = "vacation-leave"; })();');
   leaveWithoutPayRadio.checked = true;
   await submitLeaveApplicationForTest(event);
   results.confirmSubmission = {
@@ -259,6 +267,36 @@ async function runSubmissionSequence() {
     vacationChecked: vacationRadio.checked,
     createCallCount,
     payloadLeaveType: lastPayload ? lastPayload.data.leave_type : null,
+  };
+
+  const warningsAfterConfirmSubmission = warningCalls.length;
+
+  nextWarningResponse = false;
+  await submitLeaveApplicationForTest(event);
+  results.resubmitWithoutWarning = {
+    warningCallCountBefore: warningsAfterConfirmSubmission,
+    warningCallCountAfter: warningCalls.length,
+    createCallCount,
+  };
+
+  if (vacationChangeHandler) {
+    vacationRadio.checked = true;
+    vacationChangeHandler.call(vacationRadio);
+  } else {
+    vacationRadio.checked = true;
+    updateLeaveReasonState();
+  }
+
+  const warningsBeforeReselect = warningCalls.length;
+
+  nextWarningResponse = true;
+  leaveWithoutPayRadio.checked = true;
+  changeHandler.call(leaveWithoutPayRadio);
+  results.reselectAfterChange = {
+    leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
+    vacationChecked: vacationRadio.checked,
+    warningCallCountBefore: warningsBeforeReselect,
+    warningCallCountAfter: warningCalls.length,
   };
 }
 
@@ -306,4 +344,13 @@ runSubmissionSequence().then(() => {
     assert confirm_submission["createCallCount"] == 1
     assert confirm_submission["payloadLeaveType"] == "leave-without-pay"
 
-    assert result["warningCalls"] == [False, True, False, True]
+    resubmit_without_warning = result["resubmitWithoutWarning"]
+    assert resubmit_without_warning["warningCallCountBefore"] == resubmit_without_warning["warningCallCountAfter"]
+    assert resubmit_without_warning["createCallCount"] == 2
+
+    reselect_after_change = result["reselectAfterChange"]
+    assert reselect_after_change["leaveWithoutPayChecked"] is True
+    assert reselect_after_change["vacationChecked"] is False
+    assert reselect_after_change["warningCallCountAfter"] == reselect_after_change["warningCallCountBefore"] + 1
+
+    assert result["warningCalls"] == [False, True, False, True, True]

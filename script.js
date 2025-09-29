@@ -309,6 +309,10 @@ let currentPrivilegeRemainingDays = 0;
 // available.
 let lastValidLeaveTypeValue = null;
 
+// Track when the Privilege Leave coverage warning has been acknowledged so the
+// confirmation dialog is not shown again until circumstances change.
+let privilegeLeaveWarningAcknowledged = false;
+
 const LEAVE_WITHOUT_PAY_VALUE = 'leave-without-pay';
 const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'You still have available Privilege Leave, continuing will consume your available leave first.';
 
@@ -1067,6 +1071,7 @@ async function updateLeaveBalanceDisplay() {
     const container = document.getElementById('leaveBalanceDisplay');
     if (!currentUser || !container) {
         currentPrivilegeRemainingDays = 0;
+        privilegeLeaveWarningAcknowledged = false;
         return;
     }
 
@@ -1118,7 +1123,11 @@ async function updateLeaveBalanceDisplay() {
         const parsedPrivilege = priv && priv.remaining_days != null
             ? Number.parseFloat(priv.remaining_days)
             : 0;
-        currentPrivilegeRemainingDays = Number.isFinite(parsedPrivilege) ? parsedPrivilege : 0;
+        const newRemainingPrivilege = Number.isFinite(parsedPrivilege) ? parsedPrivilege : 0;
+        currentPrivilegeRemainingDays = newRemainingPrivilege;
+        if (!Number.isFinite(newRemainingPrivilege) || newRemainingPrivilege <= 0) {
+            privilegeLeaveWarningAcknowledged = false;
+        }
 
         const privEl = document.getElementById('privilegeLeaveBalance');
         const sickEl = document.getElementById('sickLeaveBalance');
@@ -1145,6 +1154,7 @@ async function updateLeaveBalanceDisplay() {
     } catch (err) {
         console.error('Error loading leave balances:', err);
         currentPrivilegeRemainingDays = 0;
+        privilegeLeaveWarningAcknowledged = false;
         container.style.display = 'none';
     }
 }
@@ -1875,6 +1885,10 @@ function updateLeaveReasonState() {
         lastValidLeaveTypeValue = null;
     }
 
+    if (!checkedRadio || checkedRadio.value !== LEAVE_WITHOUT_PAY_VALUE || !canCoverWithPrivilegeLeave()) {
+        privilegeLeaveWarningAcknowledged = false;
+    }
+
     if (anyChecked) {
         reasonTextarea.disabled = false;
         reasonNote.textContent = 'Please provide details about your leave request.';
@@ -1898,6 +1912,7 @@ function revertLeaveWithoutPaySelection() {
         }
     }
 
+    privilegeLeaveWarningAcknowledged = false;
     updateLeaveReasonState();
 }
 
@@ -1918,17 +1933,25 @@ function setupLeaveTypeHandling() {
         radio.addEventListener('change', function() {
             if (this.checked && this.value === LEAVE_WITHOUT_PAY_VALUE) {
                 if (canCoverWithPrivilegeLeave()) {
-                    const proceed = showPrivilegeLeaveWarning();
-                    if (!proceed) {
-                        revertLeaveWithoutPaySelection();
-                        updateLeaveReasonState();
-                        return;
+                    if (!privilegeLeaveWarningAcknowledged) {
+                        const proceed = showPrivilegeLeaveWarning();
+                        if (!proceed) {
+                            privilegeLeaveWarningAcknowledged = false;
+                            revertLeaveWithoutPaySelection();
+                            updateLeaveReasonState();
+                            return;
+                        }
+                        privilegeLeaveWarningAcknowledged = true;
                     }
                 } else {
+                    privilegeLeaveWarningAcknowledged = false;
                     lastValidLeaveTypeValue = this.value;
                 }
             } else if (this.checked) {
+                privilegeLeaveWarningAcknowledged = false;
                 lastValidLeaveTypeValue = this.value;
+            } else {
+                privilegeLeaveWarningAcknowledged = false;
             }
 
             updateLeaveReasonState();
@@ -1987,14 +2010,20 @@ async function submitLeaveApplication(event, returnDate = null) {
         const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
 
         if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
-            hideLoading();
-            const proceed = showPrivilegeLeaveWarning();
-            if (!proceed) {
-                revertLeaveWithoutPaySelection();
-                updateLeaveReasonState();
-                return;
+            if (!privilegeLeaveWarningAcknowledged) {
+                hideLoading();
+                const proceed = showPrivilegeLeaveWarning();
+                if (!proceed) {
+                    privilegeLeaveWarningAcknowledged = false;
+                    revertLeaveWithoutPaySelection();
+                    updateLeaveReasonState();
+                    return;
+                }
+                privilegeLeaveWarningAcknowledged = true;
+                showLoading();
             }
-            showLoading();
+        } else {
+            privilegeLeaveWarningAcknowledged = false;
         }
 
         if (!returnDate) {
