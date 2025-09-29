@@ -3,6 +3,9 @@ import subprocess
 from pathlib import Path
 
 
+LEAVE_WITHOUT_PAY_VALUE = "leave-without-pay"
+
+
 def test_privilege_leave_warning_confirm_paths():
     repo_root = Path(__file__).resolve().parents[1]
     script_path = repo_root / "script.js"
@@ -156,6 +159,14 @@ global.FormData = class {
     }
     return this.target[name] ?? null;
   }
+
+  set(name, value) {
+    if (typeof this.target.setFormValue === 'function') {
+      this.target.setFormValue(name, value);
+      return;
+    }
+    this.target[name] = value;
+  }
 };
 
 eval(code);
@@ -166,6 +177,8 @@ window.__setPrivilegeRemaining(5);
 window.__setLastValidLeaveTypeValue('vacation-leave');
 window.__setAck(false);
 window.__setCurrentUser({ id: 'emp-1', first_name: 'Test', surname: 'User' });
+window.currentUser = window.__getCurrentUser ? window.__getCurrentUser() : null;
+window.eval('currentUser = { id: "emp-1", first_name: "Test", surname: "User" };');
 window.eval('canCoverWithPrivilegeLeave = () => true;');
 
 setupLeaveTypeHandling();
@@ -193,6 +206,16 @@ const formTarget = {
       return selected ? selected.value : null;
     }
     return Object.prototype.hasOwnProperty.call(formValues, name) ? formValues[name] : null;
+  },
+  setFormValue(name, value) {
+    if (name === 'leaveType') {
+      const targetRadio = radios.find(radio => radio.value === value);
+      if (targetRadio) {
+        targetRadio.checked = true;
+      }
+      return;
+    }
+    formValues[name] = value;
   },
   reset() {},
 };
@@ -262,6 +285,7 @@ async function runSequence() {
     vacationChecked: vacationRadio.checked,
     confirmCount: confirmations.length,
     acknowledgedAfterSubmit: readAcknowledged(),
+    durationMessage: elementsById.get('durationText').textContent,
   };
 
   const vacationChangeHandlers = vacationRadio.listeners.change || [];
@@ -316,6 +340,7 @@ async function runSequence() {
     vacationChecked: vacationRadio.checked,
     confirmCount: confirmations.length,
     acknowledgedAfterSubmit: readAcknowledged(),
+    durationMessage: elementsById.get('durationText').textContent,
   };
 
   results.confirmations = confirmations.slice();
@@ -369,6 +394,16 @@ runSequence().then(results => {
     submit_attempt = result["submitAttempt"]
     assert submit_attempt["confirmCount"] == 2
     assert submit_attempt["acknowledgedAfterSubmit"] is True
+    assert submit_attempt["createCallCount"] == 1
+    assert submit_attempt["leaveWithoutPayChecked"] is False
+    assert submit_attempt["vacationChecked"] is True
+    assert submit_attempt["lastPayload"]["data"]["leave_type"] == "vacation-leave"
+    assert submit_attempt["lastPayload"]["data"]["leave_type"] != LEAVE_WITHOUT_PAY_VALUE
+    assert submit_attempt["lastPayload"]["data"]["selected_reasons"] == ["vacation-leave"]
+    expected_notice = (
+        "You still have Privilege Leave remaining. Your request has been updated to use Privilege Leave before unpaid leave."
+    )
+    assert submit_attempt["durationMessage"] == expected_notice
 
     post_deselect = result["postDeselect"]
     assert post_deselect["leaveWithoutPayChecked"] is False
@@ -385,6 +420,14 @@ runSequence().then(results => {
     second_submission = result["secondSubmission"]
     assert second_submission["confirmCount"] == 3
     assert second_submission["acknowledgedAfterSubmit"] is True
+    assert second_submission["createCallCount"] == 2
+    assert second_submission["leaveWithoutPayChecked"] is False
+    assert second_submission["vacationChecked"] is True
+    assert second_submission["lastPayload"]["data"]["leave_type"] == "vacation-leave"
+    assert second_submission["lastPayload"]["data"]["leave_type"] != LEAVE_WITHOUT_PAY_VALUE
+    assert second_submission["lastPayload"]["data"]["selected_reasons"] == ["vacation-leave"]
+    assert second_submission["durationMessage"] == expected_notice
 
     assert len(result["alertsDuringSequence"]) == 2
+    assert all('startInput.removeAttribute' in message for message in result["alertsDuringSequence"])
     assert result["remainingResponses"] == [True]
