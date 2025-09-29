@@ -1879,18 +1879,24 @@ function updateLeaveReasonState() {
     const radioList = Array.from(radios);
     const checkedRadio = radioList.find(rb => rb.checked) || null;
     const anyChecked = Boolean(checkedRadio);
+    const coverageAvailable = canCoverWithPrivilegeLeave();
 
     if (checkedRadio) {
         const isLeaveWithoutPay = checkedRadio.value === LEAVE_WITHOUT_PAY_VALUE;
-        if (!isLeaveWithoutPay || !canCoverWithPrivilegeLeave()) {
+        if (!isLeaveWithoutPay || !coverageAvailable) {
             lastValidLeaveTypeValue = checkedRadio.value;
+        }
+
+        if (!isLeaveWithoutPay && privilegeLeaveWarningAcknowledged) {
+            privilegeLeaveWarningAcknowledged = false;
+        } else if (isLeaveWithoutPay && !coverageAvailable) {
+            privilegeLeaveWarningAcknowledged = false;
         }
     } else {
         lastValidLeaveTypeValue = null;
-    }
-
-    if (!checkedRadio || checkedRadio.value !== LEAVE_WITHOUT_PAY_VALUE || !canCoverWithPrivilegeLeave()) {
-        privilegeLeaveWarningAcknowledged = false;
+        if (privilegeLeaveWarningAcknowledged) {
+            privilegeLeaveWarningAcknowledged = false;
+        }
     }
 
     if (anyChecked) {
@@ -1935,16 +1941,30 @@ function setupLeaveTypeHandling() {
 
     radios.forEach(radio => {
         radio.addEventListener('change', function() {
-            privilegeLeaveWarningAcknowledged = false;
+            const coverageAvailable = canCoverWithPrivilegeLeave();
 
-            if (this.checked && this.value === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
-                const userConfirmed = showPrivilegeLeaveWarning();
-                privilegeLeaveWarningAcknowledged = Boolean(userConfirmed);
-
-                if (!userConfirmed) {
-                    revertLeaveWithoutPaySelection();
-                    return;
+            if (!this.checked) {
+                if (this.value === LEAVE_WITHOUT_PAY_VALUE && privilegeLeaveWarningAcknowledged) {
+                    privilegeLeaveWarningAcknowledged = false;
                 }
+                updateLeaveReasonState();
+                return;
+            }
+
+            if (this.value === LEAVE_WITHOUT_PAY_VALUE) {
+                if (!coverageAvailable) {
+                    privilegeLeaveWarningAcknowledged = false;
+                } else if (!privilegeLeaveWarningAcknowledged) {
+                    const userConfirmed = showPrivilegeLeaveWarning();
+                    privilegeLeaveWarningAcknowledged = Boolean(userConfirmed);
+
+                    if (!userConfirmed) {
+                        revertLeaveWithoutPaySelection();
+                        return;
+                    }
+                }
+            } else if (privilegeLeaveWarningAcknowledged) {
+                privilegeLeaveWarningAcknowledged = false;
             }
 
             if (this.checked) {
@@ -2007,21 +2027,21 @@ async function submitLeaveApplication(event, returnDate = null) {
         const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
 
         if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
-            const userConfirmed = showPrivilegeLeaveWarning();
-            privilegeLeaveWarningAcknowledged = Boolean(userConfirmed);
+            if (!privilegeLeaveWarningAcknowledged) {
+                const userConfirmed = showPrivilegeLeaveWarning();
+                privilegeLeaveWarningAcknowledged = Boolean(userConfirmed);
 
-            if (!userConfirmed) {
-                hideLoading();
-                revertLeaveWithoutPaySelection();
+                if (!userConfirmed) {
+                    hideLoading();
+                    revertLeaveWithoutPaySelection();
 
-                if (durationText) {
-                    durationText.textContent = '';
+                    if (durationText) {
+                        durationText.textContent = '';
+                    }
+                    return;
                 }
-                return;
             }
         }
-
-        privilegeLeaveWarningAcknowledged = false;
 
         if (!returnDate) {
             returnDate = determineReturnDate(endDate, totalHours);
@@ -2044,6 +2064,8 @@ async function submitLeaveApplication(event, returnDate = null) {
         };
 
         const result = await room.collection('leave_application').create(applicationData);
+
+        privilegeLeaveWarningAcknowledged = false;
 
         // Show success modal
         document.getElementById('requestId').textContent = result.application_id || result.id;
