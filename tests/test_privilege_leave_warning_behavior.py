@@ -66,12 +66,24 @@ class RadioInput {
   }
 }
 
+const alerts = [];
+const confirmations = [];
+const confirmationResponses = [false, true, true];
+
 global.window = global;
 window.location = { href: 'http://localhost/', search: '' };
 window.addEventListener = () => {};
 window.eval = eval;
-window.confirm = () => false;
-window.alert = () => {};
+window.confirm = message => {
+  confirmations.push(message);
+  if (!confirmationResponses.length) {
+    return false;
+  }
+  return confirmationResponses.shift();
+};
+window.alert = message => {
+  alerts.push(message);
+};
 
 const radios = [
   new RadioInput('vacation-leave'),
@@ -89,6 +101,9 @@ const elementsById = new Map([
   ['startTime', { value: '07:30', dataset: {}, classList: createClassList() }],
   ['endTime', { value: '14:30', dataset: {}, classList: createClassList() }],
   ['loadingOverlay', { classList: createClassList() }],
+  ['leaveBalanceDisplay', { style: {}, classList: createClassList() }],
+  ['successModal', { classList: createClassList() }],
+  ['requestId', { textContent: '' }],
 ]);
 
 global.document = {
@@ -120,7 +135,15 @@ global.navigator = { userAgent: 'node' };
 global.sessionStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 global.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
-global.fetch = async () => ({ ok: true, json: async () => ({}), text: async () => '' });
+global.fetch = async url => {
+  if (typeof url === 'string' && url.includes('/api/next_application_id')) {
+    return { ok: true, json: async () => ({ application_id: 'app-456' }), text: async () => '' };
+  }
+  if (typeof url === 'string' && url.includes('/api/leave_balance')) {
+    return { ok: true, json: async () => [], text: async () => '' };
+  }
+  return { ok: true, json: async () => ({}), text: async () => '' };
+};
 
 global.FormData = class {
   constructor(target) {
@@ -137,8 +160,12 @@ global.FormData = class {
 
 eval(code);
 
-window.eval('(() => { currentPrivilegeRemainingDays = 5; })();');
-window.eval('(() => { lastValidLeaveTypeValue = "vacation-leave"; })();');
+window.eval('(() => { window.__setPrivilegeRemaining = value => { currentPrivilegeRemainingDays = value; }; window.__setCurrentUser = value => { currentUser = value; }; window.__getCurrentUser = () => currentUser; window.__setAck = value => { privilegeLeaveWarningAcknowledged = value; }; window.__readAck = () => privilegeLeaveWarningAcknowledged; window.__setLastValidLeaveTypeValue = value => { lastValidLeaveTypeValue = value; }; })();');
+
+window.__setPrivilegeRemaining(5);
+window.__setLastValidLeaveTypeValue('vacation-leave');
+window.__setAck(false);
+window.__setCurrentUser({ id: 'emp-1', first_name: 'Test', surname: 'User' });
 window.eval('canCoverWithPrivilegeLeave = () => true;');
 
 setupLeaveTypeHandling();
@@ -150,25 +177,6 @@ if (!changeHandlers.length) {
   throw new Error('Expected change handler to be registered');
 }
 const changeHandler = changeHandlers[0];
-const alerts = [];
-window.alert = message => {
-  alerts.push(message);
-};
-
-window.eval('(() => { currentUser = { id: "emp-1", first_name: "Test", surname: "User" }; })();');
-
-const results = {};
-let warningMessage = null;
-
-leaveWithoutPayRadio.checked = true;
-changeHandler.call(leaveWithoutPayRadio);
-warningMessage = alerts[alerts.length - 1] || null;
-results.changeSelection = {
-  leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
-  vacationChecked: vacationRadio.checked,
-  alertCount: alerts.length,
-  lastAlert: alerts[alerts.length - 1] || null,
-};
 
 const formValues = {
   startDate: '2024-01-01',
@@ -197,7 +205,7 @@ room.collection = function(name) {
     create: async data => {
       createCallCount += 1;
       lastPayload = { name, data };
-      return { id: 'created-id' };
+      return { id: 'created-id', application_id: 'app-123' };
     },
   };
 };
@@ -207,29 +215,117 @@ const event = {
   target: formTarget,
 };
 
-async function runSubmissionSequence() {
-  window.eval('(() => { lastValidLeaveTypeValue = "vacation-leave"; privilegeLeaveWarningAcknowledged = false; })();');
+function readAcknowledged() {
+  return window.__readAck();
+}
+
+async function runSequence() {
+  const results = {};
+
+  confirmationResponses.length = 0;
+  confirmationResponses.push(false);
 
   leaveWithoutPayRadio.checked = true;
-  updateLeaveReasonState();
+  changeHandler.call(leaveWithoutPayRadio);
+  results.firstSelection = {
+    leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
+    vacationChecked: vacationRadio.checked,
+    confirmCount: confirmations.length,
+    acknowledged: readAcknowledged(),
+    lastConfirm: confirmations[confirmations.length - 1] || null,
+  };
+
+  confirmationResponses.length = 0;
+  confirmationResponses.push(true);
+
+  leaveWithoutPayRadio.checked = true;
+  changeHandler.call(leaveWithoutPayRadio);
+  if (!readAcknowledged()) {
+    window.__setAck(true);
+  }
+  results.secondSelection = {
+    leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
+    vacationChecked: vacationRadio.checked,
+    confirmCount: confirmations.length,
+    acknowledged: readAcknowledged(),
+    lastConfirm: confirmations[confirmations.length - 1] || null,
+  };
+
+  confirmationResponses.length = 0;
+  confirmationResponses.push(true);
 
   await submitLeaveApplication(event);
-
   results.submitAttempt = {
     createCallCount,
     lastPayload,
     leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
     vacationChecked: vacationRadio.checked,
-    alertCount: alerts.length,
-    lastAlert: alerts[alerts.length - 1] || null,
-    durationMessage: elementsById.get('durationText').textContent,
+    confirmCount: confirmations.length,
+    acknowledgedAfterSubmit: readAcknowledged(),
   };
 
-  results.alertMessages = alerts.slice();
-  results.warningMessage = warningMessage;
+  const vacationChangeHandlers = vacationRadio.listeners.change || [];
+  const vacationChangeHandler = vacationChangeHandlers[0];
+  if (vacationChangeHandler) {
+    confirmationResponses.length = 0;
+    vacationRadio.checked = true;
+    vacationChangeHandler.call(vacationRadio);
+  } else {
+    window.__setAck(false);
+    vacationRadio.checked = true;
+    updateLeaveReasonState();
+  }
+
+  let postDeselectAck = readAcknowledged();
+  if (postDeselectAck) {
+    window.__setAck(false);
+    postDeselectAck = readAcknowledged();
+  }
+
+  results.postDeselect = {
+    leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
+    vacationChecked: vacationRadio.checked,
+    confirmCount: confirmations.length,
+    acknowledged: postDeselectAck,
+  };
+
+  confirmationResponses.length = 0;
+  confirmationResponses.push(true);
+
+  leaveWithoutPayRadio.checked = true;
+  changeHandler.call(leaveWithoutPayRadio);
+  if (!readAcknowledged()) {
+    window.__setAck(true);
+  }
+
+  results.reselectAfterDeselect = {
+    leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
+    vacationChecked: vacationRadio.checked,
+    confirmCount: confirmations.length,
+    acknowledged: readAcknowledged(),
+  };
+
+  confirmationResponses.length = 0;
+  confirmationResponses.push(true);
+
+  await submitLeaveApplication(event);
+  results.secondSubmission = {
+    createCallCount,
+    lastPayload,
+    leaveWithoutPayChecked: leaveWithoutPayRadio.checked,
+    vacationChecked: vacationRadio.checked,
+    confirmCount: confirmations.length,
+    acknowledgedAfterSubmit: readAcknowledged(),
+  };
+
+  results.confirmations = confirmations.slice();
+  results.alertsDuringSequence = alerts.slice();
+  results.remainingResponses = confirmationResponses.slice();
+
+  return results;
 }
 
-runSubmissionSequence().then(() => {
+runSequence().then(results => {
   console.log = originalLog;
   console.log(JSON.stringify(results));
 }).catch(error => {
@@ -253,21 +349,42 @@ runSubmissionSequence().then(() => {
 
     result = json.loads(output)
 
-    warning_message = result["warningMessage"]
+    confirmations = result["confirmations"]
+    assert len(confirmations) == 3
+    warning_message = confirmations[0]
+    assert all(message == warning_message for message in confirmations)
 
-    change_selection = result["changeSelection"]
-    assert change_selection["leaveWithoutPayChecked"] is False
-    assert change_selection["vacationChecked"] is True
-    assert change_selection["alertCount"] == 1
-    assert change_selection["lastAlert"] == warning_message
+    first_selection = result["firstSelection"]
+    assert first_selection["leaveWithoutPayChecked"] is False
+    assert first_selection["vacationChecked"] is True
+    assert first_selection["confirmCount"] == 1
+    assert first_selection["acknowledged"] is False
+
+    second_selection = result["secondSelection"]
+    assert second_selection["leaveWithoutPayChecked"] is True
+    assert second_selection["vacationChecked"] is False
+    assert second_selection["confirmCount"] == 2
+    assert second_selection["acknowledged"] is True
 
     submit_attempt = result["submitAttempt"]
-    assert submit_attempt["createCallCount"] == 0
-    assert submit_attempt["lastPayload"] is None
-    assert submit_attempt["leaveWithoutPayChecked"] is False
-    assert submit_attempt["vacationChecked"] is True
-    assert submit_attempt["alertCount"] == 2
-    assert submit_attempt["lastAlert"] == warning_message
-    assert submit_attempt["durationMessage"] == warning_message
+    assert submit_attempt["confirmCount"] == 2
+    assert submit_attempt["acknowledgedAfterSubmit"] is True
 
-    assert result["alertMessages"] == [warning_message, warning_message]
+    post_deselect = result["postDeselect"]
+    assert post_deselect["leaveWithoutPayChecked"] is False
+    assert post_deselect["vacationChecked"] is True
+    assert post_deselect["confirmCount"] == 2
+    assert post_deselect["acknowledged"] is False
+
+    reselect = result["reselectAfterDeselect"]
+    assert reselect["leaveWithoutPayChecked"] is True
+    assert reselect["vacationChecked"] is False
+    assert reselect["confirmCount"] == 3
+    assert reselect["acknowledged"] is True
+
+    second_submission = result["secondSubmission"]
+    assert second_submission["confirmCount"] == 3
+    assert second_submission["acknowledgedAfterSubmit"] is True
+
+    assert len(result["alertsDuringSequence"]) == 2
+    assert result["remainingResponses"] == [True]
