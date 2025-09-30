@@ -1195,7 +1195,7 @@ HR Department
                                     ics_content = generate_ics_content(
                                         start_date,
                                         end_date,
-                                        summary=f"Leave for {employee_name}",
+                                        summary=f"{employee_name} - OOO",
                                         description=(
                                             f"Approved leave from {start_date} {start_time or ''} to {end_date} {end_time or ''} "
                                             f"({total_hours} hours / {total_days} days)"
