@@ -312,9 +312,14 @@ let lastValidLeaveTypeValue = null;
 // Track when the Privilege Leave coverage warning has been acknowledged so the
 // confirmation dialog is not shown again until circumstances change.
 let privilegeLeaveWarningAcknowledged = false;
+// Track when the Medical Appointment warning has been acknowledged so it does
+// not repeatedly interrupt the user until they leave and re-select it.
+let medicalAppointmentWarningAcknowledged = false;
 
 const LEAVE_WITHOUT_PAY_VALUE = 'leave-without-pay';
 const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'You still have available Privilege Leave, continuing will consume your available leave first.';
+const MEDICAL_APPOINTMENT_VALUE = 'medical-appointment';
+const MEDICAL_APPOINTMENT_WARNING_MESSAGE = 'Medical Appointment requests are deducted from your Sick Leave balance.';
 
 // Track whether holiday form handlers have been initialized
 let holidayFormInitialized = false;
@@ -1946,6 +1951,8 @@ function setupLeaveTypeHandling() {
             if (!this.checked) {
                 if (this.value === LEAVE_WITHOUT_PAY_VALUE && privilegeLeaveWarningAcknowledged) {
                     privilegeLeaveWarningAcknowledged = false;
+                } else if (this.value === MEDICAL_APPOINTMENT_VALUE && medicalAppointmentWarningAcknowledged) {
+                    medicalAppointmentWarningAcknowledged = false;
                 }
                 updateLeaveReasonState();
                 return;
@@ -1965,6 +1972,15 @@ function setupLeaveTypeHandling() {
                 }
             } else if (privilegeLeaveWarningAcknowledged) {
                 privilegeLeaveWarningAcknowledged = false;
+            }
+
+            if (this.value === MEDICAL_APPOINTMENT_VALUE) {
+                if (!medicalAppointmentWarningAcknowledged) {
+                    window.alert(MEDICAL_APPOINTMENT_WARNING_MESSAGE);
+                    medicalAppointmentWarningAcknowledged = true;
+                }
+            } else if (medicalAppointmentWarningAcknowledged) {
+                medicalAppointmentWarningAcknowledged = false;
             }
 
             if (this.checked) {
