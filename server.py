@@ -89,6 +89,19 @@ LATEST_LEAVE_TIME = datetime.strptime("15:00", "%H:%M").time()
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "mgllanos@gmail.com")
 if not ADMIN_EMAIL:
     raise RuntimeError("ADMIN_EMAIL environment variable is required")
+
+
+def _parse_email_list(raw_value):
+    """Return a list of email addresses parsed from a comma separated string."""
+
+    if not raw_value:
+        return []
+    return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+
+ADMIN_APPROVE_EMAILS = _parse_email_list(os.getenv("ADMIN_APPROVE_EMAIL"))
+if not ADMIN_APPROVE_EMAILS:
+    ADMIN_APPROVE_EMAILS = _parse_email_list(ADMIN_EMAIL) or [ADMIN_EMAIL]
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 
@@ -1006,7 +1019,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         SMTP_PASSWORD,
                         ics_content=ics,
                     )
-                    email_status[recipient] = bool(sent)
+                    previous_status = email_status.get(recipient)
+                    current_status = bool(sent)
+                    if previous_status is None:
+                        email_status[recipient] = current_status
+                    else:
+                        email_status[recipient] = previous_status and current_status
                     if not sent:
                         logging.warning(
                             "Failed to send email to %s for application %s: %s",
@@ -1015,7 +1033,8 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                             err,
                         )
                 except Exception as email_err:  # noqa: BLE001 - unexpected failure
-                    email_status[recipient] = False
+                    previous_status = email_status.get(recipient)
+                    email_status[recipient] = False if previous_status is None else previous_status and False
                     logging.exception(
                         "Failed to send email '%s' to %s for application %s",
                         subject,
@@ -1204,17 +1223,18 @@ HR Department
                                         end_time=end_time,
                                     )
 
-                                admin_email = ADMIN_EMAIL
-                                if admin_email:
-                                    notification_emails.append(
-                                        (
-                                            'admin',
-                                            admin_email,
-                                            admin_subject,
-                                            admin_body,
-                                            ics_content,
+                                admin_recipients = ADMIN_APPROVE_EMAILS or ([ADMIN_EMAIL] if ADMIN_EMAIL else [])
+                                if admin_recipients:
+                                    for admin_email in admin_recipients:
+                                        notification_emails.append(
+                                            (
+                                                'admin',
+                                                admin_email,
+                                                admin_subject,
+                                                admin_body,
+                                                ics_content,
+                                            )
                                         )
-                                    )
                                 else:
                                     logging.warning(
                                         "Admin email missing for application %s; skipping admin notification",
@@ -1307,7 +1327,12 @@ HR Department
                         SMTP_PASSWORD,
                         ics_content=ics,
                     )
-                    email_status[recipient] = bool(sent)
+                    previous_status = email_status.get(recipient)
+                    current_status = bool(sent)
+                    if previous_status is None:
+                        email_status[recipient] = current_status
+                    else:
+                        email_status[recipient] = previous_status and current_status
                     if not sent:
                         logging.warning(
                             "Failed to send email to %s for application %s: %s",
@@ -1316,7 +1341,8 @@ HR Department
                             err,
                         )
                 except Exception as email_err:  # noqa: BLE001 - unexpected failure
-                    email_status[recipient] = False
+                    previous_status = email_status.get(recipient)
+                    email_status[recipient] = False if previous_status is None else previous_status and False
                     logging.exception(
                         "Failed to send email '%s' to %s for application %s",
                         subject,
