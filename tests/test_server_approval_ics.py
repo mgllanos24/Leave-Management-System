@@ -178,6 +178,7 @@ def test_all_admin_recipients_receive_approval_notification(monkeypatch):
 
     assert len(employee_calls) == 1
     assert employee_calls[0]["ics"] is None
+    assert employee_calls[0]["subject"] == "Alice Smith - OOO"
 
     conn.close()
 

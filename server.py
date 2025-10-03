@@ -1190,7 +1190,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     f"- Total Hours: {total_hours}\n"
                                     f"- Equivalent Days: {total_days}\n"
                                 )
-                                employee_subject = f"Your leave application has been {status_word}"
+                                if new_status == 'Approved':
+                                    employee_subject = f"{employee_name} - OOO"
+                                else:
+                                    employee_subject = f"Your leave application has been {status_word}"
 
                                 employee_body = f"""Dear {employee_name},
 
