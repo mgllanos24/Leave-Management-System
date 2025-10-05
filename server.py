@@ -9,19 +9,42 @@ import logging
 import sqlite3
 from datetime import datetime, timedelta  # @tweakable include timedelta for date calculations
 from http.cookies import SimpleCookie
+from pathlib import Path
 
 
 def _load_env(path: str = ".env") -> None:
     """Populate ``os.environ`` from a ``.env`` file if it exists."""
 
-    if os.path.exists(path):
-        with open(path) as env_file:
-            for raw_line in env_file:
-                line = raw_line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
+    env_path = Path(path)
+    search_paths = []
+
+    if env_path.is_absolute():
+        search_paths.append(env_path)
+    else:
+        base_dir = Path(__file__).resolve().parent
+        base_candidate = base_dir / env_path
+        search_paths.append(base_candidate)
+
+        cwd_candidate = Path.cwd() / env_path
+        if cwd_candidate != base_candidate:
+            search_paths.append(cwd_candidate)
+
+    for candidate in search_paths:
+        if candidate.exists():
+            with candidate.open() as env_file:
+                for raw_line in env_file:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip())
+            return
+
+    logging.warning(
+        "Environment file %s not found. Looked in: %s",
+        path,
+        ", ".join(str(candidate) for candidate in search_paths) or str(env_path),
+    )
 
 
 _load_env()
