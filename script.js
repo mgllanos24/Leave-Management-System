@@ -3170,6 +3170,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('historySearch');
     const exportBtn = document.getElementById('historyExportBtn');
+    const printBtn = document.getElementById('printHistoryBtn');
 
     let reloadTimeout;
     const reload = () => {
@@ -3182,6 +3183,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (searchInput) searchInput.addEventListener('input', reload);
     if (exportBtn) exportBtn.addEventListener('click', exportAdminHistoryPdf);
+    if (printBtn) {
+        printBtn.addEventListener('click', () => {
+            document.body.classList.add('admin-history-printing');
+            const cleanup = () => {
+                document.body.classList.remove('admin-history-printing');
+                window.removeEventListener('afterprint', cleanup);
+            };
+            window.addEventListener('afterprint', cleanup);
+            window.print();
+        });
+    }
 });
 
 // Expose functions for debugging
