@@ -86,9 +86,23 @@ EARLIEST_LEAVE_TIME = datetime.strptime("06:30", "%H:%M").time()
 LATEST_LEAVE_TIME = datetime.strptime("15:00", "%H:%M").time()
 
 # @tweakable server configuration
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "mgllanos@gmail.com")
-if not ADMIN_EMAIL:
-    raise RuntimeError("ADMIN_EMAIL environment variable is required")
+
+
+def _require_env(name: str) -> str:
+    """Return the value of ``name`` from the environment, failing fast when absent."""
+
+    value = os.getenv(name)
+    if value is None:
+        raise RuntimeError(f"{name} environment variable is required")
+    if not value.strip():
+        raise RuntimeError(f"{name} environment variable must not be empty")
+    # Preserve any intentional whitespace for secrets while normalising identifiers.
+    if name.endswith("_PASSWORD"):
+        return value
+    return value.strip()
+
+
+ADMIN_EMAIL = _require_env("ADMIN_EMAIL")
 
 
 def _parse_email_list(raw_value):
@@ -102,8 +116,8 @@ def _parse_email_list(raw_value):
 ADMIN_APPROVE_EMAILS = _parse_email_list(os.getenv("ADMIN_APPROVE_EMAIL"))
 if not ADMIN_APPROVE_EMAILS:
     ADMIN_APPROVE_EMAILS = _parse_email_list(ADMIN_EMAIL) or [ADMIN_EMAIL]
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"
+ADMIN_USERNAME = _require_env("ADMIN_USERNAME")
+ADMIN_PASSWORD = _require_env("ADMIN_PASSWORD")
 
 # @tweakable employee management configuration - define missing constants
 AUTO_CREATE_BALANCE_RECORDS = True

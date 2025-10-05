@@ -45,20 +45,27 @@ A comprehensive web-based leave management system designed for small to medium o
    SMTP_PASSWORD = "your-app-password"     # Your Gmail App Password
    ```
 
-#### Administrator Email
+#### Administrator Credentials
 
-The server requires an email address for the administrator so notifications can
-be delivered when employees submit leave requests. Set this via an
-`ADMIN_EMAIL` environment variable. The application will read variables from a
+The server requires dedicated credentials for the administrator interface. Set
+the following environment variables before launching the application:
+
+- `ADMIN_EMAIL`: where approval and notification emails should be delivered.
+- `ADMIN_USERNAME`: the username administrators will use to sign in.
+- `ADMIN_PASSWORD`: a strong password for the administrator account.
+
+The application will read these values from the surrounding environment or a
 local `.env` file if present:
 
 ```bash
 # .env
 ADMIN_EMAIL=admin@example.com
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 ```
 
-Make sure to provide a real address in production so alerts reach the
-appropriate person.
+Make sure to generate unique, high-entropy secrets for production environments
+and distribute them through your organisation's secret management tooling.
 
 ### Manual Verification
 
