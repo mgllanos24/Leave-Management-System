@@ -10,6 +10,22 @@ import sqlite3
 from datetime import datetime, timedelta  # @tweakable include timedelta for date calculations
 from http.cookies import SimpleCookie
 
+
+def _load_env(path: str = ".env") -> None:
+    """Populate ``os.environ`` from a ``.env`` file if it exists."""
+
+    if os.path.exists(path):
+        with open(path) as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_env()
+
 # Import service modules
 from services.database_service import init_database, get_db_connection, db_lock
 from services.employee_service import create_employee, update_employee, delete_employee, get_employees, get_employee_by_email
@@ -47,20 +63,6 @@ except Exception as log_err:  # noqa: BLE001 - broad exception to keep server ru
         "Falling back to stderr logging because server.log could not be opened: %s",
         log_err,
     )
-
-# Load environment variables from a .env file if present
-def _load_env(path: str = ".env") -> None:
-    """Populate ``os.environ`` from a ``.env`` file if it exists."""
-    if os.path.exists(path):
-        with open(path) as env_file:
-            for raw_line in env_file:
-                line = raw_line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
-
-_load_env()
 
 # Configure logging
 LOG_FILE = os.getenv("LOG_FILE", "server.log")

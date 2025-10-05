@@ -13,13 +13,27 @@ from datetime import datetime, timedelta
 from email.message import EmailMessage
 
 
-# Default configuration can be provided via environment variables. These values
-# are only used if explicit settings are not supplied when calling
-# ``send_notification_email``.
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME", "qtaskvacation@gmail.com")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "bicg llyb myff kigu")
+def _require_env(key: str) -> str:
+    """Return the value of ``key`` from the environment or raise an error."""
+
+    value = os.getenv(key)
+    if value is None or value.strip() == "":
+        raise RuntimeError(
+            f"{key} environment variable is required for SMTP email delivery"
+        )
+    return value
+
+
+# Configuration must be supplied via the environment to avoid shipping secrets
+# in source control. A clear error is raised during application startup when the
+# variables are missing so deployments can fail fast.
+SMTP_SERVER = _require_env("SMTP_SERVER")
+try:
+    SMTP_PORT = int(_require_env("SMTP_PORT"))
+except ValueError as exc:  # pragma: no cover - defensive
+    raise RuntimeError("SMTP_PORT must be an integer") from exc
+SMTP_USERNAME = _require_env("SMTP_USERNAME")
+SMTP_PASSWORD = _require_env("SMTP_PASSWORD")
 
 
 def generate_ics_content(
