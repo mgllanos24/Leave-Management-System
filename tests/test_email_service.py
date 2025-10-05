@@ -1,3 +1,13 @@
+import os
+
+for key, value in (
+    ("SMTP_SERVER", "smtp.test"),
+    ("SMTP_PORT", "2525"),
+    ("SMTP_USERNAME", "user@test"),
+    ("SMTP_PASSWORD", "secret"),
+):
+    os.environ.setdefault(key, value)
+
 from services import email_service
 
 
