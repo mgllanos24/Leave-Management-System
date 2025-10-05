@@ -17,11 +17,11 @@ from contextlib import nullcontext
 AUTO_UPDATE_BALANCES = True
 PREVENT_NEGATIVE_BALANCES = False
 ENABLE_BALANCE_AUDIT = True
-# Checkbox values that map to privilege leave
+# Checkbox values that map to vacation leave
 # These correspond to the `value` attributes in index.html
-# Store privilege leave types as lowercase values to allow
+# Store vacation leave types as lowercase values to allow
 # case-insensitive matching when processing leave types
-PRIVILEGE_LEAVE_TYPES = {
+VACATION_LEAVE_TYPES = {
     t.lower()
     for t in {
         'personal',
@@ -39,6 +39,12 @@ PRIVILEGE_LEAVE_TYPES = {
 }
 NON_DEDUCTIBLE_LEAVE_TYPES = {'leave-without-pay'}
 ADMIN_CAN_EDIT_REMAINING_LEAVE = True
+# Display labels for balance types when constructing user-facing messages
+BALANCE_TYPE_DISPLAY = {
+    'PRIVILEGE': 'Vacation Leave (VL)',
+    'SICK': 'Sick Leave (SL)',
+}
+
 DEFAULT_PRIVILEGE_LEAVE = 15
 DEFAULT_SICK_LEAVE = 5
 
@@ -93,7 +99,7 @@ def initialize_employee_balances(employee_id, year=None):
                     conn.close()
                     return True
 
-                # Initialize privilege leave balance
+                # Initialize vacation leave balance
                 conn.execute('''
                     INSERT OR REPLACE INTO leave_balances
                     (id, employee_id, balance_type, allocated_days, used_days, remaining_days, year, last_updated, created_at)
@@ -214,8 +220,9 @@ def update_leave_balance(
     if prevent_negative and new_remaining < -1e-6:
         requested = abs(float(change_amount))
         available = float(previous_remaining)
+        display_name = BALANCE_TYPE_DISPLAY.get(balance_type.upper(), f"{balance_type.title()} leave")
         raise ValueError(
-            f"Insufficient {balance_type.lower()} leave balance: requested {requested:.2f} days, "
+            f"Insufficient {display_name} balance: requested {requested:.2f} days, "
             f"but only {available:.2f} days remain."
         )
 
@@ -391,7 +398,7 @@ def process_leave_application_balance(
             if not is_non_deductible:
                 balance_type = (
                     'PRIVILEGE'
-                    if leave_token in PRIVILEGE_LEAVE_TYPES or is_leave_without_pay
+                    if leave_token in VACATION_LEAVE_TYPES or is_leave_without_pay
                     else 'SICK'
                 )
 
@@ -612,7 +619,7 @@ def update_balances_from_admin_edit(employee_id, new_remaining_pl, new_remaining
             current_time = datetime.now().isoformat()
             current_year = datetime.now().year
 
-            # --- Update Privilege Leave ---
+            # --- Update Vacation Leave ---
             cursor_pl = conn.execute(
                 'SELECT id, remaining_days, used_days, allocated_days FROM leave_balances WHERE employee_id = ? AND balance_type = "PRIVILEGE" AND year = ?',
                 (employee_id, current_year)

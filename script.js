@@ -300,37 +300,37 @@ let currentUserType = null;
 let currentUser = null;
 let sessionToken = null;
 
-// Track remaining Privilege Leave for the logged-in employee so validations can
+// Track remaining Vacation Leave for the logged-in employee so validations can
 // be enforced before sending requests to the server.
-let currentPrivilegeRemainingDays = 0;
+let currentVacationRemainingDays = 0;
 
 // Remember the last valid leave type selection so we can restore it if a user
-// attempts to select Leave Without Pay while Privilege Leave is still
+// attempts to select Leave Without Pay while Vacation Leave is still
 // available.
 let lastValidLeaveTypeValue = null;
 
-// Track when the Privilege Leave coverage warning has been acknowledged so the
+// Track when the Vacation Leave coverage warning has been acknowledged so the
 // confirmation dialog is not shown again until circumstances change.
-let privilegeLeaveWarningAcknowledged = false;
+let vacationLeaveWarningAcknowledged = false;
 // Track when the Medical Appointment warning has been acknowledged so it does
 // not repeatedly interrupt the user until they leave and re-select it.
 let medicalAppointmentWarningAcknowledged = false;
 
 const LEAVE_WITHOUT_PAY_VALUE = 'leave-without-pay';
-const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'You still have available Privilege Leave, continuing will consume your available leave first.';
+const VACATION_LEAVE_WARNING_MESSAGE = 'You still have available Vacation Leave (VL); continuing will consume your available leave first.';
 const MEDICAL_APPOINTMENT_VALUE = 'medical-appointment';
 const MEDICAL_APPOINTMENT_WARNING_MESSAGE = 'Medical Appointment requests are deducted from your Sick Leave balance.';
 
-// Keep the sick/privilege leave groupings aligned with the backend balance
+// Keep the sick/vacation leave groupings aligned with the backend balance
 // manager (see services/balance_manager.py). The backend treats "sick",
 // "sl", and "medical-appointment" as sick leave deductions and everything
-// else as privilege leave (with Leave Without Pay deducted from privilege as
+// else as vacation leave (with Leave Without Pay deducted from vacation as
 // well). Introspect the leave type radios so new options automatically stay in
 // sync with these groupings.
 const SICK_LEAVE_TYPES = new Set(['sick', 'sl', MEDICAL_APPOINTMENT_VALUE]);
-const PRIVILEGE_LEAVE_ALIASES = new Set(['privilege', 'pl']);
+const VACATION_LEAVE_ALIASES = new Set(['vacation', 'vl', 'privilege', 'pl']);
 const knownLeaveTypes = (() => {
-    const values = new Set([...SICK_LEAVE_TYPES, ...PRIVILEGE_LEAVE_ALIASES]);
+    const values = new Set([...SICK_LEAVE_TYPES, ...VACATION_LEAVE_ALIASES]);
 
     if (typeof document !== 'undefined') {
         try {
@@ -360,7 +360,7 @@ function classifyLeaveTypeForSummary(leaveTypeValue) {
     }
 
     if (!knownLeaveTypes.has(normalized) && !loggedUnknownLeaveTypes.has(normalized)) {
-        console.warn(`Encountered unrecognized leave type "${normalized}" while summarizing usage; defaulting to Privilege Leave.`);
+        console.warn(`Encountered unrecognized leave type "${normalized}" while summarizing usage; defaulting to Vacation Leave (VL).`);
         loggedUnknownLeaveTypes.add(normalized);
     }
 
@@ -1121,8 +1121,8 @@ async function updateEmployeeInfo() {
 async function updateLeaveBalanceDisplay() {
     const container = document.getElementById('leaveBalanceDisplay');
     if (!currentUser || !container) {
-        currentPrivilegeRemainingDays = 0;
-        privilegeLeaveWarningAcknowledged = false;
+        currentVacationRemainingDays = 0;
+        vacationLeaveWarningAcknowledged = false;
         return;
     }
 
@@ -1175,9 +1175,9 @@ async function updateLeaveBalanceDisplay() {
             ? Number.parseFloat(priv.remaining_days)
             : 0;
         const newRemainingPrivilege = Number.isFinite(parsedPrivilege) ? parsedPrivilege : 0;
-        currentPrivilegeRemainingDays = newRemainingPrivilege;
+        currentVacationRemainingDays = newRemainingPrivilege;
         if (!Number.isFinite(newRemainingPrivilege) || newRemainingPrivilege <= 0) {
-            privilegeLeaveWarningAcknowledged = false;
+            vacationLeaveWarningAcknowledged = false;
         }
 
         const privEl = document.getElementById('privilegeLeaveBalance');
@@ -1204,8 +1204,8 @@ async function updateLeaveBalanceDisplay() {
         container.style.display = 'block';
     } catch (err) {
         console.error('Error loading leave balances:', err);
-        currentPrivilegeRemainingDays = 0;
-        privilegeLeaveWarningAcknowledged = false;
+        currentVacationRemainingDays = 0;
+        vacationLeaveWarningAcknowledged = false;
         container.style.display = 'none';
     }
 }
@@ -1863,8 +1863,8 @@ function calculateLeaveDuration() {
 
 function canCoverWithPrivilegeLeave() {
     return (
-        Number.isFinite(currentPrivilegeRemainingDays) &&
-        currentPrivilegeRemainingDays > 0
+        Number.isFinite(currentVacationRemainingDays) &&
+        currentVacationRemainingDays > 0
     );
 }
 
@@ -1905,16 +1905,16 @@ function computeRequestedTotalHours() {
 function showPrivilegeLeaveWarning() {
     if (typeof window !== 'undefined') {
         if (typeof window.confirm === 'function') {
-            return window.confirm(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+            return window.confirm(VACATION_LEAVE_WARNING_MESSAGE);
         }
 
         if (typeof window.alert === 'function') {
-            window.alert(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+            window.alert(VACATION_LEAVE_WARNING_MESSAGE);
             return true;
         }
     }
 
-    console.warn(PRIVILEGE_LEAVE_WARNING_MESSAGE);
+    console.warn(VACATION_LEAVE_WARNING_MESSAGE);
     return true;
 }
 
@@ -1938,15 +1938,15 @@ function updateLeaveReasonState() {
             lastValidLeaveTypeValue = checkedRadio.value;
         }
 
-        if (!isLeaveWithoutPay && privilegeLeaveWarningAcknowledged) {
-            privilegeLeaveWarningAcknowledged = false;
+        if (!isLeaveWithoutPay && vacationLeaveWarningAcknowledged) {
+            vacationLeaveWarningAcknowledged = false;
         } else if (isLeaveWithoutPay && !coverageAvailable) {
-            privilegeLeaveWarningAcknowledged = false;
+            vacationLeaveWarningAcknowledged = false;
         }
     } else {
         lastValidLeaveTypeValue = null;
-        if (privilegeLeaveWarningAcknowledged) {
-            privilegeLeaveWarningAcknowledged = false;
+        if (vacationLeaveWarningAcknowledged) {
+            vacationLeaveWarningAcknowledged = false;
         }
     }
 
@@ -1973,7 +1973,7 @@ function revertLeaveWithoutPaySelection() {
         }
     }
 
-    privilegeLeaveWarningAcknowledged = false;
+    vacationLeaveWarningAcknowledged = false;
     updateLeaveReasonState();
 }
 
@@ -1995,8 +1995,8 @@ function setupLeaveTypeHandling() {
             const coverageAvailable = canCoverWithPrivilegeLeave();
 
             if (!this.checked) {
-                if (this.value === LEAVE_WITHOUT_PAY_VALUE && privilegeLeaveWarningAcknowledged) {
-                    privilegeLeaveWarningAcknowledged = false;
+                if (this.value === LEAVE_WITHOUT_PAY_VALUE && vacationLeaveWarningAcknowledged) {
+                    vacationLeaveWarningAcknowledged = false;
                 } else if (this.value === MEDICAL_APPOINTMENT_VALUE && medicalAppointmentWarningAcknowledged) {
                     medicalAppointmentWarningAcknowledged = false;
                 }
@@ -2006,18 +2006,18 @@ function setupLeaveTypeHandling() {
 
             if (this.value === LEAVE_WITHOUT_PAY_VALUE) {
                 if (!coverageAvailable) {
-                    privilegeLeaveWarningAcknowledged = false;
-                } else if (!privilegeLeaveWarningAcknowledged) {
+                    vacationLeaveWarningAcknowledged = false;
+                } else if (!vacationLeaveWarningAcknowledged) {
                     const userConfirmed = showPrivilegeLeaveWarning();
-                    privilegeLeaveWarningAcknowledged = Boolean(userConfirmed);
+                    vacationLeaveWarningAcknowledged = Boolean(userConfirmed);
 
                     if (!userConfirmed) {
                         revertLeaveWithoutPaySelection();
                         return;
                     }
                 }
-            } else if (privilegeLeaveWarningAcknowledged) {
-                privilegeLeaveWarningAcknowledged = false;
+            } else if (vacationLeaveWarningAcknowledged) {
+                vacationLeaveWarningAcknowledged = false;
             }
 
             if (this.value === MEDICAL_APPOINTMENT_VALUE) {
@@ -2089,9 +2089,9 @@ async function submitLeaveApplication(event, returnDate = null) {
         const totalDays = totalHours > 0 ? Math.round((totalHours / WORK_HOURS_PER_DAY) * 10000) / 10000 : 0;
 
         if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
-            if (!privilegeLeaveWarningAcknowledged) {
+            if (!vacationLeaveWarningAcknowledged) {
                 const userConfirmed = showPrivilegeLeaveWarning();
-                privilegeLeaveWarningAcknowledged = Boolean(userConfirmed);
+                vacationLeaveWarningAcknowledged = Boolean(userConfirmed);
 
                 if (!userConfirmed) {
                     hideLoading();
@@ -2106,7 +2106,7 @@ async function submitLeaveApplication(event, returnDate = null) {
         }
 
         if (selectedLeaveType === LEAVE_WITHOUT_PAY_VALUE && canCoverWithPrivilegeLeave()) {
-            const privilegeNotice = 'You still have Privilege Leave remaining. Your request has been updated to use Privilege Leave before unpaid leave.';
+            const vacationNotice = 'You still have Vacation Leave (VL) remaining. Your request has been updated to use Vacation Leave before unpaid leave.';
             const radios = Array.from(document.querySelectorAll('input[name="leaveType"]'));
             const leaveWithoutPayRadio = radios.find(rb => rb.value === LEAVE_WITHOUT_PAY_VALUE) || null;
             const preferredValues = [];
@@ -2142,19 +2142,19 @@ async function submitLeaveApplication(event, returnDate = null) {
                     formData.set('leaveType', enforcedValue);
                 }
                 lastValidLeaveTypeValue = enforcedValue;
-                privilegeLeaveWarningAcknowledged = false;
+                vacationLeaveWarningAcknowledged = false;
                 updateLeaveReasonState();
 
                 if (durationText) {
-                    durationText.textContent = privilegeNotice;
+                    durationText.textContent = vacationNotice;
                 } else if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-                    window.alert(privilegeNotice);
+                    window.alert(vacationNotice);
                 }
             } else {
                 if (durationText) {
-                    durationText.textContent = privilegeNotice;
+                    durationText.textContent = vacationNotice;
                 } else if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-                    window.alert(privilegeNotice);
+                    window.alert(vacationNotice);
                 }
                 hideLoading();
                 return;
@@ -2195,7 +2195,7 @@ async function submitLeaveApplication(event, returnDate = null) {
 
         const result = await room.collection('leave_application').create(applicationData);
 
-        privilegeLeaveWarningAcknowledged = false;
+        vacationLeaveWarningAcknowledged = false;
 
         // Show success modal
         document.getElementById('requestId').textContent = result.application_id || result.id;

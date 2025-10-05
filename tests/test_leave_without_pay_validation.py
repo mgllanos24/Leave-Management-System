@@ -21,12 +21,12 @@ def test_database(tmp_path):
         database_service.DATABASE_PATH = original_db_path
 
 
-def _create_employee_with_privilege_balance():
+def _create_employee_with_vacation_balance():
     employee = employee_service.create_employee(
         {
-            'first_name': 'Privilege',
+            'first_name': 'Vacation',
             'surname': 'Saver',
-            'personal_email': f'privilege.saver.{uuid.uuid4().hex[:6]}@example.com',
+            'personal_email': f'vacation.saver.{uuid.uuid4().hex[:6]}@example.com',
             'annual_leave': 10,
             'sick_leave': 5,
         }
@@ -36,7 +36,7 @@ def _create_employee_with_privilege_balance():
     return employee_id
 
 
-def _fetch_privilege_remaining_days(employee_id):
+def _fetch_vacation_remaining_days(employee_id):
     with db_lock:
         conn = get_db_connection()
         try:
@@ -51,35 +51,35 @@ def _fetch_privilege_remaining_days(employee_id):
             conn.close()
 
 
-def test_leave_without_pay_rejected_when_request_within_privilege_balance(test_database):
-    employee_id = _create_employee_with_privilege_balance()
+def test_leave_without_pay_rejected_when_request_within_vacation_balance(test_database):
+    employee_id = _create_employee_with_vacation_balance()
 
     with pytest.raises(ValueError) as excinfo:
         server.ensure_leave_without_pay_allowed(employee_id, requested_days=1)
 
-    assert str(excinfo.value) == server.LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE
-    assert _fetch_privilege_remaining_days(employee_id) > 0
+    assert str(excinfo.value) == server.LEAVE_WITHOUT_PAY_VACATION_MESSAGE
+    assert _fetch_vacation_remaining_days(employee_id) > 0
 
 
-def test_leave_without_pay_rejected_when_request_exceeds_privilege_balance(test_database):
-    employee_id = _create_employee_with_privilege_balance()
-    remaining = _fetch_privilege_remaining_days(employee_id)
+def test_leave_without_pay_rejected_when_request_exceeds_vacation_balance(test_database):
+    employee_id = _create_employee_with_vacation_balance()
+    remaining = _fetch_vacation_remaining_days(employee_id)
 
     # Requesting more than the remaining balance must still be rejected when
-    # any privilege leave remains.
+    # any Vacation Leave (VL) remains.
     with pytest.raises(ValueError) as excinfo:
         server.ensure_leave_without_pay_allowed(
             employee_id,
             requested_days=remaining + 1,
         )
 
-    assert str(excinfo.value) == server.LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE
+    assert str(excinfo.value) == server.LEAVE_WITHOUT_PAY_VACATION_MESSAGE
 
 
 def test_leave_without_pay_uses_current_year_balance(test_database):
-    """Privilege balances prefer the current year when multiple records exist."""
+    """Vacation balances prefer the current year when multiple records exist."""
 
-    employee_id = _create_employee_with_privilege_balance()
+    employee_id = _create_employee_with_vacation_balance()
     current_year = datetime.now().year
     previous_year = current_year - 1
 
@@ -118,5 +118,5 @@ def test_leave_without_pay_uses_current_year_balance(test_database):
             conn.close()
 
     # Request within the previous year's balance should still be allowed because
-    # the current year's balance is exhausted.
+    # the current year's Vacation Leave (VL) allocation is exhausted.
     server.ensure_leave_without_pay_allowed(employee_id, requested_days=1)

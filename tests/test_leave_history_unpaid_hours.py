@@ -163,7 +163,7 @@ window.eval(`
   updateLeaveBalanceDisplay = async function() {
     const container = document.getElementById('leaveBalanceDisplay');
     if (!currentUser || !container) {
-      currentPrivilegeRemainingDays = 0;
+      currentVacationRemainingDays = 0;
       return;
     }
     const balances = __testBalances;
@@ -199,7 +199,7 @@ window.eval(`
     const parsedPrivilege = priv && priv.remaining_days != null
       ? Number.parseFloat(priv.remaining_days)
       : 0;
-    currentPrivilegeRemainingDays = Number.isFinite(parsedPrivilege) ? parsedPrivilege : 0;
+    currentVacationRemainingDays = Number.isFinite(parsedPrivilege) ? parsedPrivilege : 0;
 
     const privEl = document.getElementById('privilegeLeaveBalance');
     const sickEl = document.getElementById('sickLeaveBalance');
