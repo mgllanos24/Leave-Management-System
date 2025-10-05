@@ -308,6 +308,36 @@ header p {
     font-size: 1.3rem;
 }
 
+/* Admin leave history toolbar */
+.history-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.history-toolbar input[type="text"] {
+    flex: 1 1 240px;
+    min-width: 200px;
+}
+
+.history-toolbar .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .history-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .history-toolbar .btn {
+        width: 100%;
+    }
+}
+
 .employee-form {
     display: flex;
     flex-direction: column;
@@ -1133,4 +1163,73 @@ tr:hover {
 
 .remaining-alert {
     color: var(--error-color); /* #dc2626 */
+}
+
+@media print {
+    @page {
+        size: A3 portrait;
+        margin: 12mm;
+    }
+
+    body.admin-history-printing {
+        background: #ffffff;
+        color: #000000;
+    }
+
+    body.admin-history-printing .container {
+        max-width: none;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        min-height: auto;
+    }
+
+    body.admin-history-printing #appContainer {
+        padding: 0;
+        margin: 0;
+    }
+
+    body.admin-history-printing #entryContainer,
+    body.admin-history-printing #employeeLoginContainer,
+    body.admin-history-printing #adminLoginContainer,
+    body.admin-history-printing .tab-navigation,
+    body.admin-history-printing .tab-content {
+        display: none !important;
+    }
+
+    body.admin-history-printing #admin-history {
+        display: block !important;
+    }
+
+    body.admin-history-printing #admin-history .admin-panel,
+    body.admin-history-printing #admin-history .section,
+    body.admin-history-printing #admin-history .table-container {
+        box-shadow: none;
+        background: transparent;
+    }
+
+    body.admin-history-printing #admin-history .section {
+        padding: 0;
+    }
+
+    body.admin-history-printing #printHistoryBtn,
+    body.admin-history-printing #admin-history .history-toolbar {
+        display: none !important;
+    }
+
+    body.admin-history-printing #admin-history .table-container {
+        overflow: visible;
+    }
+
+    body.admin-history-printing #admin-history table {
+        width: 100% !important;
+        min-width: 0 !important;
+        white-space: normal !important;
+    }
+
+    body.admin-history-printing #admin-history th,
+    body.admin-history-printing #admin-history td {
+        padding: 8px 10px;
+        min-width: auto;
+    }
 }
