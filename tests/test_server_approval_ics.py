@@ -175,6 +175,7 @@ def test_all_admin_recipients_receive_approval_notification(monkeypatch):
     assert {call["to"] for call in admin_calls} == set(admin_recipients)
     for call in admin_calls:
         assert call["ics"] == ics_payload
+        assert call["subject"] == "Alice Smith - OOO"
 
     assert len(employee_calls) == 1
     assert employee_calls[0]["ics"] is None

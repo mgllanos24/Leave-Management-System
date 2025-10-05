@@ -1217,7 +1217,10 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
                                 return_date = next_workday(end_date, holidays)
 
-                                admin_subject = f"Leave application {status_word}: {employee_name}"
+                                if new_status == 'Approved':
+                                    admin_subject = f"{employee_name} - OOO"
+                                else:
+                                    admin_subject = f"Leave application {status_word}: {employee_name}"
 
                                 admin_body = (
                                     f"Leave request for {employee_name} (Application ID: {app_id}) has been {status_word}.\n\n"
