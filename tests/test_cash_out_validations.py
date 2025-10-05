@@ -35,7 +35,7 @@ def _create_employee_with_balance(annual_leave):
     return employee_id
 
 
-def _fetch_remaining_privilege_days(employee_id):
+def _fetch_remaining_vacation_days(employee_id):
     with db_lock:
         conn = get_db_connection()
         try:
@@ -56,8 +56,8 @@ def test_cash_out_submission_rejected_when_request_exceeds_balance(test_database
     with pytest.raises(ValueError) as excinfo:
         server.ensure_cash_out_balance(employee_id, requested_days=2.0, requested_hours=16.0, preferred_unit='days')
 
-    assert 'exceeds remaining Privilege Leave' in str(excinfo.value)
-    assert pytest.approx(_fetch_remaining_privilege_days(employee_id)) == 1.0
+    assert 'exceeds remaining Vacation Leave (VL)' in str(excinfo.value)
+    assert pytest.approx(_fetch_remaining_vacation_days(employee_id)) == 1.0
 
 
 def test_cash_out_approval_does_not_allow_negative_balance(test_database):
@@ -101,5 +101,5 @@ def test_cash_out_approval_does_not_allow_negative_balance(test_database):
     with pytest.raises(ValueError) as excinfo:
         balance_manager.process_leave_application_balance(application_id, 'Approved', changed_by='TEST')
 
-    assert 'Insufficient privilege leave balance' in str(excinfo.value)
-    assert pytest.approx(_fetch_remaining_privilege_days(employee_id)) == 1.0
+    assert 'Insufficient Vacation Leave (VL) balance' in str(excinfo.value)
+    assert pytest.approx(_fetch_remaining_vacation_days(employee_id)) == 1.0

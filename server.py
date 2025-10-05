@@ -101,7 +101,7 @@ logging.basicConfig(
 # Default sick leave allocation
 DEFAULT_SICK_LEAVE = 5
 
-LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE = "Please use your remaining Privilege Leave before requesting Leave Without Pay."
+LEAVE_WITHOUT_PAY_VACATION_MESSAGE = "Please use your remaining Vacation Leave (VL) before requesting Leave Without Pay."
 
 # Standard number of working hours in a full day. Used to translate between
 # hourly requests and legacy day-based balance tracking.
@@ -234,7 +234,7 @@ def compute_cash_out_request(data, total_days, total_hours):
 
 
 def ensure_cash_out_balance(employee_id, requested_days, requested_hours, preferred_unit='days'):
-    """Ensure the employee has enough Privilege Leave for a cash-out request."""
+    """Ensure the employee has enough Vacation Leave (VL) for a cash-out request."""
 
     if not employee_id:
         raise ValueError("Employee ID is required for cash-out requests.")
@@ -279,13 +279,13 @@ def ensure_cash_out_balance(employee_id, requested_days, requested_hours, prefer
     if preferred_unit == 'hours' and WORK_HOURS_PER_DAY:
         if requested_hours > remaining_hours + tolerance:
             raise ValueError(
-                f"Cash-out request of {requested_hours:.2f} hours exceeds remaining Privilege Leave "
+                f"Cash-out request of {requested_hours:.2f} hours exceeds remaining Vacation Leave (VL) "
                 f"({remaining_hours:.2f} hours)."
             )
     else:
         if requested_days > remaining_days + tolerance:
             raise ValueError(
-                f"Cash-out request of {requested_days:.2f} days exceeds remaining Privilege Leave "
+                f"Cash-out request of {requested_days:.2f} days exceeds remaining Vacation Leave (VL) "
                 f"({remaining_days:.2f} days)."
             )
 
@@ -297,9 +297,9 @@ def ensure_leave_without_pay_allowed(
     requested_days=None,
     requested_hours=None,
 ):
-    """Prevent Leave Without Pay when Privilege Leave remains.
+    """Prevent Leave Without Pay when Vacation Leave (VL) remains.
 
-    The privilege balance for the current calendar year is preferred when
+    The vacation balance for the current calendar year is preferred when
     multiple yearly records exist. If the current year's record is missing we
     fall back to the most recent year to ensure the validation tracks the
     latest balances in the database.
@@ -362,7 +362,7 @@ def ensure_leave_without_pay_allowed(
     tolerance = 1e-6
 
     if remaining_days > tolerance:
-        raise ValueError(LEAVE_WITHOUT_PAY_PRIVILEGE_MESSAGE)
+        raise ValueError(LEAVE_WITHOUT_PAY_VACATION_MESSAGE)
 
 def _calculate_total_days_legacy(
     start_date,

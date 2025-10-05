@@ -171,9 +171,9 @@ global.FormData = class {
 
 eval(code);
 
-window.eval('(() => { window.__setPrivilegeRemaining = value => { currentPrivilegeRemainingDays = value; }; window.__setCurrentUser = value => { currentUser = value; }; window.__getCurrentUser = () => currentUser; window.__setAck = value => { privilegeLeaveWarningAcknowledged = value; }; window.__readAck = () => privilegeLeaveWarningAcknowledged; window.__setLastValidLeaveTypeValue = value => { lastValidLeaveTypeValue = value; }; })();');
+window.eval('(() => { window.__setVacationRemaining = value => { currentVacationRemainingDays = value; }; window.__setCurrentUser = value => { currentUser = value; }; window.__getCurrentUser = () => currentUser; window.__setAck = value => { vacationLeaveWarningAcknowledged = value; }; window.__readAck = () => vacationLeaveWarningAcknowledged; window.__setLastValidLeaveTypeValue = value => { lastValidLeaveTypeValue = value; }; })();');
 
-window.__setPrivilegeRemaining(5);
+window.__setVacationRemaining(5);
 window.__setLastValidLeaveTypeValue('vacation-leave');
 window.__setAck(false);
 window.__setCurrentUser({ id: 'emp-1', first_name: 'Test', surname: 'User' });
@@ -377,6 +377,10 @@ runSequence().then(results => {
     confirmations = result["confirmations"]
     assert len(confirmations) == 3
     warning_message = confirmations[0]
+    expected_warning = (
+        'You still have available Vacation Leave (VL); continuing will consume your available leave first.'
+    )
+    assert warning_message == expected_warning
     assert all(message == warning_message for message in confirmations)
 
     first_selection = result["firstSelection"]
@@ -401,7 +405,7 @@ runSequence().then(results => {
     assert submit_attempt["lastPayload"]["data"]["leave_type"] != LEAVE_WITHOUT_PAY_VALUE
     assert submit_attempt["lastPayload"]["data"]["selected_reasons"] == ["vacation-leave"]
     expected_notice = (
-        "You still have Privilege Leave remaining. Your request has been updated to use Privilege Leave before unpaid leave."
+        "You still have Vacation Leave (VL) remaining. Your request has been updated to use Vacation Leave before unpaid leave."
     )
     assert submit_attempt["durationMessage"] == expected_notice
 
