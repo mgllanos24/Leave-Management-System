@@ -321,6 +321,52 @@ const PRIVILEGE_LEAVE_WARNING_MESSAGE = 'You still have available Privilege Leav
 const MEDICAL_APPOINTMENT_VALUE = 'medical-appointment';
 const MEDICAL_APPOINTMENT_WARNING_MESSAGE = 'Medical Appointment requests are deducted from your Sick Leave balance.';
 
+// Keep the sick/privilege leave groupings aligned with the backend balance
+// manager (see services/balance_manager.py). The backend treats "sick",
+// "sl", and "medical-appointment" as sick leave deductions and everything
+// else as privilege leave (with Leave Without Pay deducted from privilege as
+// well). Introspect the leave type radios so new options automatically stay in
+// sync with these groupings.
+const SICK_LEAVE_TYPES = new Set(['sick', 'sl', MEDICAL_APPOINTMENT_VALUE]);
+const PRIVILEGE_LEAVE_ALIASES = new Set(['privilege', 'pl']);
+const knownLeaveTypes = (() => {
+    const values = new Set([...SICK_LEAVE_TYPES, ...PRIVILEGE_LEAVE_ALIASES]);
+
+    if (typeof document !== 'undefined') {
+        try {
+            const inputs = document.querySelectorAll('input[name="leaveType"]');
+            inputs.forEach(input => {
+                if (input && typeof input.value === 'string') {
+                    values.add(input.value.trim().toLowerCase());
+                }
+            });
+        } catch (error) {
+            console.warn('Unable to determine leave type options from DOM:', error);
+        }
+    }
+
+    return values;
+})();
+const loggedUnknownLeaveTypes = new Set();
+
+function classifyLeaveTypeForSummary(leaveTypeValue) {
+    const normalized = (leaveTypeValue || '').trim().toLowerCase();
+    if (!normalized) {
+        return null;
+    }
+
+    if (SICK_LEAVE_TYPES.has(normalized)) {
+        return 'SICK';
+    }
+
+    if (!knownLeaveTypes.has(normalized) && !loggedUnknownLeaveTypes.has(normalized)) {
+        console.warn(`Encountered unrecognized leave type "${normalized}" while summarizing usage; defaulting to Privilege Leave.`);
+        loggedUnknownLeaveTypes.add(normalized);
+    }
+
+    return 'PRIVILEGE';
+}
+
 // Track whether holiday form handlers have been initialized
 let holidayFormInitialized = false;
 
@@ -2421,12 +2467,10 @@ async function loadEmployeeSummary() {
             }
 
             if (app.status === 'Approved') {
-                const privilegeTypes = ['privilege', 'pl', 'vacation-annual', 'personal', 'cash-out'];
-                const sickTypes = ['sick', 'sl'];
-
-                if (privilegeTypes.includes(type)) {
+                const category = classifyLeaveTypeForSummary(type);
+                if (category === 'PRIVILEGE') {
                     info.privilegeUsed += days;
-                } else if (sickTypes.includes(type)) {
+                } else if (category === 'SICK') {
                     info.sickUsed += days;
                 }
             }
