@@ -1027,13 +1027,13 @@ async function setupLoginHandlers() {
     if (employeeForm) {
         employeeForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            const email = document.getElementById('loginEmployeeEmail').value.trim();
-            
-            if (email) {
-                await loginEmployee(email);
+            const identifier = document.getElementById('loginEmployeeEmail').value.trim();
+
+            if (identifier) {
+                await loginEmployee(identifier);
             }
         });
-        
+
         if (enableDetailedLogging) {
             console.log('SUCCESS Employee login form handler attached');
         }
@@ -1210,17 +1210,17 @@ async function updateLeaveBalanceDisplay() {
     }
 }
 
-async function loginEmployee(email) {
+async function loginEmployee(identifier) {
     /* @tweakable employee login timeout in milliseconds */
     const loginTimeout = 5000;
-    
+
     try {
         showLoading();
-        
+
         const response = await fetch('/api/bootstrap_employee', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email }),
+            body: JSON.stringify({ identifier: identifier }),
             credentials: 'include'
         });
         

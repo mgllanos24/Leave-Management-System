@@ -1570,33 +1570,50 @@ HR Department
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length) if content_length else b'{}'
             data = json.loads(body.decode('utf-8'))
-            email = (data.get('email') or '').strip().lower()
+            raw_identifier = (data.get('identifier') or data.get('email') or '').strip()
+            identifier = ' '.join(raw_identifier.split())
+            identifier_lower = identifier.lower()
 
-            if not email:
-                self.send_error(400, "email is required")
+            if not identifier:
+                self.send_error(400, "identifier is required")
                 return
 
             if DETAILED_BOOTSTRAP_LOGGING:
-                logging.info("Bootstrapping employee data for: %s", email)
+                logging.info("Bootstrapping employee data for identifier: %s", identifier)
 
             # Find employee without holding the DB lock
             conn = get_db_connection()
             try:
-                cur = conn.execute('SELECT * FROM employees WHERE personal_email = ? AND is_active = 1', (email,))
+                # Try matching by email first for backward compatibility
+                cur = conn.execute(
+                    'SELECT * FROM employees WHERE lower(personal_email) = ? AND is_active = 1',
+                    (identifier_lower,)
+                )
                 row = cur.fetchone()
 
                 if not row:
-                    # Check if employee exists but is inactive
-                    inactive_cur = conn.execute('SELECT COUNT(*) as count FROM employees WHERE personal_email = ? AND is_active = 0', (email,))
+                    # Fallback to matching full name (first name + surname)
+                    cur = conn.execute(
+                        'SELECT * FROM employees WHERE lower(first_name || " " || surname) = ? AND is_active = 1',
+                        (identifier_lower,)
+                    )
+                    row = cur.fetchone()
+
+                if not row:
+                    # Check if employee exists but is inactive by email or name
+                    inactive_cur = conn.execute(
+                        'SELECT COUNT(*) as count FROM employees WHERE is_active = 0 AND (lower(personal_email) = ? OR lower(first_name || " " || surname) = ?)',
+                        (identifier_lower, identifier_lower)
+                    )
                     inactive_count = inactive_cur.fetchone()['count']
 
                     if inactive_count > 0:
-                        error_msg = f"Employee with email {email} exists but is inactive"
+                        error_msg = "Employee exists but is inactive"
                     else:
-                        error_msg = f"Employee with email {email} not found in database"
+                        error_msg = "Employee not found in database"
 
                     if DETAILED_BOOTSTRAP_LOGGING:
-                        logging.error("Bootstrap failed: %s", error_msg)
+                        logging.error("Bootstrap failed: %s (identifier: %s)", error_msg, identifier)
 
                     self.send_error(404, error_msg)
                     return
@@ -1630,7 +1647,7 @@ HR Department
             if DETAILED_BOOTSTRAP_LOGGING:
                 logging.info(
                     "Bootstrap completed for %s with %d balance records",
-                    email,
+                    identifier,
                     len(balances),
                 )
 
@@ -1639,7 +1656,7 @@ HR Department
         except Exception as e:
             logging.error(
                 "Bootstrap error for %s: %s",
-                email if 'email' in locals() else 'unknown',
+                identifier if 'identifier' in locals() else 'unknown',
                 e,
             )
             self.send_error(500, f"Bootstrap failed: {str(e)}")
