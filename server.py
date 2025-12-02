@@ -1008,43 +1008,93 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
 
             # Send notification email for newly submitted leave applications
             if collection == 'leave_application':
-                admin_email = ADMIN_EMAIL
-                subject = "New Leave Request Submitted"
-                body = format_leave_request_email(
-                    data.get('employee_name', ''),
-                    data.get('application_id', ''),
-                    data.get('leave_type', ''),
-                    data.get('start_date', ''),
-                    data.get('start_time'),
-                    data.get('end_date', ''),
-                    data.get('end_time'),
-                    data.get('return_date', ''),
-                    data.get('total_hours', 0),
-                    data.get('total_days', 0),
-                    data.get('reason', ''),
-                    data.get('date_applied', ''),
-                )
-                try:
-                    sent, err = send_notification_email(
-                        admin_email,
-                        subject,
-                        body,
-                        SMTP_SERVER,
-                        SMTP_PORT,
-                        SMTP_USERNAME,
-                        SMTP_PASSWORD,
+                admin_recipients = [ADMIN_EMAIL] if ADMIN_EMAIL else []
+                if admin_recipients:
+                    subject = "New Leave Request Submitted"
+                    body = format_leave_request_email(
+                        data.get('employee_name', ''),
+                        data.get('application_id', ''),
+                        data.get('leave_type', ''),
+                        data.get('start_date', ''),
+                        data.get('start_time'),
+                        data.get('end_date', ''),
+                        data.get('end_time'),
+                        data.get('return_date', ''),
+                        data.get('total_hours', 0),
+                        data.get('total_days', 0),
+                        data.get('reason', ''),
+                        data.get('date_applied', ''),
                     )
-                except Exception as email_error:  # noqa: BLE001 - unexpected failure
-                    sent, err = False, str(email_error)
-
-                if sent:
-                    logging.info("Notification email sent to %s", admin_email)
+                    for admin_email in admin_recipients:
+                        notification_emails.append(
+                            (
+                                'admin',
+                                admin_email,
+                                subject,
+                                body,
+                                None,
+                            )
+                        )
                 else:
-                    logging.error(
-                        "Failed to send notification email to %s for application %s: %s",
-                        admin_email,
+                    logging.warning(
+                        "Admin email missing for application %s; skipping admin notification",
                         record_id,
-                        err,
+                    )
+
+                employee_email = data.get('employee_email')
+                if not employee_email:
+                    conn = None
+                    try:
+                        conn = get_db_connection()
+                        cursor = conn.execute(
+                            'SELECT personal_email FROM employees WHERE id = ?',
+                            (data.get('employee_id', ''),),
+                        )
+                        emp = cursor.fetchone()
+                        employee_email = emp['personal_email'] if emp else None
+                    except Exception as fetch_err:  # noqa: BLE001 - best-effort lookup
+                        logging.warning(
+                            "Unable to fetch employee email for %s: %s",
+                            data.get('employee_id'),
+                            fetch_err,
+                        )
+                    finally:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+
+                if employee_email:
+                    employee_subject = "Leave Request Submitted"
+                    employee_body = (
+                        f"Dear {data.get('employee_name', '')},\n\n"
+                        "Your leave request has been submitted for approval.\n\n"
+                        "Request Details:\n"
+                        f"- Application ID: {data.get('application_id', '')}\n"
+                        f"- Leave Type: {data.get('leave_type', '')}\n"
+                        f"- Start: {data.get('start_date', '')} {data.get('start_time') or ''}\n"
+                        f"- End: {data.get('end_date', '')} {data.get('end_time') or ''}\n"
+                        f"- Return Date: {data.get('return_date', '')}\n"
+                        f"- Total Hours: {data.get('total_hours', 0)}\n"
+                        f"- Equivalent Days: {data.get('total_days', 0)}\n"
+                        "\n"
+                        "You will be notified once your request is reviewed.\n\n"
+                        "Best regards,\n"
+                        "HR Department"
+                    )
+                    notification_emails.append(
+                        (
+                            'employee',
+                            employee_email,
+                            employee_subject,
+                            employee_body,
+                            None,
+                        )
+                    )
+                else:
+                    logging.warning(
+                        "Employee email missing for employee %s; skipping employee notification",
+                        data.get('employee_id'),
                     )
 
             email_status = {}
@@ -1270,7 +1320,7 @@ HR Department
                                         end_time=end_time,
                                     )
 
-                                admin_recipients = ADMIN_APPROVE_EMAILS or ([ADMIN_EMAIL] if ADMIN_EMAIL else [])
+                                admin_recipients = ADMIN_APPROVE_EMAILS or []
                                 if admin_recipients:
                                     for admin_email in admin_recipients:
                                         notification_emails.append(
