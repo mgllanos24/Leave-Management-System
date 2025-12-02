@@ -1375,10 +1375,12 @@ function displayWelcome() {
         const roleSuffix = currentUserType === 'admin'
             ? currentAdminRole === 'admin2' ? ' (Admin 2)' : ' (Admin 1)'
             : '';
-        const displayName = currentUser.first_name ?
-            `Welcome, ${currentUser.first_name}${roleSuffix}!` :
-            `Welcome, ${currentUser.username}${roleSuffix}!`;
-        
+        const usernameDisplay = currentUserType === 'admin' && currentUser.username
+            ? ` [${currentUser.username}]`
+            : '';
+        const baseName = currentUser.first_name || currentUser.username;
+        const displayName = `Welcome, ${baseName}${roleSuffix}${usernameDisplay}!`;
+
         welcomeName.textContent = displayName;
         welcomeContainer.style.display = 'flex';
     }
