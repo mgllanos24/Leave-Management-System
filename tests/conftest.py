@@ -8,6 +8,8 @@ import sys
 os.environ.setdefault("ADMIN_EMAIL", "admin@example.com")
 os.environ.setdefault("ADMIN_USERNAME", "test-admin")
 os.environ.setdefault("ADMIN_PASSWORD", "test-admin-password")
+os.environ.setdefault("ADMIN2_USERNAME", "test-admin2")
+os.environ.setdefault("ADMIN2_PASSWORD", "test-admin2-password")
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
