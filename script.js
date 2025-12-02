@@ -299,6 +299,7 @@ const DEFAULT_WORKDAY_END_TIME = '15:00';
 let currentUserType = null;
 let currentUser = null;
 let sessionToken = null;
+let currentAdminRole = null;
 
 // Track remaining Vacation Leave for the logged-in employee so validations can
 // be enforced before sending requests to the server.
@@ -377,6 +378,7 @@ let adminHistoryRequestId = 0;
 const AUTH_TYPE_KEY = 'elms_auth_type';
 const AUTH_USER_KEY = 'elms_auth_user';
 const AUTH_TOKEN_KEY = 'elms_session_token';
+const ADMIN_ROLE_KEY = 'elms_admin_role';
 
 /* @tweakable whether to enable detailed employee form submission debugging */
 const enableEmployeeFormDebugging = true;
@@ -897,13 +899,15 @@ function restoreAuthenticationState() {
         const savedType = sessionStorage.getItem(AUTH_TYPE_KEY);
         const savedUser = sessionStorage.getItem(AUTH_USER_KEY);
         const savedToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
+        const savedRole = sessionStorage.getItem(ADMIN_ROLE_KEY);
 
         if (savedType && savedUser) {
-            const canRestore = savedType === 'admin' || savedToken;
+            const canRestore = (savedType && savedType.startsWith('admin')) || savedToken;
             if (canRestore) {
                 currentUserType = savedType;
                 currentUser = JSON.parse(savedUser);
                 sessionToken = savedToken;
+                currentAdminRole = savedRole || (currentUserType === 'admin' ? 'admin1' : null);
 
                 if (debugAuthRestore) {
                     console.log('SUCCESS Authentication state restored:', { type: currentUserType, user: currentUser });
@@ -925,6 +929,7 @@ function clearPersistedAuthState() {
         sessionStorage.removeItem(AUTH_TYPE_KEY);
         sessionStorage.removeItem(AUTH_USER_KEY);
         sessionStorage.removeItem(AUTH_TOKEN_KEY);
+        sessionStorage.removeItem(ADMIN_ROLE_KEY);
     }
 }
 
@@ -1232,6 +1237,7 @@ async function loginEmployee(identifier) {
 
         currentUserType = 'employee';
         currentUser = data.employee;
+        currentAdminRole = null;
         sessionToken = data.token || data.sessionToken || null;
         await updateEmployeeInfo();
 
@@ -1240,6 +1246,8 @@ async function loginEmployee(identifier) {
         if (sessionToken) {
             sessionStorage.setItem(AUTH_TOKEN_KEY, sessionToken);
         }
+
+        sessionStorage.removeItem(ADMIN_ROLE_KEY);
         
         hideLoading();
         showMainApp();
@@ -1265,12 +1273,17 @@ async function loginAdmin(username, password) {
             throw new Error('Invalid credentials');
         }
 
+        const data = await resp.json();
+        const role = data.role || 'admin1';
+
         currentUserType = 'admin';
-        currentUser = { username: username, first_name: 'Administrator', email: 'admin@company.com' };
+        currentUser = { username: username, first_name: 'Administrator', email: 'admin@company.com', role };
+        currentAdminRole = role;
         sessionToken = null;
         sessionStorage.setItem(AUTH_TYPE_KEY, currentUserType);
         sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
         sessionStorage.removeItem(AUTH_TOKEN_KEY);
+        sessionStorage.setItem(ADMIN_ROLE_KEY, currentAdminRole);
 
         hideLoading();
         showMainApp();
@@ -1308,39 +1321,63 @@ function showMainApp() {
 function configureTabsForUser() {
     const isAdmin = currentUserType === 'admin';
 
-    document.getElementById('tabEmployeeManagement').style.display = isAdmin ? 'block' : 'none';
-    document.getElementById('tabApplicationStatus').style.display = isAdmin ? 'block' : 'none';
-    document.getElementById('tabHolidayDates').style.display = isAdmin ? 'block' : 'none';
-    document.getElementById('tabAdminHistory').style.display = isAdmin ? 'block' : 'none';
-    document.getElementById('adminSection').style.display = isAdmin ? 'block' : 'none';
+    const adminRole = currentAdminRole || 'admin1';
+    const showEmployeeManagement = isAdmin && adminRole === 'admin2';
+    const showApplicationStatus = isAdmin && adminRole === 'admin1';
+    const showHolidayDates = isAdmin && adminRole === 'admin2';
+    const showAdminHistory = isAdmin && adminRole === 'admin2';
+
+    document.getElementById('tabEmployeeManagement').style.display = showEmployeeManagement ? 'block' : 'none';
+    document.getElementById('tabApplicationStatus').style.display = showApplicationStatus ? 'block' : 'none';
+    document.getElementById('tabHolidayDates').style.display = showHolidayDates ? 'block' : 'none';
+    document.getElementById('tabAdminHistory').style.display = showAdminHistory ? 'block' : 'none';
+    document.getElementById('adminSection').style.display = showEmployeeManagement ? 'block' : 'none';
 
     // Toggle visibility for employee-specific tabs based on user role
     document.getElementById('tabLeaveRequest').style.display = isAdmin ? 'none' : 'block';
     document.getElementById('tabCheckHistory').style.display = isAdmin ? 'none' : 'block';
 
     // Hide tab content sections that shouldn't be visible for the current role
-    document.getElementById('employee-management').style.display = isAdmin ? '' : 'none';
-    document.getElementById('application-status').style.display = isAdmin ? '' : 'none';
-    document.getElementById('holiday-dates').style.display = isAdmin ? '' : 'none';
-    document.getElementById('admin-history').style.display = isAdmin ? '' : 'none';
+    document.getElementById('employee-management').style.display = showEmployeeManagement ? '' : 'none';
+    document.getElementById('application-status').style.display = showApplicationStatus ? '' : 'none';
+    document.getElementById('holiday-dates').style.display = showHolidayDates ? '' : 'none';
+    document.getElementById('admin-history').style.display = showAdminHistory ? '' : 'none';
     document.getElementById('leave-request').style.display = isAdmin ? 'none' : '';
     document.getElementById('check-history').style.display = isAdmin ? 'none' : '';
 
     // Ensure the active tab is one the user can access
     const activeTab = document.querySelector('.tab-content.active');
+    const availableAdminTabs = [];
+    if (showEmployeeManagement) availableAdminTabs.push('employee-management');
+    if (showApplicationStatus) availableAdminTabs.push('application-status');
+    if (showHolidayDates) availableAdminTabs.push('holiday-dates');
+    if (showAdminHistory) availableAdminTabs.push('admin-history');
+
     if (activeTab && activeTab.style.display === 'none') {
-        switchTab(isAdmin ? 'employee-management' : 'leave-request');
+        if (isAdmin) {
+            switchTab(availableAdminTabs[0] || 'employee-management');
+        } else {
+            switchTab('leave-request');
+        }
+    } else if (isAdmin && availableAdminTabs.length > 0) {
+        const activeTabId = activeTab ? activeTab.id : null;
+        if (!activeTabId || !availableAdminTabs.includes(activeTabId)) {
+            switchTab(availableAdminTabs[0]);
+        }
     }
 }
 
 function displayWelcome() {
     const welcomeContainer = document.getElementById('welcomeContainer');
     const welcomeName = document.getElementById('welcomeName');
-    
+
     if (currentUser) {
-        const displayName = currentUser.first_name ? 
-            `Welcome, ${currentUser.first_name}!` : 
-            `Welcome, ${currentUser.username}!`;
+        const roleSuffix = currentUserType === 'admin'
+            ? currentAdminRole === 'admin2' ? ' (Admin 2)' : ' (Admin 1)'
+            : '';
+        const displayName = currentUser.first_name ?
+            `Welcome, ${currentUser.first_name}${roleSuffix}!` :
+            `Welcome, ${currentUser.username}${roleSuffix}!`;
         
         welcomeName.textContent = displayName;
         welcomeContainer.style.display = 'flex';
@@ -1355,6 +1392,7 @@ async function logout() {
     currentUserType = null;
     currentUser = null;
     sessionToken = null;
+    currentAdminRole = null;
     clearPersistedAuthState();
 
     showEntrySelection();

@@ -143,12 +143,14 @@ if not ADMIN_APPROVE_EMAILS:
     ADMIN_APPROVE_EMAILS = _parse_email_list(ADMIN_EMAIL) or [ADMIN_EMAIL]
 ADMIN_USERNAME = _require_env("ADMIN_USERNAME")
 ADMIN_PASSWORD = _require_env("ADMIN_PASSWORD")
+ADMIN2_USERNAME = _require_env("ADMIN2_USERNAME")
+ADMIN2_PASSWORD = _require_env("ADMIN2_PASSWORD")
 
 # @tweakable employee management configuration - define missing constants
 AUTO_CREATE_BALANCE_RECORDS = True
 
-# Track active admin session tokens
-active_admin_tokens = set()
+# Track active admin session tokens and their associated roles
+active_admin_tokens = {}
 
 
 def _extract_numeric_field(payload, keys):
@@ -1525,15 +1527,31 @@ HR Department
             username = data.get('username', '')
             password = data.get('password', '')
 
-            if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            admin_accounts = [
+                {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD, "role": "admin1"},
+                {"username": ADMIN2_USERNAME, "password": ADMIN2_PASSWORD, "role": "admin2"},
+            ]
+
+            matching_account = next(
+                (
+                    account
+                    for account in admin_accounts
+                    if username == account["username"] and password == account["password"]
+                ),
+                None,
+            )
+
+            if matching_account:
                 token = uuid.uuid4().hex
-                active_admin_tokens.add(token)
+                active_admin_tokens[token] = matching_account["role"]
                 self.send_response(200)
                 self.send_cors_headers()
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Set-Cookie', f'admin_token={token}; Path=/')
                 self.end_headers()
-                self.wfile.write(json.dumps({'success': True}).encode('utf-8'))
+                self.wfile.write(
+                    json.dumps({'success': True, 'role': matching_account["role"]}).encode('utf-8')
+                )
             else:
                 self.send_error(401, 'Invalid credentials')
         except Exception as e:
@@ -1550,7 +1568,7 @@ HR Department
                 token = cookie['admin_token'].value
 
         if token and token in active_admin_tokens:
-            active_admin_tokens.discard(token)
+            del active_admin_tokens[token]
 
         self.send_response(200)
         self.send_cors_headers()

@@ -54,12 +54,16 @@ A comprehensive web-based leave management system designed for small to medium o
 
 #### Administrator Credentials
 
-The server requires dedicated credentials for the administrator interface. Set
-the following environment variables before launching the application:
+The server now supports two administrator roles with separate credentials:
+
+- **Admin1**: can access only the **Application Status** tab.
+- **Admin2**: can access **Employee Management**, **Holiday Dates**, and **Leave History** tabs.
+
+Set the following environment variables before launching the application:
 
 - `ADMIN_EMAIL`: where approval and notification emails should be delivered.
-- `ADMIN_USERNAME`: the username administrators will use to sign in.
-- `ADMIN_PASSWORD`: a strong password for the administrator account.
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD`: credentials for Admin1.
+- `ADMIN2_USERNAME` / `ADMIN2_PASSWORD`: credentials for Admin2.
 
 The application will read these values from the surrounding environment or a
 local `.env` file if present:
@@ -69,6 +73,8 @@ local `.env` file if present:
 ADMIN_EMAIL=admin@example.com
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+ADMIN2_USERNAME=admin2
+ADMIN2_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 ```
 
 Make sure to generate unique, high-entropy secrets for production environments
