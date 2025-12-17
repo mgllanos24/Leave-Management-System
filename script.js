@@ -511,6 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initEntryButtons();
     restoreAuthenticationState();
+    setupPasswordVisibilityToggle();
     
     // Enhanced DOM state logging
     if (logDOMState) {
@@ -1000,6 +1001,7 @@ function showAdminLogin() {
     if (adminForm) {
         adminForm.reset();
     }
+    updateAdminPasswordVisibility(false);
 
     document.getElementById('entryContainer').style.display = 'none';
     document.getElementById('employeeLoginContainer').style.display = 'none';
@@ -1016,6 +1018,54 @@ function showAdminLogin() {
             adminUsernameInput.focus();
         });
     }
+}
+
+function updateAdminPasswordVisibility(isVisible) {
+    const passwordInput = document.getElementById('loginAdminPassword');
+    const toggleButton = document.getElementById('toggleAdminPasswordVisibility');
+
+    if (passwordInput) {
+        passwordInput.type = isVisible ? 'text' : 'password';
+    }
+
+    if (toggleButton) {
+        toggleButton.classList.toggle('is-visible', isVisible);
+        toggleButton.setAttribute('aria-pressed', isVisible ? 'true' : 'false');
+        toggleButton.setAttribute('aria-label', isVisible ? 'Hide password' : 'Show password');
+    }
+}
+
+function setupPasswordVisibilityToggle() {
+    const passwordInput = document.getElementById('loginAdminPassword');
+    const toggleButton = document.getElementById('toggleAdminPasswordVisibility');
+
+    if (!passwordInput || !toggleButton) {
+        return;
+    }
+
+    const focusPassword = () => {
+        if (typeof passwordInput.focus === 'function') {
+            passwordInput.focus({ preventScroll: true });
+        }
+
+        if (typeof passwordInput.setSelectionRange === 'function') {
+            const caretPosition = passwordInput.value.length;
+            passwordInput.setSelectionRange(caretPosition, caretPosition);
+        }
+    };
+
+    toggleButton.addEventListener('click', () => {
+        const shouldShow = passwordInput.type === 'password';
+        updateAdminPasswordVisibility(shouldShow);
+        focusPassword();
+    });
+
+    const adminForm = document.getElementById('loginAdminForm');
+    if (adminForm) {
+        adminForm.addEventListener('reset', () => updateAdminPasswordVisibility(false));
+    }
+
+    updateAdminPasswordVisibility(false);
 }
 
 async function setupLoginHandlers() {
