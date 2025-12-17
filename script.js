@@ -1369,39 +1369,34 @@ function showMainApp() {
 }
 
 function configureTabsForUser() {
+    const tabAccess = getTabAccessConfig();
     const isAdmin = currentUserType === 'admin';
 
-    const adminRole = currentAdminRole || 'admin1';
-    const showEmployeeManagement = isAdmin && adminRole === 'admin2';
-    const showApplicationStatus = isAdmin && adminRole === 'admin1';
-    const showHolidayDates = isAdmin && adminRole === 'admin2';
-    const showAdminHistory = isAdmin && adminRole === 'admin2';
-
-    document.getElementById('tabEmployeeManagement').style.display = showEmployeeManagement ? 'block' : 'none';
-    document.getElementById('tabApplicationStatus').style.display = showApplicationStatus ? 'block' : 'none';
-    document.getElementById('tabHolidayDates').style.display = showHolidayDates ? 'block' : 'none';
-    document.getElementById('tabAdminHistory').style.display = showAdminHistory ? 'block' : 'none';
-    document.getElementById('adminSection').style.display = showEmployeeManagement ? 'block' : 'none';
+    document.getElementById('tabEmployeeManagement').style.display = tabAccess.showEmployeeManagement ? 'block' : 'none';
+    document.getElementById('tabApplicationStatus').style.display = tabAccess.showApplicationStatus ? 'block' : 'none';
+    document.getElementById('tabHolidayDates').style.display = tabAccess.showHolidayDates ? 'block' : 'none';
+    document.getElementById('tabAdminHistory').style.display = tabAccess.showAdminHistory ? 'block' : 'none';
+    document.getElementById('adminSection').style.display = tabAccess.showEmployeeManagement ? 'block' : 'none';
 
     // Toggle visibility for employee-specific tabs based on user role
-    document.getElementById('tabLeaveRequest').style.display = isAdmin ? 'none' : 'block';
-    document.getElementById('tabCheckHistory').style.display = isAdmin ? 'none' : 'block';
+    document.getElementById('tabLeaveRequest').style.display = tabAccess.showLeaveRequest ? 'block' : 'none';
+    document.getElementById('tabCheckHistory').style.display = tabAccess.showCheckHistory ? 'block' : 'none';
 
     // Hide tab content sections that shouldn't be visible for the current role
-    document.getElementById('employee-management').style.display = showEmployeeManagement ? '' : 'none';
-    document.getElementById('application-status').style.display = showApplicationStatus ? '' : 'none';
-    document.getElementById('holiday-dates').style.display = showHolidayDates ? '' : 'none';
-    document.getElementById('admin-history').style.display = showAdminHistory ? '' : 'none';
-    document.getElementById('leave-request').style.display = isAdmin ? 'none' : '';
-    document.getElementById('check-history').style.display = isAdmin ? 'none' : '';
+    document.getElementById('employee-management').style.display = tabAccess.showEmployeeManagement ? '' : 'none';
+    document.getElementById('application-status').style.display = tabAccess.showApplicationStatus ? '' : 'none';
+    document.getElementById('holiday-dates').style.display = tabAccess.showHolidayDates ? '' : 'none';
+    document.getElementById('admin-history').style.display = tabAccess.showAdminHistory ? '' : 'none';
+    document.getElementById('leave-request').style.display = tabAccess.showLeaveRequest ? '' : 'none';
+    document.getElementById('check-history').style.display = tabAccess.showCheckHistory ? '' : 'none';
 
     // Ensure the active tab is one the user can access
     const activeTab = document.querySelector('.tab-content.active');
     const availableAdminTabs = [];
-    if (showEmployeeManagement) availableAdminTabs.push('employee-management');
-    if (showApplicationStatus) availableAdminTabs.push('application-status');
-    if (showHolidayDates) availableAdminTabs.push('holiday-dates');
-    if (showAdminHistory) availableAdminTabs.push('admin-history');
+    if (tabAccess.showEmployeeManagement) availableAdminTabs.push('employee-management');
+    if (tabAccess.showApplicationStatus) availableAdminTabs.push('application-status');
+    if (tabAccess.showHolidayDates) availableAdminTabs.push('holiday-dates');
+    if (tabAccess.showAdminHistory) availableAdminTabs.push('admin-history');
 
     if (activeTab && activeTab.style.display === 'none') {
         if (isAdmin) {
@@ -3093,6 +3088,20 @@ function switchTab(tabName) {
         console.log(`INFO Switching to tab: ${tabName}`);
     }
 
+    const tabAccess = getTabAccessConfig();
+    const allowedTabs = [];
+    if (tabAccess.showLeaveRequest) allowedTabs.push('leave-request');
+    if (tabAccess.showCheckHistory) allowedTabs.push('check-history');
+    if (tabAccess.showEmployeeManagement) allowedTabs.push('employee-management');
+    if (tabAccess.showApplicationStatus) allowedTabs.push('application-status');
+    if (tabAccess.showHolidayDates) allowedTabs.push('holiday-dates');
+    if (tabAccess.showAdminHistory) allowedTabs.push('admin-history');
+
+    if (!allowedTabs.includes(tabName)) {
+        console.warn(`Blocked navigation to unauthorized tab: ${tabName}`);
+        return;
+    }
+
     // Map hyphenated tab names to their camel-cased button IDs
     const tabButtonIds = {
         'leave-request': 'tabLeaveRequest',
@@ -3138,6 +3147,43 @@ function switchTab(tabName) {
         const search = document.getElementById('historySearch')?.value || '';
         loadAdminLeaveHistory(search);
     }
+}
+
+function getTabAccessConfig() {
+    const isAdmin = currentUserType === 'admin';
+    const adminRole = currentAdminRole || 'admin1';
+
+    const adminConfig = {
+        admin1: {
+            showLeaveRequest: false,
+            showCheckHistory: false,
+            showEmployeeManagement: false,
+            showApplicationStatus: true,
+            showHolidayDates: false,
+            showAdminHistory: false,
+        },
+        admin2: {
+            showLeaveRequest: false,
+            showCheckHistory: false,
+            showEmployeeManagement: true,
+            showApplicationStatus: false,
+            showHolidayDates: true,
+            showAdminHistory: true,
+        }
+    };
+
+    if (isAdmin) {
+        return adminConfig[adminRole] || adminConfig.admin1;
+    }
+
+    return {
+        showLeaveRequest: true,
+        showCheckHistory: true,
+        showEmployeeManagement: false,
+        showApplicationStatus: false,
+        showHolidayDates: false,
+        showAdminHistory: false,
+    };
 }
 
 // Utility functions
