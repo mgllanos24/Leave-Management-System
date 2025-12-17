@@ -901,6 +901,12 @@ tr:hover {
     display: block;
 }
 
+/* Hide built-in password reveal controls (e.g., Edge) to avoid duplicate icons */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none;
+}
+
 .btn-login {
     width: 100%;
     padding: 12px;
