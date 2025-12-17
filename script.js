@@ -777,7 +777,7 @@ function setupCriticalFormHandlers() {
             }
 
             const totalHours = calculateTotalHours(startDate, endDate, startTime, endTime);
-            const returnDate = determineReturnDate(endDate, totalHours);
+            const returnDate = determineReturnDate(endDate, totalHours, endTime);
             const message = returnDate
                 ? `You are expected to return on ${returnDate}. Continue?`
                 : 'Submit leave request?';
@@ -2241,7 +2241,7 @@ async function submitLeaveApplication(event, returnDate = null) {
         }
 
         if (!returnDate) {
-            returnDate = determineReturnDate(endDate, totalHours);
+            returnDate = determineReturnDate(endDate, totalHours, effectiveEndTime);
         }
 
         const effectiveCurrentUser = currentUser || (typeof window !== 'undefined' ? window.currentUser : null);
@@ -2423,12 +2423,16 @@ function getNextWorkday(dateStr) {
     }
 }
 
-function determineReturnDate(endDate, totalHours) {
+function determineReturnDate(endDate, totalHours, endTime) {
     if (!endDate) {
         return '';
     }
 
-    if (totalHours > 0 && totalHours < WORK_HOURS_PER_DAY) {
+    const endMinutes = parseTimeToMinutes(endTime);
+    const endsAtDayClose =
+        typeof endMinutes === 'number' && !Number.isNaN(endMinutes) && endMinutes >= LATEST_LEAVE_MINUTES;
+
+    if (totalHours > 0 && totalHours < WORK_HOURS_PER_DAY && !endsAtDayClose) {
         return endDate;
     }
 

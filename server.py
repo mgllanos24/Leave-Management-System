@@ -533,27 +533,6 @@ def calculate_total_days(
 
     return round(total_hours / WORK_HOURS_PER_DAY, 4)
 
-def next_workday(date_str: str, holidays: set[str] | None = None) -> str | None:
-    """Return the next working day after ``date_str``.
-
-    Weekends (Saturday and Sunday) and any dates in ``holidays`` are skipped.
-    If ``date_str`` is empty or cannot be parsed, ``None`` is returned.
-    """
-    if not date_str:
-        return None
-    try:
-        date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-    holidays = holidays or set()
-
-    while True:
-        date += timedelta(days=1)
-        if date.weekday() < 5 and date.isoformat() not in holidays:
-            return date.isoformat()
-
-
 def next_workday(date_str, holidays=None):
     """Return the next working day after ``date_str``.
 
@@ -574,6 +553,28 @@ def next_workday(date_str, holidays=None):
         current += timedelta(days=1)
         if current.weekday() < 5 and current.isoformat() not in holidays:
             return current.isoformat()
+
+
+def compute_return_date(end_date, total_hours, end_time=None, holidays=None):
+    """Determine the employee's return date based on leave length and end time."""
+
+    if not end_date:
+        return ""
+
+    holidays = holidays or set()
+
+    ends_at_day_close = False
+    if end_time:
+        try:
+            parsed_end_time = datetime.strptime(end_time, "%H:%M").time()
+            ends_at_day_close = parsed_end_time >= LATEST_LEAVE_TIME
+        except ValueError:
+            pass
+
+    if total_hours and total_hours < WORK_HOURS_PER_DAY and not ends_at_day_close:
+        return end_date
+
+    return next_workday(end_date, holidays) or end_date
 
 
 def format_leave_request_email(
@@ -924,10 +925,12 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                     self.send_error(400, str(balance_error))
                                     return
 
-                            if total_hours and total_hours < WORK_HOURS_PER_DAY:
-                                return_date = data.get('end_date', '')
-                            else:
-                                return_date = next_workday(data.get('end_date', ''), holidays) or ""
+                            return_date = compute_return_date(
+                                data.get('end_date', ''),
+                                total_hours,
+                                end_time,
+                                holidays,
+                            )
 
                             conn.execute(
                                 '''
@@ -1267,7 +1270,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                                 cursor = conn.execute('SELECT date FROM holidays')
                                 holidays = {row['date'] for row in cursor.fetchall()}
                                 status_word = 'approved' if new_status == 'Approved' else 'rejected'
-                                return_date = next_workday(end_date, holidays)
+                                return_date = compute_return_date(end_date, total_hours, end_time, holidays)
 
                                 if new_status == 'Approved':
                                     admin_subject = f"{employee_name} - OOO"
