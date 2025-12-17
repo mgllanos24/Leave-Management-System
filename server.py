@@ -1668,10 +1668,27 @@ HR Department
                     row = cur.fetchone()
 
                 if not row:
+                    # Try matching with individually provided first and last names to allow flexible casing/spaces
+                    name_parts = identifier_lower.split()
+                    if len(name_parts) >= 2:
+                        first_name = name_parts[0]
+                        surname = ' '.join(name_parts[1:])
+                        cur = conn.execute(
+                            'SELECT * FROM employees WHERE lower(trim(first_name)) = ? AND lower(trim(surname)) = ? AND is_active = 1',
+                            (first_name, surname)
+                        )
+                        row = cur.fetchone()
+
+                if not row:
                     # Check if employee exists but is inactive by email or name
                     inactive_cur = conn.execute(
-                        'SELECT COUNT(*) as count FROM employees WHERE is_active = 0 AND (lower(personal_email) = ? OR lower(first_name || " " || surname) = ?)',
-                        (identifier_lower, identifier_lower)
+                        'SELECT COUNT(*) as count FROM employees WHERE is_active = 0 AND (lower(personal_email) = ? OR lower(first_name || " " || surname) = ? OR (lower(trim(first_name)) = ? AND lower(trim(surname)) = ?))',
+                        (
+                            identifier_lower,
+                            identifier_lower,
+                            name_parts[0] if 'name_parts' in locals() and len(name_parts) >= 2 else '',
+                            ' '.join(name_parts[1:]) if 'name_parts' in locals() and len(name_parts) >= 2 else '',
+                        )
                     )
                     inactive_count = inactive_cur.fetchone()['count']
 
