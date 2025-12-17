@@ -1080,7 +1080,7 @@ class LeaveManagementHandler(http.server.SimpleHTTPRequestHandler):
                         "\n"
                         "You will be notified once your request is reviewed.\n\n"
                         "Best regards,\n"
-                        "HR Department"
+                        "Management"
                     )
                     notification_emails.append(
                         (
@@ -1303,7 +1303,7 @@ Request Details:
 Please plan accordingly.
 
 Best regards,
-HR Department
+Management
 """
 
                                 ics_content = None
