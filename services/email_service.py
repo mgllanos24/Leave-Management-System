@@ -9,8 +9,10 @@ import logging
 import os
 import smtplib
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from email.message import EmailMessage
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 def _require_env(key: str) -> str:
@@ -59,7 +61,7 @@ def generate_ics_content(
     """
 
     uid = f"{uuid.uuid4()}@leave-management-system"
-    dtstamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     lines = [
         "BEGIN:VCALENDAR",
@@ -72,14 +74,25 @@ def generate_ics_content(
     ]
 
     if start_time or end_time:
+        event_timezone = _get_calendar_timezone()
         start_clock = start_time or "00:00"
         end_clock = end_time or start_clock
         start_dt = datetime.fromisoformat(f"{start_date}T{start_clock}")
         end_dt = datetime.fromisoformat(f"{end_date}T{end_clock}")
+
+        # Treat provided times as belonging to the configured calendar
+        # timezone, then convert to UTC to avoid shifts on the recipient's
+        # calendar when their local timezone differs from the requester.
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=event_timezone)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=event_timezone)
+        start_dt = start_dt.astimezone(timezone.utc)
+        end_dt = end_dt.astimezone(timezone.utc)
         if end_dt <= start_dt:
             end_dt = start_dt + timedelta(hours=1)
-        lines.append(f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}")
-        lines.append(f"DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}")
+        lines.append(f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M%SZ')}")
+        lines.append(f"DTEND:{end_dt.strftime('%Y%m%dT%H%M%SZ')}")
     else:
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
@@ -94,6 +107,31 @@ def generate_ics_content(
     lines.extend(["END:VEVENT", "END:VCALENDAR"])
 
     return "\r\n".join(lines)
+
+
+@lru_cache(maxsize=1)
+def _get_calendar_timezone() -> ZoneInfo:
+    """Return the timezone used when generating ICS events.
+
+    The timezone is resolved from the ``CALENDAR_TIMEZONE`` environment
+    variable, then ``TZ`` if set, and finally falls back to the server's
+    local timezone. When none of those can be resolved, UTC is used.
+    """
+
+    configured = os.getenv("CALENDAR_TIMEZONE") or os.getenv("TZ")
+    if configured:
+        try:
+            return ZoneInfo(configured)
+        except ZoneInfoNotFoundError:
+            logging.warning("Invalid calendar timezone '%s'; falling back to UTC", configured)
+    try:
+        local_tz = datetime.now().astimezone().tzinfo
+        if isinstance(local_tz, ZoneInfo):
+            return local_tz
+    except Exception:  # pragma: no cover - defensive
+        logging.debug("Failed to resolve local timezone; defaulting to UTC")
+
+    return ZoneInfo("UTC")
 
 
 def send_notification_email(
