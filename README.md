@@ -36,6 +36,17 @@ A comprehensive web-based leave management system designed for small to medium o
 
 ### Step 2: Configuration
 
+### Database File Location
+
+By default the app now stores SQLite data in `leave_management.db` inside the project root, regardless of which working directory is used to start `server.py`.
+
+If you want a custom path, set `DATABASE_PATH` in your environment or `.env` file:
+
+```bash
+DATABASE_PATH=/absolute/path/to/leave_management.db
+```
+
+
 #### Email Notifications (Optional but Recommended)
 1. Provide SMTP credentials via environment variables. Email delivery will
    fail fast during startup if these values are missing.

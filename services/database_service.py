@@ -10,10 +10,12 @@ import uuid
 import threading
 import os  # @tweakable missing import for file operations
 from datetime import datetime
+from pathlib import Path
 
 # Moved from server.py - database configuration and connection handling
 # @tweakable database configuration parameters
-DATABASE_PATH = "leave_management.db"
+_DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "leave_management.db"
+DATABASE_PATH = os.getenv("DATABASE_PATH", str(_DEFAULT_DB_PATH))
 MAX_DB_RETRIES = 3
 DB_CONNECTION_TIMEOUT = 30
 
@@ -23,9 +25,13 @@ db_lock = threading.RLock()
 
 def get_db_connection():
     """Get database connection with retry logic"""
+    db_path = Path(DATABASE_PATH).expanduser()
+    if not db_path.is_absolute():
+        db_path = (Path.cwd() / db_path).resolve()
+
     for attempt in range(MAX_DB_RETRIES):
         try:
-            conn = sqlite3.connect(DATABASE_PATH, timeout=DB_CONNECTION_TIMEOUT)
+            conn = sqlite3.connect(str(db_path), timeout=DB_CONNECTION_TIMEOUT)
             conn.execute('PRAGMA foreign_keys = ON')
             conn.row_factory = sqlite3.Row  # Enable dict-like access
             return conn
@@ -38,14 +44,17 @@ def init_database():
     """Initialize SQLite database with required tables"""
     # @tweakable database backup configuration
     CREATE_DB_BACKUP = True
-    
-    if CREATE_DB_BACKUP and os.path.exists(DATABASE_PATH):
-        backup_path = f"{DATABASE_PATH}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    db_path = Path(DATABASE_PATH).expanduser()
+    if not db_path.is_absolute():
+        db_path = (Path.cwd() / db_path).resolve()
+
+    if CREATE_DB_BACKUP and db_path.exists():
+        backup_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         import shutil
-        shutil.copy2(DATABASE_PATH, backup_path)
+        shutil.copy2(str(db_path), backup_path)
         print(f"📦 Database backup created: {backup_path}")
-    
-    conn = sqlite3.connect(DATABASE_PATH, timeout=DB_CONNECTION_TIMEOUT)
+
+    conn = sqlite3.connect(str(db_path), timeout=DB_CONNECTION_TIMEOUT)
     conn.execute('PRAGMA foreign_keys = ON')
     
     # Create all required tables
