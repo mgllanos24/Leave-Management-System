@@ -52,3 +52,18 @@ def test_send_notification_email_inlines_ics(monkeypatch):
     assert list(msg.iter_attachments()) == []
     # Optional header for compatibility
     assert msg["Content-Class"] == "urn:content-classes:calendarmessage"
+
+
+def test_generate_ics_content_with_times_includes_timezone(monkeypatch):
+    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
+
+    ics = email_service.generate_ics_content(
+        start_date="2026-02-10",
+        end_date="2026-02-10",
+        summary="Eduardo Orozco - OOO",
+        start_time="06:30",
+        end_time="15:00",
+    )
+
+    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics

@@ -35,6 +35,10 @@ except ValueError as exc:  # pragma: no cover - defensive
 SMTP_USERNAME = _require_env("SMTP_USERNAME")
 SMTP_PASSWORD = _require_env("SMTP_PASSWORD")
 
+# Calendar time entries should be interpreted in local business time instead
+# of UTC to avoid clients shifting request hours into the prior/next day.
+CALENDAR_TIMEZONE = os.getenv("CALENDAR_TIMEZONE", "America/Los_Angeles")
+
 
 def generate_ics_content(
     start_date: str,
@@ -78,8 +82,8 @@ def generate_ics_content(
         end_dt = datetime.fromisoformat(f"{end_date}T{end_clock}")
         if end_dt <= start_dt:
             end_dt = start_dt + timedelta(hours=1)
-        lines.append(f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}")
-        lines.append(f"DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}")
+        lines.append(f"DTSTART;TZID={CALENDAR_TIMEZONE}:{start_dt.strftime('%Y%m%dT%H%M%S')}")
+        lines.append(f"DTEND;TZID={CALENDAR_TIMEZONE}:{end_dt.strftime('%Y%m%dT%H%M%S')}")
     else:
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
