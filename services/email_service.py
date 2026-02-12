@@ -166,6 +166,18 @@ def generate_ics_content(
     effective_force_utc = force_utc
     calendar_zone: tzinfo | None = None
 
+<<<<<<< codex/fix-calendar-date-display-wv98xz
+    if (start_time or end_time) and not force_utc:
+        try:
+            lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
+        except ZoneInfoNotFoundError:
+            logging.warning(
+                "CALENDAR_TIMEZONE '%s' is unavailable; emitting TZID entries without VTIMEZONE",
+                CALENDAR_TIMEZONE,
+            )
+
+=======
+>>>>>>> main
     lines.extend([
         "BEGIN:VEVENT",
         f"UID:{uid}",
