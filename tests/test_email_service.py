@@ -63,7 +63,38 @@ def test_generate_ics_content_with_times_includes_timezone(monkeypatch):
         summary="Eduardo Orozco - OOO",
         start_time="06:30",
         end_time="15:00",
+        uid="APP-123@leave-management-system",
+        organizer_email="organizer@example.com",
+        organizer_name="Leave Bot",
+        attendee_email="employee@example.com",
+        attendee_name="Employee Name",
+        sequence=2,
+        status="CONFIRMED",
     )
 
+    assert "BEGIN:VTIMEZONE" in ics
+    assert "TZID:America/Los_Angeles" in ics
     assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
     assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
+    assert "UID:APP-123@leave-management-system" in ics
+    assert "ORGANIZER;CN=Leave Bot:mailto:organizer@example.com" in ics
+    assert "ATTENDEE;CN=Employee Name;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:employee@example.com" in ics
+    assert "SEQUENCE:2" in ics
+    assert "STATUS:CONFIRMED" in ics
+
+
+def test_generate_ics_content_can_emit_utc(monkeypatch):
+    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
+
+    ics = email_service.generate_ics_content(
+        start_date="2026-02-10",
+        end_date="2026-02-10",
+        summary="Eduardo Orozco - OOO",
+        start_time="06:30",
+        end_time="15:00",
+        force_utc=True,
+    )
+
+    assert "BEGIN:VTIMEZONE" not in ics
+    assert "DTSTART:20260210T143000Z" in ics
+    assert "DTEND:20260210T230000Z" in ics

@@ -1321,6 +1321,13 @@ Management
                                         ),
                                         start_time=start_time,
                                         end_time=end_time,
+                                        uid=f"{app_id}@leave-management-system",
+                                        organizer_email=os.getenv('SMTP_USERNAME'),
+                                        organizer_name='Leave Management System',
+                                        attendee_email=employee_email,
+                                        attendee_name=employee_name,
+                                        sequence=0,
+                                        status='CONFIRMED',
                                     )
 
                                 admin_recipients = ADMIN_APPROVE_EMAILS or []

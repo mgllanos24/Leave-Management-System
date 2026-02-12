@@ -9,8 +9,9 @@ import logging
 import os
 import smtplib
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
+from zoneinfo import ZoneInfo
 
 
 def _require_env(key: str) -> str:
@@ -38,6 +39,85 @@ SMTP_PASSWORD = _require_env("SMTP_PASSWORD")
 # Calendar time entries should be interpreted in local business time instead
 # of UTC to avoid clients shifting request hours into the prior/next day.
 CALENDAR_TIMEZONE = os.getenv("CALENDAR_TIMEZONE", "America/Los_Angeles")
+CALENDAR_FORCE_UTC = os.getenv("CALENDAR_FORCE_UTC", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+
+def _format_ics_datetime(dt: datetime) -> str:
+    """Return datetime in ICS basic format without separators."""
+
+    return dt.strftime("%Y%m%dT%H%M%S")
+
+
+def _format_utc_offset(offset: timedelta) -> str:
+    """Format UTC offset timedelta into ICS TZOFFSET (+/-HHMM)."""
+
+    total_minutes = int(offset.total_seconds() // 60)
+    sign = "+" if total_minutes >= 0 else "-"
+    hours, minutes = divmod(abs(total_minutes), 60)
+    return f"{sign}{hours:02d}{minutes:02d}"
+
+
+def _build_vtimezone_block(tzid: str) -> list[str]:
+    """Create a VTIMEZONE block for the configured TZID.
+
+    The block uses current-year transitions for the timezone. This improves
+    compatibility with clients that require explicit timezone declarations.
+    """
+
+    zone = ZoneInfo(tzid)
+    year = datetime.now(UTC).year
+    day = datetime(year, 1, 1)
+    one_day = timedelta(days=1)
+    transitions: list[tuple[datetime, timedelta, timedelta]] = []
+    previous_offset = day.replace(tzinfo=zone).utcoffset()
+
+    # Scan the year to detect offset changes (DST boundaries).
+    while day.year == year:
+        current_offset = day.replace(tzinfo=zone).utcoffset()
+        if current_offset != previous_offset:
+            transitions.append((day, previous_offset, current_offset))
+            previous_offset = current_offset
+        day += one_day
+
+    lines = [
+        "BEGIN:VTIMEZONE",
+        f"TZID:{tzid}",
+        f"X-LIC-LOCATION:{tzid}",
+    ]
+
+    if not transitions:
+        # Fixed-offset timezone without DST changes.
+        offset = datetime(year, 1, 1, tzinfo=zone).strftime("%z")
+        lines.extend(
+            [
+                "BEGIN:STANDARD",
+                f"DTSTART:{year}0101T000000",
+                f"TZOFFSETFROM:{offset}",
+                f"TZOFFSETTO:{offset}",
+                "END:STANDARD",
+            ]
+        )
+    else:
+        for transition_date, offset_from, offset_to in transitions:
+            section = "DAYLIGHT" if offset_to > offset_from else "STANDARD"
+            lines.extend(
+                [
+                    f"BEGIN:{section}",
+                    f"DTSTART:{transition_date.strftime('%Y%m%dT020000')}",
+                    f"TZOFFSETFROM:{_format_utc_offset(offset_from)}",
+                    f"TZOFFSETTO:{_format_utc_offset(offset_to)}",
+                    f"TZNAME:{transition_date.replace(tzinfo=zone).tzname() or tzid}",
+                    f"END:{section}",
+                ]
+            )
+
+    lines.append("END:VTIMEZONE")
+    return lines
 
 
 def generate_ics_content(
@@ -47,6 +127,14 @@ def generate_ics_content(
     description: str | None = None,
     start_time: str | None = None,
     end_time: str | None = None,
+    uid: str | None = None,
+    organizer_email: str | None = None,
+    organizer_name: str | None = None,
+    attendee_email: str | None = None,
+    attendee_name: str | None = None,
+    sequence: int = 0,
+    status: str = "CONFIRMED",
+    force_utc: bool = CALENDAR_FORCE_UTC,
 ) -> str:
     """Create a basic ICS calendar event.
 
@@ -62,18 +150,25 @@ def generate_ics_content(
         Optional description to include with the event.
     """
 
-    uid = f"{uuid.uuid4()}@leave-management-system"
-    dtstamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    uid = uid or f"{uuid.uuid4()}@leave-management-system"
+    dtstamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "PRODID:-//Leave Management System//EN",
+        "CALSCALE:GREGORIAN",
         "METHOD:REQUEST",
+    ]
+
+    if (start_time or end_time) and not force_utc:
+        lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
+
+    lines.extend([
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{dtstamp}",
-    ]
+    ])
 
     if start_time or end_time:
         start_clock = start_time or "00:00"
@@ -82,8 +177,20 @@ def generate_ics_content(
         end_dt = datetime.fromisoformat(f"{end_date}T{end_clock}")
         if end_dt <= start_dt:
             end_dt = start_dt + timedelta(hours=1)
-        lines.append(f"DTSTART;TZID={CALENDAR_TIMEZONE}:{start_dt.strftime('%Y%m%dT%H%M%S')}")
-        lines.append(f"DTEND;TZID={CALENDAR_TIMEZONE}:{end_dt.strftime('%Y%m%dT%H%M%S')}")
+        if force_utc:
+            utc_zone = ZoneInfo("UTC")
+            local_zone = ZoneInfo(CALENDAR_TIMEZONE)
+            start_utc = start_dt.replace(tzinfo=local_zone).astimezone(utc_zone)
+            end_utc = end_dt.replace(tzinfo=local_zone).astimezone(utc_zone)
+            lines.append(f"DTSTART:{_format_ics_datetime(start_utc)}Z")
+            lines.append(f"DTEND:{_format_ics_datetime(end_utc)}Z")
+        else:
+            lines.append(
+                f"DTSTART;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(start_dt)}"
+            )
+            lines.append(
+                f"DTEND;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(end_dt)}"
+            )
     else:
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
@@ -91,6 +198,20 @@ def generate_ics_content(
         lines.append(f"DTEND;VALUE=DATE:{end_dt.strftime('%Y%m%d')}")
 
     lines.append(f"SUMMARY:{summary}")
+    lines.append(f"SEQUENCE:{sequence}")
+    lines.append(f"STATUS:{status}")
+
+    if organizer_email:
+        organizer_cn = organizer_name or organizer_email
+        lines.append(f"ORGANIZER;CN={organizer_cn}:mailto:{organizer_email}")
+
+    if attendee_email:
+        attendee_cn = attendee_name or attendee_email
+        lines.append(
+            "ATTENDEE;CN="
+            f"{attendee_cn};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:"
+            f"mailto:{attendee_email}"
+        )
 
     if description:
         lines.append(f"DESCRIPTION:{description}")
