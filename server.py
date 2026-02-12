@@ -437,6 +437,9 @@ def calculate_total_hours(
         except ValueError:
             return 0.0
 
+        if end_dt.date() < start_dt.date():
+            raise ValueError("Leave end date must be on or after the start date.")
+
         provided_start_time = bool(start_time)
         provided_end_time = bool(end_time)
 
@@ -449,9 +452,6 @@ def calculate_total_hours(
             end_clock = end_dt.time()
             if end_clock < EARLIEST_LEAVE_TIME or end_clock > LATEST_LEAVE_TIME:
                 raise ValueError("End time must be between 06:30 and 15:00.")
-
-        if end_dt.date() < start_dt.date():
-            return 0.0
 
         if end_dt.date() != start_dt.date():
             legacy_days = _calculate_total_days_legacy(
