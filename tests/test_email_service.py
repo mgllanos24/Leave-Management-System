@@ -1,4 +1,5 @@
 import os
+import importlib
 
 for key, value in (
     ("SMTP_SERVER", "smtp.test"),
@@ -9,6 +10,13 @@ for key, value in (
     os.environ.setdefault(key, value)
 
 from services import email_service
+
+
+def test_calendar_timezone_defaults_to_los_angeles(monkeypatch):
+    monkeypatch.delenv("CALENDAR_TIMEZONE", raising=False)
+    importlib.reload(email_service)
+
+    assert email_service.CALENDAR_TIMEZONE == "America/Los_Angeles"
 
 
 def test_send_notification_email_inlines_ics(monkeypatch):

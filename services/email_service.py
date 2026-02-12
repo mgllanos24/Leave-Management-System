@@ -38,6 +38,8 @@ SMTP_PASSWORD = _require_env("SMTP_PASSWORD")
 
 # Calendar time entries should be interpreted in local business time instead
 # of UTC to avoid clients shifting request hours into the prior/next day.
+# Default timezone is set to Pacific time (Anaheim) unless overridden by
+# CALENDAR_TIMEZONE in the environment.
 CALENDAR_TIMEZONE = os.getenv("CALENDAR_TIMEZONE", "America/Los_Angeles")
 CALENDAR_FORCE_UTC = os.getenv("CALENDAR_FORCE_UTC", "false").lower() in {
     "1",
