@@ -11,7 +11,7 @@ import smtplib
 import uuid
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 def _require_env(key: str) -> str:
@@ -161,8 +161,18 @@ def generate_ics_content(
         "METHOD:REQUEST",
     ]
 
+    effective_force_utc = force_utc
+    calendar_zone: ZoneInfo | None = None
+
     if (start_time or end_time) and not force_utc:
-        lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
+        try:
+            lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
+        except ZoneInfoNotFoundError:
+            logging.warning(
+                "CALENDAR_TIMEZONE '%s' is unavailable; falling back to UTC",
+                CALENDAR_TIMEZONE,
+            )
+            effective_force_utc = True
 
     lines.extend([
         "BEGIN:VEVENT",
@@ -177,11 +187,15 @@ def generate_ics_content(
         end_dt = datetime.fromisoformat(f"{end_date}T{end_clock}")
         if end_dt <= start_dt:
             end_dt = start_dt + timedelta(hours=1)
-        if force_utc:
+        if effective_force_utc:
             utc_zone = ZoneInfo("UTC")
-            local_zone = ZoneInfo(CALENDAR_TIMEZONE)
-            start_utc = start_dt.replace(tzinfo=local_zone).astimezone(utc_zone)
-            end_utc = end_dt.replace(tzinfo=local_zone).astimezone(utc_zone)
+            if calendar_zone is None:
+                try:
+                    calendar_zone = ZoneInfo(CALENDAR_TIMEZONE)
+                except ZoneInfoNotFoundError:
+                    calendar_zone = utc_zone
+            start_utc = start_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
+            end_utc = end_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
             lines.append(f"DTSTART:{_format_ics_datetime(start_utc)}Z")
             lines.append(f"DTEND:{_format_ics_datetime(end_utc)}Z")
         else:
