@@ -123,3 +123,28 @@ def test_generate_ics_content_falls_back_to_utc_when_timezone_missing(monkeypatc
     assert "BEGIN:VTIMEZONE" not in ics
     assert "DTSTART:20260210T063000Z" in ics
     assert "DTEND:20260210T150000Z" in ics
+
+
+def test_generate_ics_content_uses_datetime_utc_without_zoneinfo_lookup(monkeypatch):
+    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
+
+    real_zone_info = email_service.ZoneInfo
+
+    def fake_zone_info(key):
+        if key == "UTC":
+            raise AssertionError("UTC should not be resolved via ZoneInfo")
+        return real_zone_info(key)
+
+    monkeypatch.setattr(email_service, "ZoneInfo", fake_zone_info)
+
+    ics = email_service.generate_ics_content(
+        start_date="2026-02-10",
+        end_date="2026-02-10",
+        summary="UTC fallback",
+        start_time="06:30",
+        end_time="15:00",
+        force_utc=True,
+    )
+
+    assert "DTSTART:20260210T143000Z" in ics
+    assert "DTEND:20260210T230000Z" in ics
