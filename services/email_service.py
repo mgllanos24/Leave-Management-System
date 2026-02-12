@@ -171,10 +171,9 @@ def generate_ics_content(
             lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
         except ZoneInfoNotFoundError:
             logging.warning(
-                "CALENDAR_TIMEZONE '%s' is unavailable; falling back to UTC",
+                "CALENDAR_TIMEZONE '%s' is unavailable; emitting TZID entries without VTIMEZONE",
                 CALENDAR_TIMEZONE,
             )
-            effective_force_utc = True
 
     lines.extend([
         "BEGIN:VEVENT",

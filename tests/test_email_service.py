@@ -108,7 +108,7 @@ def test_generate_ics_content_can_emit_utc(monkeypatch):
     assert "DTEND:20260210T230000Z" in ics
 
 
-def test_generate_ics_content_falls_back_to_utc_when_timezone_missing(monkeypatch):
+def test_generate_ics_content_with_timezone_missing_skips_vtimezone(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
     real_zone_info = email_service.ZoneInfo
@@ -129,8 +129,8 @@ def test_generate_ics_content_falls_back_to_utc_when_timezone_missing(monkeypatc
     )
 
     assert "BEGIN:VTIMEZONE" not in ics
-    assert "DTSTART:20260210T063000Z" in ics
-    assert "DTEND:20260210T150000Z" in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
 
 
 def test_generate_ics_content_uses_datetime_utc_without_zoneinfo_lookup(monkeypatch):
