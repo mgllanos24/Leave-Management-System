@@ -75,3 +75,15 @@ def test_single_day_rejects_end_after_window():
         )
 
     assert "15:00" in str(error_info.value)
+
+
+def test_rejects_end_date_before_start_date():
+    with pytest.raises(ValueError) as error_info:
+        calculate_total_hours(
+            "2026-02-13",
+            "2026-02-02",
+            start_time="06:30",
+            end_time="15:00",
+        )
+
+    assert "on or after the start date" in str(error_info.value)

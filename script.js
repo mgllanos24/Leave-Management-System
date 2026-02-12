@@ -1755,6 +1755,33 @@ function showTimeWarningIfNeeded(validation) {
     }
 }
 
+function validateLeaveDateRange(startDate, endDate) {
+    if (!startDate || !endDate) {
+        return { valid: true, code: null };
+    }
+
+    const startDateValue = new Date(`${startDate}T00:00:00`);
+    const endDateValue = new Date(`${endDate}T00:00:00`);
+
+    if (Number.isNaN(startDateValue.getTime()) || Number.isNaN(endDateValue.getTime())) {
+        return {
+            valid: false,
+            code: 'INVALID_DATE_RANGE',
+            message: 'Please enter valid leave start and end dates.',
+        };
+    }
+
+    if (endDateValue < startDateValue) {
+        return {
+            valid: false,
+            code: 'END_DATE_BEFORE_START_DATE',
+            message: 'Leave end date must be on or after the start date.',
+        };
+    }
+
+    return { valid: true, code: null };
+}
+
 function validateSingleDayTimeWindow(startDate, endDate, startTime, endTime) {
     if (!startDate || !endDate || startDate !== endDate) {
         return { valid: true, code: null };
@@ -1906,6 +1933,12 @@ function calculateLeaveDuration() {
 
     if (!startDate || !endDate) {
         durationText.textContent = 'Duration will be calculated automatically';
+        return;
+    }
+
+    const dateRangeValidation = validateLeaveDateRange(startDate, endDate);
+    if (!dateRangeValidation.valid) {
+        durationText.textContent = dateRangeValidation.message;
         return;
     }
 
@@ -2133,6 +2166,15 @@ async function submitLeaveApplication(event, returnDate = null) {
         const endTimeInput = document.getElementById('endTime');
         const isMultiDay = Boolean(startDate && endDate && startDate !== endDate);
         const durationText = document.getElementById('durationText');
+
+        const dateRangeValidation = validateLeaveDateRange(startDate, endDate);
+        if (!dateRangeValidation.valid) {
+            if (durationText) {
+                durationText.textContent = dateRangeValidation.message;
+            }
+            hideLoading();
+            return;
+        }
 
         if (!isMultiDay) {
             if (!startTime || !endTime) {
