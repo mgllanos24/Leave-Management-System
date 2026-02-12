@@ -124,14 +124,8 @@ def test_generate_ics_content_with_local_times_does_not_require_zoneinfo(monkeyp
         end_time="15:00",
     )
 
-<<<<<<< codex/fix-calendar-date-display-wv98xz
-    assert "BEGIN:VTIMEZONE" not in ics
-    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
-    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
-=======
     assert "DTSTART:20260210T063000" in ics
     assert "DTEND:20260210T150000" in ics
->>>>>>> main
 
 
 def test_generate_ics_content_uses_datetime_utc_without_zoneinfo_lookup(monkeypatch):
