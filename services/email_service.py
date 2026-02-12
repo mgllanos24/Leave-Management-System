@@ -9,7 +9,7 @@ import logging
 import os
 import smtplib
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -162,7 +162,7 @@ def generate_ics_content(
     ]
 
     effective_force_utc = force_utc
-    calendar_zone: ZoneInfo | None = None
+    calendar_zone: tzinfo | None = None
 
     if (start_time or end_time) and not force_utc:
         try:
@@ -188,7 +188,7 @@ def generate_ics_content(
         if end_dt <= start_dt:
             end_dt = start_dt + timedelta(hours=1)
         if effective_force_utc:
-            utc_zone = ZoneInfo("UTC")
+            utc_zone = UTC
             if calendar_zone is None:
                 try:
                     calendar_zone = ZoneInfo(CALENDAR_TIMEZONE)
