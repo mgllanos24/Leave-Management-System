@@ -166,16 +166,6 @@ def generate_ics_content(
     effective_force_utc = force_utc
     calendar_zone: tzinfo | None = None
 
-    if (start_time or end_time) and not force_utc:
-        try:
-            lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
-        except ZoneInfoNotFoundError:
-            logging.warning(
-                "CALENDAR_TIMEZONE '%s' is unavailable; falling back to UTC",
-                CALENDAR_TIMEZONE,
-            )
-            effective_force_utc = True
-
     lines.extend([
         "BEGIN:VEVENT",
         f"UID:{uid}",
@@ -201,12 +191,10 @@ def generate_ics_content(
             lines.append(f"DTSTART:{_format_ics_datetime(start_utc)}Z")
             lines.append(f"DTEND:{_format_ics_datetime(end_utc)}Z")
         else:
-            lines.append(
-                f"DTSTART;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(start_dt)}"
-            )
-            lines.append(
-                f"DTEND;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(end_dt)}"
-            )
+            # Use floating local times so calendar clients preserve exact hours
+            # entered in the leave request without timezone shifts.
+            lines.append(f"DTSTART:{_format_ics_datetime(start_dt)}")
+            lines.append(f"DTEND:{_format_ics_datetime(end_dt)}")
     else:
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
