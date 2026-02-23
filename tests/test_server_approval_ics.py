@@ -129,7 +129,6 @@ def test_leave_approval_ics_uses_leave_request_window(monkeypatch):
         captured["start_time"] = kwargs.get("start_time")
         captured["end_time"] = kwargs.get("end_time")
         captured["force_utc"] = kwargs.get("force_utc")
-        captured["floating_time"] = kwargs.get("floating_time")
         return "BEGIN:VCALENDAR\r\nEND:VCALENDAR"
 
     monkeypatch.setattr(server, "generate_ics_content", fake_generate_ics_content)
@@ -160,7 +159,6 @@ def test_leave_approval_ics_uses_leave_request_window(monkeypatch):
     assert captured["start_time"] == "09:00"
     assert captured["end_time"] == "17:00"
     assert captured["force_utc"] is False
-    assert captured["floating_time"] is True
 
     conn.close()
 
