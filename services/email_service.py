@@ -170,6 +170,22 @@ def generate_ics_content(
     effective_force_utc = force_utc
     calendar_zone: tzinfo | None = None
 
+    if start_time or end_time:
+        try:
+            calendar_zone = ZoneInfo(CALENDAR_TIMEZONE)
+        except ZoneInfoNotFoundError:
+            logging.warning(
+                "Unable to resolve CALENDAR_TIMEZONE=%s; falling back to fixed UTC offset",
+                CALENDAR_TIMEZONE,
+            )
+            calendar_zone = timezone(timedelta(hours=CALENDAR_UTC_OFFSET_HOURS))
+
+        # Include explicit timezone data for local-time invites so clients can
+        # correctly handle DST transitions.
+        using_named_timezone = getattr(calendar_zone, "key", None) == CALENDAR_TIMEZONE
+        if not effective_force_utc and using_named_timezone:
+            lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
+
     lines.extend([
         "BEGIN:VEVENT",
         f"UID:{uid}",
@@ -185,14 +201,22 @@ def generate_ics_content(
             end_dt = start_dt + timedelta(hours=1)
         if effective_force_utc:
             utc_zone = UTC
-            calendar_zone = timezone(timedelta(hours=CALENDAR_UTC_OFFSET_HOURS))
+            if calendar_zone is None:
+                calendar_zone = timezone(timedelta(hours=CALENDAR_UTC_OFFSET_HOURS))
             start_utc = start_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
             end_utc = end_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
             lines.append(f"DTSTART:{_format_ics_datetime(start_utc)}Z")
             lines.append(f"DTEND:{_format_ics_datetime(end_utc)}Z")
+        elif using_named_timezone:
+            lines.append(
+                f"DTSTART;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(start_dt)}"
+            )
+            lines.append(
+                f"DTEND;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(end_dt)}"
+            )
         else:
-            # Use floating local times so calendar clients preserve exact hours
-            # entered in the leave request without timezone shifts.
+            # Fall back to floating local times if a timezone database is not
+            # available in the runtime.
             lines.append(f"DTSTART:{_format_ics_datetime(start_dt)}")
             lines.append(f"DTEND:{_format_ics_datetime(end_dt)}")
     else:
