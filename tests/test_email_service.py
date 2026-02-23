@@ -80,10 +80,10 @@ def test_generate_ics_content_with_times_uses_floating_local_time(monkeypatch):
         status="CONFIRMED",
     )
 
-    assert "BEGIN:VTIMEZONE" not in ics
-    assert "TZID:America/Los_Angeles" not in ics
-    assert "DTSTART:20260210T063000" in ics
-    assert "DTEND:20260210T150000" in ics
+    assert "BEGIN:VTIMEZONE" in ics
+    assert "TZID:America/Los_Angeles" in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
     assert "UID:APP-123@leave-management-system" in ics
     assert "ORGANIZER;CN=Leave Bot:mailto:organizer@example.com" in ics
     assert "ATTENDEE;CN=Employee Name;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:employee@example.com" in ics
@@ -108,11 +108,11 @@ def test_generate_ics_content_can_emit_utc(monkeypatch):
     assert "DTEND:20260210T230000Z" in ics
 
 
-def test_generate_ics_content_with_local_times_does_not_require_zoneinfo(monkeypatch):
+def test_generate_ics_content_with_local_times_falls_back_without_zoneinfo(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
     def fake_zone_info(key):
-        raise AssertionError("ZoneInfo should not be called for floating local times")
+        raise email_service.ZoneInfoNotFoundError("missing tzdata")
 
     monkeypatch.setattr(email_service, "ZoneInfo", fake_zone_info)
 
@@ -124,6 +124,7 @@ def test_generate_ics_content_with_local_times_does_not_require_zoneinfo(monkeyp
         end_time="15:00",
     )
 
+    assert "BEGIN:VTIMEZONE" not in ics
     assert "DTSTART:20260210T063000" in ics
     assert "DTEND:20260210T150000" in ics
 
@@ -151,3 +152,20 @@ def test_generate_ics_content_uses_datetime_utc_without_zoneinfo_lookup(monkeypa
 
     assert "DTSTART:20260210T143000Z" in ics
     assert "DTEND:20260210T230000Z" in ics
+
+
+def test_generate_ics_content_utc_conversion_honors_dst(monkeypatch):
+    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
+
+    ics = email_service.generate_ics_content(
+        start_date="2026-06-10",
+        end_date="2026-06-10",
+        summary="DST check",
+        start_time="06:30",
+        end_time="15:00",
+        force_utc=True,
+    )
+
+    # June in Los Angeles should use daylight time (UTC-07:00).
+    assert "DTSTART:20260610T133000Z" in ics
+    assert "DTEND:20260610T220000Z" in ics
