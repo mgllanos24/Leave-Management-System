@@ -9,7 +9,7 @@ import logging
 import os
 import smtplib
 import uuid
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -41,6 +41,10 @@ SMTP_PASSWORD = _require_env("SMTP_PASSWORD")
 # Default timezone is set to Pacific time (Anaheim) unless overridden by
 # CALENDAR_TIMEZONE in the environment.
 CALENDAR_TIMEZONE = os.getenv("CALENDAR_TIMEZONE", "America/Los_Angeles")
+try:
+    CALENDAR_UTC_OFFSET_HOURS = int(os.getenv("CALENDAR_UTC_OFFSET_HOURS", "-8"))
+except ValueError as exc:  # pragma: no cover - defensive
+    raise RuntimeError("CALENDAR_UTC_OFFSET_HOURS must be an integer") from exc
 CALENDAR_FORCE_UTC = os.getenv("CALENDAR_FORCE_UTC", "false").lower() in {
     "1",
     "true",
@@ -181,11 +185,7 @@ def generate_ics_content(
             end_dt = start_dt + timedelta(hours=1)
         if effective_force_utc:
             utc_zone = UTC
-            if calendar_zone is None:
-                try:
-                    calendar_zone = ZoneInfo(CALENDAR_TIMEZONE)
-                except ZoneInfoNotFoundError:
-                    calendar_zone = utc_zone
+            calendar_zone = timezone(timedelta(hours=CALENDAR_UTC_OFFSET_HOURS))
             start_utc = start_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
             end_utc = end_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
             lines.append(f"DTSTART:{_format_ics_datetime(start_utc)}Z")
