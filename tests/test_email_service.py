@@ -91,6 +91,27 @@ def test_generate_ics_content_with_times_uses_floating_local_time(monkeypatch):
     assert "STATUS:CONFIRMED" in ics
 
 
+
+
+def test_generate_ics_content_can_emit_floating_times_without_timezone(monkeypatch):
+    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
+
+    ics = email_service.generate_ics_content(
+        start_date="2026-03-07",
+        end_date="2026-03-09",
+        summary="Floating local time",
+        start_time="06:30",
+        end_time="15:00",
+        force_utc=False,
+        floating_time=True,
+    )
+
+    assert "BEGIN:VTIMEZONE" not in ics
+    assert "DTSTART;TZID=" not in ics
+    assert "DTEND;TZID=" not in ics
+    assert "DTSTART:20260307T063000" in ics
+    assert "DTEND:20260309T150000" in ics
+
 def test_generate_ics_content_can_emit_utc(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
