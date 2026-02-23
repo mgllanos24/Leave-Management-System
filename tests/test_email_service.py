@@ -169,3 +169,20 @@ def test_generate_ics_content_utc_conversion_honors_dst(monkeypatch):
     # June in Los Angeles should use daylight time (UTC-07:00).
     assert "DTSTART:20260610T133000Z" in ics
     assert "DTEND:20260610T220000Z" in ics
+
+
+def test_generate_ics_content_vtimezone_uses_event_year_transitions(monkeypatch):
+    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
+
+    ics = email_service.generate_ics_content(
+        start_date="2026-03-13",
+        end_date="2026-03-13",
+        summary="Event with timezone block",
+        start_time="06:30",
+        end_time="15:00",
+    )
+
+    assert "BEGIN:DAYLIGHT" in ics
+    assert "DTSTART:20260308T020000" in ics
+    assert "BEGIN:STANDARD" in ics
+    assert "DTSTART:20261101T020000" in ics
