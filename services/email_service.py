@@ -143,6 +143,7 @@ def generate_ics_content(
     sequence: int = 0,
     status: str = "CONFIRMED",
     force_utc: bool = CALENDAR_FORCE_UTC,
+    floating_time: bool = False,
 ) -> str:
     """Create a basic ICS calendar event.
 
@@ -183,8 +184,12 @@ def generate_ics_content(
             calendar_zone = timezone(timedelta(hours=CALENDAR_UTC_OFFSET_HOURS))
 
         # Include explicit timezone data for local-time invites so clients can
-        # correctly handle DST transitions.
-        using_named_timezone = getattr(calendar_zone, "key", None) == CALENDAR_TIMEZONE
+        # correctly handle DST transitions, unless floating local time was
+        # explicitly requested.
+        using_named_timezone = (
+            not floating_time
+            and getattr(calendar_zone, "key", None) == CALENDAR_TIMEZONE
+        )
         if not effective_force_utc and using_named_timezone:
             years = {
                 datetime.fromisoformat(start_date).year,
