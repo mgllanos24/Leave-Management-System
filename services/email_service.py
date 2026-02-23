@@ -68,23 +68,25 @@ def _format_utc_offset(offset: timedelta) -> str:
     return f"{sign}{hours:02d}{minutes:02d}"
 
 
-def _build_vtimezone_block(tzid: str) -> list[str]:
+def _build_vtimezone_block(tzid: str, years: set[int]) -> list[str]:
     """Create a VTIMEZONE block for the configured TZID.
 
-    The block uses current-year transitions for the timezone. This improves
-    compatibility with clients that require explicit timezone declarations.
+    The block uses the provided event years so transitions match invites that
+    are generated ahead of time.
     """
 
     zone = ZoneInfo(tzid)
-    year = datetime.now(UTC).year
-    day = datetime(year, 1, 1)
+    sorted_years = sorted(years)
+    day = datetime(sorted_years[0], 1, 1)
+    end_day = datetime(sorted_years[-1] + 1, 1, 1)
     one_day = timedelta(days=1)
     transitions: list[tuple[datetime, timedelta, timedelta]] = []
-    previous_offset = day.replace(tzinfo=zone).utcoffset()
+    # Use midday offsets to avoid detecting DST changes one day late.
+    previous_offset = day.replace(hour=12, tzinfo=zone).utcoffset()
 
-    # Scan the year to detect offset changes (DST boundaries).
-    while day.year == year:
-        current_offset = day.replace(tzinfo=zone).utcoffset()
+    # Scan the requested years to detect offset changes (DST boundaries).
+    while day < end_day:
+        current_offset = day.replace(hour=12, tzinfo=zone).utcoffset()
         if current_offset != previous_offset:
             transitions.append((day, previous_offset, current_offset))
             previous_offset = current_offset
@@ -98,11 +100,11 @@ def _build_vtimezone_block(tzid: str) -> list[str]:
 
     if not transitions:
         # Fixed-offset timezone without DST changes.
-        offset = datetime(year, 1, 1, tzinfo=zone).strftime("%z")
+        offset = datetime(sorted_years[0], 1, 1, tzinfo=zone).strftime("%z")
         lines.extend(
             [
                 "BEGIN:STANDARD",
-                f"DTSTART:{year}0101T000000",
+                f"DTSTART:{sorted_years[0]}0101T000000",
                 f"TZOFFSETFROM:{offset}",
                 f"TZOFFSETTO:{offset}",
                 "END:STANDARD",
@@ -184,7 +186,11 @@ def generate_ics_content(
         # correctly handle DST transitions.
         using_named_timezone = getattr(calendar_zone, "key", None) == CALENDAR_TIMEZONE
         if not effective_force_utc and using_named_timezone:
-            lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
+            years = {
+                datetime.fromisoformat(start_date).year,
+                datetime.fromisoformat(end_date).year,
+            }
+            lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE, years))
 
     lines.extend([
         "BEGIN:VEVENT",
