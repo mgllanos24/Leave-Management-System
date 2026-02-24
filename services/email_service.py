@@ -9,9 +9,9 @@ import logging
 import os
 import smtplib
 import uuid
-from datetime import UTC, datetime, timedelta, timezone, tzinfo
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 
 def _require_env(key: str) -> str:
@@ -41,32 +41,38 @@ SMTP_PASSWORD = _require_env("SMTP_PASSWORD")
 # Default timezone is set to Pacific time (Anaheim) unless overridden by
 # CALENDAR_TIMEZONE in the environment.
 CALENDAR_TIMEZONE = os.getenv("CALENDAR_TIMEZONE", "America/Los_Angeles")
-try:
-    CALENDAR_UTC_OFFSET_HOURS = int(os.getenv("CALENDAR_UTC_OFFSET_HOURS", "-8"))
-except ValueError as exc:  # pragma: no cover - defensive
-    raise RuntimeError("CALENDAR_UTC_OFFSET_HOURS must be an integer") from exc
-CALENDAR_FORCE_UTC = os.getenv("CALENDAR_FORCE_UTC", "false").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
-
-
 def _format_ics_datetime(dt: datetime) -> str:
     """Return datetime in ICS basic format without separators."""
 
     return dt.strftime("%Y%m%dT%H%M%S")
 
 
-def _format_utc_offset(offset: timedelta) -> str:
-    """Format UTC offset timedelta into ICS TZOFFSET (+/-HHMM)."""
+def _build_vtimezone_block(tzid: str) -> list[str]:
+    """Return an Outlook-friendly RRULE-based VTIMEZONE block."""
 
-    total_minutes = int(offset.total_seconds() // 60)
-    sign = "+" if total_minutes >= 0 else "-"
-    hours, minutes = divmod(abs(total_minutes), 60)
-    return f"{sign}{hours:02d}{minutes:02d}"
+    if tzid != "America/Los_Angeles":
+        raise ValueError(f"Unsupported tzid for leave events: {tzid}")
 
+    return [
+        "BEGIN:VTIMEZONE",
+        "TZID:America/Los_Angeles",
+        "X-LIC-LOCATION:America/Los_Angeles",
+        "BEGIN:DAYLIGHT",
+        "TZOFFSETFROM:-0800",
+        "TZOFFSETTO:-0700",
+        "TZNAME:PDT",
+        "DTSTART:19700308T020000",
+        "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU",
+        "END:DAYLIGHT",
+        "BEGIN:STANDARD",
+        "TZOFFSETFROM:-0700",
+        "TZOFFSETTO:-0800",
+        "TZNAME:PST",
+        "DTSTART:19701101T020000",
+        "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU",
+        "END:STANDARD",
+        "END:VTIMEZONE",
+    ]
 
 def _build_vtimezone_block(tzid: str, years: set[int]) -> list[str]:
     """Create a VTIMEZONE block for the configured TZID.
@@ -93,9 +99,19 @@ def _build_vtimezone_block(tzid: str, years: set[int]) -> list[str]:
         day += one_day
 
     lines = [
-        "BEGIN:VTIMEZONE",
-        f"TZID:{tzid}",
-        f"X-LIC-LOCATION:{tzid}",
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Leave Management System//EN",
+        "CALSCALE:GREGORIAN",
+        f"METHOD:{method}",
+        *_build_vtimezone_block(tzid),
+        "BEGIN:VEVENT",
+        f"UID:{event_uid}",
+        f"DTSTAMP:{dtstamp}",
+        f"DTSTART;TZID={tzid}:{_format_ics_datetime(start_local)}",
+        f"DTEND;TZID={tzid}:{_format_ics_datetime(end_local)}",
+        f"SUMMARY:{event_summary}",
+        f"DESCRIPTION:{event_description}",
     ]
 
     if not transitions:
@@ -124,8 +140,8 @@ def _build_vtimezone_block(tzid: str, years: set[int]) -> list[str]:
                 ]
             )
 
-    lines.append("END:VTIMEZONE")
-    return lines
+    lines.extend(["END:VEVENT", "END:VCALENDAR"])
+    return "\r\n".join(lines)
 
 
 def generate_ics_content(
@@ -170,9 +186,6 @@ def generate_ics_content(
         "METHOD:REQUEST",
     ]
 
-    effective_force_utc = force_utc
-    calendar_zone: tzinfo | None = None
-
     if start_time or end_time:
         try:
             calendar_zone = ZoneInfo(CALENDAR_TIMEZONE)
@@ -210,26 +223,8 @@ def generate_ics_content(
         end_dt = datetime.fromisoformat(f"{end_date}T{end_clock}")
         if end_dt <= start_dt:
             end_dt = start_dt + timedelta(hours=1)
-        if effective_force_utc:
-            utc_zone = UTC
-            if calendar_zone is None:
-                calendar_zone = timezone(timedelta(hours=CALENDAR_UTC_OFFSET_HOURS))
-            start_utc = start_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
-            end_utc = end_dt.replace(tzinfo=calendar_zone).astimezone(utc_zone)
-            lines.append(f"DTSTART:{_format_ics_datetime(start_utc)}Z")
-            lines.append(f"DTEND:{_format_ics_datetime(end_utc)}Z")
-        elif using_named_timezone:
-            lines.append(
-                f"DTSTART;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(start_dt)}"
-            )
-            lines.append(
-                f"DTEND;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(end_dt)}"
-            )
-        else:
-            # Fall back to floating local times if a timezone database is not
-            # available in the runtime.
-            lines.append(f"DTSTART:{_format_ics_datetime(start_dt)}")
-            lines.append(f"DTEND:{_format_ics_datetime(end_dt)}")
+        lines.append(f"DTSTART;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(start_dt)}")
+        lines.append(f"DTEND;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(end_dt)}")
     else:
         start_dt = datetime.fromisoformat(start_date)
         end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
@@ -258,6 +253,28 @@ def generate_ics_content(
     lines.extend(["END:VEVENT", "END:VCALENDAR"])
 
     return "\r\n".join(lines)
+
+
+def _demo_leave_ics_output() -> None:
+    """Print an example leave ICS and key lines for quick verification."""
+
+    ics = generate_leave_event_ics(
+        employee_name="Mark Llanos",
+        start_local=datetime(2026, 3, 13, 6, 30),
+        end_local=datetime(2026, 3, 16, 15, 0),
+        uid="APP-20260223-98D82C78@leave-management-system",
+        summary="Mark Llanos - Personal Leave",
+        description="Return Date: 2026-03-17",
+    )
+    print(ics)
+    print("\n--- Key lines ---")
+    for line in ics.splitlines():
+        if line.startswith(("DTSTART", "DTEND", "BEGIN:VTIMEZONE", "TZID:")):
+            print(line)
+
+
+if __name__ == "__main__":
+    _demo_leave_ics_output()
 
 
 def send_notification_email(

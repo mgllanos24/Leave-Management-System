@@ -1,5 +1,8 @@
-import os
 import importlib
+import os
+from datetime import datetime
+
+import pytest
 
 for key, value in (
     ("SMTP_SERVER", "smtp.test"),
@@ -39,36 +42,34 @@ def test_send_notification_email_inlines_ics(monkeypatch):
             pass
 
         def send_message(self, msg):
-            captured['msg'] = msg
+            captured["msg"] = msg
 
     monkeypatch.setattr(email_service.smtplib, "SMTP", DummySMTP)
 
     ok, err = email_service.send_notification_email(
         to_addr="test@example.com",
-        subject="Test", 
+        subject="Test",
         body="Body",
         ics_content="BEGIN:VCALENDAR\r\nEND:VCALENDAR",
     )
 
     assert ok and err is None
-    msg = captured['msg']
-    # Should have an inline text/calendar part
+    msg = captured["msg"]
     calendar_part = msg.get_body(("calendar",))
     assert calendar_part is not None
     assert calendar_part.get_content_type() == "text/calendar"
-    # No attachments expected
     assert list(msg.iter_attachments()) == []
-    # Optional header for compatibility
     assert msg["Content-Class"] == "urn:content-classes:calendarmessage"
 
 
-def test_generate_ics_content_with_times_uses_floating_local_time(monkeypatch):
+def test_generate_ics_content_uses_tzid_and_never_utc(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
     ics = email_service.generate_ics_content(
-        start_date="2026-02-10",
-        end_date="2026-02-10",
-        summary="Eduardo Orozco - OOO",
+        start_date="2026-03-13",
+        end_date="2026-03-16",
+        summary="Mark Llanos - Personal Leave",
+        description="Return Date: 2026-03-17",
         start_time="06:30",
         end_time="15:00",
         uid="APP-123@leave-management-system",
@@ -80,6 +81,7 @@ def test_generate_ics_content_with_times_uses_floating_local_time(monkeypatch):
         status="CONFIRMED",
     )
 
+    assert "METHOD:REQUEST" in ics
     assert "BEGIN:VTIMEZONE" in ics
     assert "TZID:America/Los_Angeles" in ics
     assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
