@@ -1700,7 +1700,33 @@ function parseTimeToMinutes(timeValue) {
         return null;
     }
 
-    const [hoursPart, minutesPart] = timeValue.split(':');
+    const normalizedTime = timeValue.trim();
+    if (!normalizedTime) {
+        return null;
+    }
+
+    const twelveHourMatch = normalizedTime.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (twelveHourMatch) {
+        const hourComponent = Number.parseInt(twelveHourMatch[1], 10);
+        const minuteComponent = Number.parseInt(twelveHourMatch[2], 10);
+        const meridiem = twelveHourMatch[3].toUpperCase();
+
+        if (
+            !Number.isInteger(hourComponent) ||
+            !Number.isInteger(minuteComponent) ||
+            hourComponent < 1 ||
+            hourComponent > 12 ||
+            minuteComponent < 0 ||
+            minuteComponent >= 60
+        ) {
+            return null;
+        }
+
+        const normalizedHours = hourComponent % 12 + (meridiem === 'PM' ? 12 : 0);
+        return normalizedHours * 60 + minuteComponent;
+    }
+
+    const [hoursPart, minutesPart] = normalizedTime.split(':');
     if (hoursPart == null || minutesPart == null) {
         return null;
     }

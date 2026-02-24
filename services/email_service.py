@@ -74,38 +74,29 @@ def _build_vtimezone_block(tzid: str) -> list[str]:
         "END:VTIMEZONE",
     ]
 
+def _build_vtimezone_block(tzid: str, years: set[int]) -> list[str]:
+    """Create a VTIMEZONE block for the configured TZID.
 
-def generate_leave_event_ics(
-    employee_name: str,
-    start_local: datetime,
-    end_local: datetime,
-    tzid: str = "America/Los_Angeles",
-    uid: str | None = None,
-    summary: str | None = None,
-    description: str | None = None,
-    location: str | None = None,
-    method: str = "REQUEST",
-) -> str:
-    """Generate leave-event ICS with local wall-clock times and explicit TZID."""
+    The block uses the provided event years so transitions match invites that
+    are generated ahead of time.
+    """
 
-    if not employee_name.strip():
-        raise ValueError("employee_name is required")
-    if start_local.tzinfo is not None or end_local.tzinfo is not None:
-        raise ValueError("start_local and end_local must be naive local datetimes")
-    if end_local <= start_local:
-        raise ValueError("end_local must be after start_local")
-    if method not in {"REQUEST", "PUBLISH"}:
-        raise ValueError("method must be REQUEST or PUBLISH")
+    zone = ZoneInfo(tzid)
+    sorted_years = sorted(years)
+    day = datetime(sorted_years[0], 1, 1)
+    end_day = datetime(sorted_years[-1] + 1, 1, 1)
+    one_day = timedelta(days=1)
+    transitions: list[tuple[datetime, timedelta, timedelta]] = []
+    # Use midday offsets to avoid detecting DST changes one day late.
+    previous_offset = day.replace(hour=12, tzinfo=zone).utcoffset()
 
-    try:
-        ZoneInfo(tzid)
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"Invalid tzid: {tzid}") from exc
-
-    event_uid = uid or f"{uuid.uuid4()}@leave-management-system"
-    event_summary = summary or f"{employee_name} - Leave"
-    event_description = description or f"Leave request for {employee_name}"
-    dtstamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    # Scan the requested years to detect offset changes (DST boundaries).
+    while day < end_day:
+        current_offset = day.replace(hour=12, tzinfo=zone).utcoffset()
+        if current_offset != previous_offset:
+            transitions.append((day, previous_offset, current_offset))
+            previous_offset = current_offset
+        day += one_day
 
     lines = [
         "BEGIN:VCALENDAR",
@@ -123,8 +114,31 @@ def generate_leave_event_ics(
         f"DESCRIPTION:{event_description}",
     ]
 
-    if location:
-        lines.append(f"LOCATION:{location}")
+    if not transitions:
+        # Fixed-offset timezone without DST changes.
+        offset = datetime(sorted_years[0], 1, 1, tzinfo=zone).strftime("%z")
+        lines.extend(
+            [
+                "BEGIN:STANDARD",
+                f"DTSTART:{sorted_years[0]}0101T000000",
+                f"TZOFFSETFROM:{offset}",
+                f"TZOFFSETTO:{offset}",
+                "END:STANDARD",
+            ]
+        )
+    else:
+        for transition_date, offset_from, offset_to in transitions:
+            section = "DAYLIGHT" if offset_to > offset_from else "STANDARD"
+            lines.extend(
+                [
+                    f"BEGIN:{section}",
+                    f"DTSTART:{transition_date.strftime('%Y%m%dT020000')}",
+                    f"TZOFFSETFROM:{_format_utc_offset(offset_from)}",
+                    f"TZOFFSETTO:{_format_utc_offset(offset_to)}",
+                    f"TZNAME:{transition_date.replace(tzinfo=zone).tzname() or tzid}",
+                    f"END:{section}",
+                ]
+            )
 
     lines.extend(["END:VEVENT", "END:VCALENDAR"])
     return "\r\n".join(lines)
@@ -144,7 +158,8 @@ def generate_ics_content(
     attendee_name: str | None = None,
     sequence: int = 0,
     status: str = "CONFIRMED",
-    force_utc: bool = False,
+    force_utc: bool = CALENDAR_FORCE_UTC,
+    floating_time: bool = False,
 ) -> str:
     """Create a basic ICS calendar event.
 
@@ -172,9 +187,28 @@ def generate_ics_content(
     ]
 
     if start_time or end_time:
-        if force_utc:
-            logging.warning("force_utc is ignored for leave events to preserve local wall-clock time")
-        lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
+        try:
+            calendar_zone = ZoneInfo(CALENDAR_TIMEZONE)
+        except ZoneInfoNotFoundError:
+            logging.warning(
+                "Unable to resolve CALENDAR_TIMEZONE=%s; falling back to fixed UTC offset",
+                CALENDAR_TIMEZONE,
+            )
+            calendar_zone = timezone(timedelta(hours=CALENDAR_UTC_OFFSET_HOURS))
+
+        # Include explicit timezone data for local-time invites so clients can
+        # correctly handle DST transitions, unless floating local time was
+        # explicitly requested.
+        using_named_timezone = (
+            not floating_time
+            and getattr(calendar_zone, "key", None) == CALENDAR_TIMEZONE
+        )
+        if not effective_force_utc and using_named_timezone:
+            years = {
+                datetime.fromisoformat(start_date).year,
+                datetime.fromisoformat(end_date).year,
+            }
+            lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE, years))
 
     lines.extend([
         "BEGIN:VEVENT",
