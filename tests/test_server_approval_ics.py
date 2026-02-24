@@ -76,14 +76,6 @@ def test_leave_approval_uses_ooo_summary(monkeypatch):
     monkeypatch.setattr(server, "process_leave_application_balance", lambda *args, **kwargs: None)
     monkeypatch.setattr(server, "send_notification_email", lambda *args, **kwargs: (True, None))
 
-    captured_summary = {}
-
-    def fake_generate_ics_content(*args, **kwargs):
-        captured_summary["summary"] = kwargs.get("summary")
-        return "BEGIN:VCALENDAR\r\nEND:VCALENDAR"
-
-    monkeypatch.setattr(server, "generate_ics_content", fake_generate_ics_content)
-
     responses = []
 
     def fake_send_json_response(self, data, status=200):
@@ -109,7 +101,48 @@ def test_leave_approval_uses_ooo_summary(monkeypatch):
     handler.handle_put_request("leave_application", ["", "api", "leave_application", "leave-1"])
 
     assert not errors, f"Unexpected errors during request: {errors}"
-    assert captured_summary["summary"] == "Alice Smith - OOO"
+    assert responses, "Expected a JSON response to be sent"
+
+    conn.close()
+
+
+def test_leave_approval_does_not_generate_calendar_invite(monkeypatch):
+    conn = _prepare_in_memory_db()
+
+    monkeypatch.setattr(server, "get_db_connection", lambda: conn)
+    monkeypatch.setattr(server, "process_leave_application_balance", lambda *args, **kwargs: None)
+    monkeypatch.setattr(server, "send_notification_email", lambda *args, **kwargs: (True, None))
+
+    generate_ics_called = {"called": False}
+
+    def fake_generate_ics_content(*args, **kwargs):
+        generate_ics_called["called"] = True
+        return "BEGIN:VCALENDAR\r\nEND:VCALENDAR"
+
+    monkeypatch.setattr(server, "generate_ics_content", fake_generate_ics_content, raising=False)
+
+    monkeypatch.setattr(
+        server.LeaveManagementHandler,
+        "send_json_response",
+        lambda self, data, status=200: None,
+    )
+    monkeypatch.setattr(
+        server.LeaveManagementHandler,
+        "send_error",
+        lambda self, code, message=None, explain=None: None,
+    )
+
+    handler = server.LeaveManagementHandler.__new__(server.LeaveManagementHandler)
+    payload = json.dumps({"status": "Approved"}).encode("utf-8")
+    handler.headers = {"Content-Length": str(len(payload))}
+    handler.rfile = io.BytesIO(payload)
+    handler.wfile = io.BytesIO()
+    handler.command = "PUT"
+    handler.path = "/api/leave_application/leave-1"
+
+    handler.handle_put_request("leave_application", ["", "api", "leave_application", "leave-1"])
+
+    assert generate_ics_called["called"] is False
 
     conn.close()
 
@@ -131,9 +164,6 @@ def test_all_admin_recipients_receive_approval_notification(monkeypatch):
         return True, None
 
     monkeypatch.setattr(server, "send_notification_email", fake_send_notification_email)
-
-    ics_payload = "BEGIN:VCALENDAR\r\nEND:VCALENDAR"
-    monkeypatch.setattr(server, "generate_ics_content", lambda *args, **kwargs: ics_payload)
 
     admin_recipients = [
         "mllanos@qualitask.com",
@@ -174,7 +204,7 @@ def test_all_admin_recipients_receive_approval_notification(monkeypatch):
 
     assert {call["to"] for call in admin_calls} == set(admin_recipients)
     for call in admin_calls:
-        assert call["ics"] == ics_payload
+        assert call["ics"] is None
         assert call["subject"] == "Alice Smith - OOO"
 
     assert len(employee_calls) == 1
@@ -182,4 +212,3 @@ def test_all_admin_recipients_receive_approval_notification(monkeypatch):
     assert employee_calls[0]["subject"] == "Alice Smith - OOO"
 
     conn.close()
-
