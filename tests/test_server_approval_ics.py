@@ -159,6 +159,7 @@ def test_leave_approval_ics_uses_leave_request_window(monkeypatch):
     assert captured["start_time"] == "09:00"
     assert captured["end_time"] == "17:00"
     assert captured["force_utc"] is False
+    assert captured.get("floating_time") in (None, False)
 
     conn.close()
 
