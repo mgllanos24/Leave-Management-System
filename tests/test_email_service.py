@@ -1,5 +1,8 @@
-import os
 import importlib
+import os
+from datetime import datetime
+
+import pytest
 
 for key, value in (
     ("SMTP_SERVER", "smtp.test"),
@@ -39,36 +42,34 @@ def test_send_notification_email_inlines_ics(monkeypatch):
             pass
 
         def send_message(self, msg):
-            captured['msg'] = msg
+            captured["msg"] = msg
 
     monkeypatch.setattr(email_service.smtplib, "SMTP", DummySMTP)
 
     ok, err = email_service.send_notification_email(
         to_addr="test@example.com",
-        subject="Test", 
+        subject="Test",
         body="Body",
         ics_content="BEGIN:VCALENDAR\r\nEND:VCALENDAR",
     )
 
     assert ok and err is None
-    msg = captured['msg']
-    # Should have an inline text/calendar part
+    msg = captured["msg"]
     calendar_part = msg.get_body(("calendar",))
     assert calendar_part is not None
     assert calendar_part.get_content_type() == "text/calendar"
-    # No attachments expected
     assert list(msg.iter_attachments()) == []
-    # Optional header for compatibility
     assert msg["Content-Class"] == "urn:content-classes:calendarmessage"
 
 
-def test_generate_ics_content_with_times_uses_floating_local_time(monkeypatch):
+def test_generate_ics_content_uses_tzid_and_never_utc(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
     ics = email_service.generate_ics_content(
-        start_date="2026-02-10",
-        end_date="2026-02-10",
-        summary="Eduardo Orozco - OOO",
+        start_date="2026-03-13",
+        end_date="2026-03-16",
+        summary="Mark Llanos - Personal Leave",
+        description="Return Date: 2026-03-17",
         start_time="06:30",
         end_time="15:00",
         uid="APP-123@leave-management-system",
@@ -80,92 +81,48 @@ def test_generate_ics_content_with_times_uses_floating_local_time(monkeypatch):
         status="CONFIRMED",
     )
 
+    assert "METHOD:REQUEST" in ics
     assert "BEGIN:VTIMEZONE" in ics
     assert "TZID:America/Los_Angeles" in ics
-    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
-    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
-    assert "UID:APP-123@leave-management-system" in ics
-    assert "ORGANIZER;CN=Leave Bot:mailto:organizer@example.com" in ics
-    assert "ATTENDEE;CN=Employee Name;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:employee@example.com" in ics
-    assert "SEQUENCE:2" in ics
-    assert "STATUS:CONFIRMED" in ics
+    assert "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU" in ics
+    assert "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU" in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260313T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260316T150000" in ics
+    assert "DTSTART:20260313" not in ics
+    assert "DTEND:20260316" not in ics
+    dt_lines = [line for line in ics.splitlines() if line.startswith(("DTSTART", "DTEND"))]
+    assert all(not line.endswith("Z") for line in dt_lines)
 
 
-def test_generate_ics_content_can_emit_utc(monkeypatch):
-    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
+def test_generate_leave_event_ics_validates_inputs():
+    with pytest.raises(ValueError, match="employee_name"):
+        email_service.generate_leave_event_ics(
+            employee_name=" ",
+            start_local=datetime(2026, 3, 13, 6, 30),
+            end_local=datetime(2026, 3, 16, 15, 0),
+        )
 
-    ics = email_service.generate_ics_content(
-        start_date="2026-02-10",
-        end_date="2026-02-10",
-        summary="Eduardo Orozco - OOO",
-        start_time="06:30",
-        end_time="15:00",
-        force_utc=True,
+    with pytest.raises(ValueError, match="must be after"):
+        email_service.generate_leave_event_ics(
+            employee_name="Mark",
+            start_local=datetime(2026, 3, 16, 15, 0),
+            end_local=datetime(2026, 3, 13, 6, 30),
+        )
+
+
+def test_generate_leave_event_ics_outlook_safe_example():
+    ics = email_service.generate_leave_event_ics(
+        employee_name="Mark Llanos",
+        start_local=datetime(2026, 3, 13, 6, 30),
+        end_local=datetime(2026, 3, 16, 15, 0),
+        tzid="America/Los_Angeles",
+        uid="APP-20260223-98D82C78@leave-management-system",
+        summary="Mark Llanos - Personal Leave",
+        description="Return Date: 2026-03-17",
     )
 
-    assert "BEGIN:VTIMEZONE" not in ics
-    assert "DTSTART:20260210T143000Z" in ics
-    assert "DTEND:20260210T230000Z" in ics
-
-
-def test_generate_ics_content_with_local_times_falls_back_without_zoneinfo(monkeypatch):
-    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
-
-    def fake_zone_info(key):
-        raise email_service.ZoneInfoNotFoundError("missing tzdata")
-
-    monkeypatch.setattr(email_service, "ZoneInfo", fake_zone_info)
-
-    ics = email_service.generate_ics_content(
-        start_date="2026-02-10",
-        end_date="2026-02-10",
-        summary="Timezone fallback",
-        start_time="06:30",
-        end_time="15:00",
-    )
-
-    assert "BEGIN:VTIMEZONE" not in ics
-    assert "DTSTART:20260210T063000" in ics
-    assert "DTEND:20260210T150000" in ics
-
-
-def test_generate_ics_content_uses_datetime_utc_without_zoneinfo_lookup(monkeypatch):
-    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
-
-    real_zone_info = email_service.ZoneInfo
-
-    def fake_zone_info(key):
-        if key == "UTC":
-            raise AssertionError("UTC should not be resolved via ZoneInfo")
-        return real_zone_info(key)
-
-    monkeypatch.setattr(email_service, "ZoneInfo", fake_zone_info)
-
-    ics = email_service.generate_ics_content(
-        start_date="2026-02-10",
-        end_date="2026-02-10",
-        summary="UTC fallback",
-        start_time="06:30",
-        end_time="15:00",
-        force_utc=True,
-    )
-
-    assert "DTSTART:20260210T143000Z" in ics
-    assert "DTEND:20260210T230000Z" in ics
-
-
-def test_generate_ics_content_utc_conversion_honors_dst(monkeypatch):
-    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
-
-    ics = email_service.generate_ics_content(
-        start_date="2026-06-10",
-        end_date="2026-06-10",
-        summary="DST check",
-        start_time="06:30",
-        end_time="15:00",
-        force_utc=True,
-    )
-
-    # June in Los Angeles should use daylight time (UTC-07:00).
-    assert "DTSTART:20260610T133000Z" in ics
-    assert "DTEND:20260610T220000Z" in ics
+    assert "UID:APP-20260223-98D82C78@leave-management-system" in ics
+    assert "DTSTAMP:" in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260313T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260316T150000" in ics
+    assert "DESCRIPTION:Return Date: 2026-03-17" in ics
