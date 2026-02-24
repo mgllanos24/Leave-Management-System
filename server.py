@@ -67,7 +67,6 @@ from services.balance_manager import (
 )
 from services.email_service import (
     send_notification_email,
-    generate_ics_content,
     SMTP_SERVER,
     SMTP_PORT,
     SMTP_USERNAME,
@@ -1310,27 +1309,6 @@ Management
 """
 
                                 ics_content = None
-                                if new_status == 'Approved':
-                                    ics_content = generate_ics_content(
-                                        start_date,
-                                        end_date,
-                                        summary=f"{employee_name} - OOO",
-                                        description=(
-                                            f"Approved leave from {start_date} {start_time or ''} to {end_date} {end_time or ''} "
-                                            f"({total_hours} hours / {total_days} days)"
-                                        ),
-                                        start_time=start_time,
-                                        end_time=end_time,
-                                        uid=f"{app_id}@leave-management-system",
-                                        organizer_email=os.getenv('SMTP_USERNAME'),
-                                        organizer_name='Leave Management System',
-                                        attendee_email=employee_email,
-                                        attendee_name=employee_name,
-                                        sequence=0,
-                                        status='CONFIRMED',
-                                        force_utc=False,
-                                        floating_time=True,
-                                    )
 
                                 admin_recipients = ADMIN_APPROVE_EMAILS or []
                                 if admin_recipients:
