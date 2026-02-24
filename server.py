@@ -1329,6 +1329,7 @@ Management
                                         sequence=0,
                                         status='CONFIRMED',
                                         force_utc=False,
+                                        floating_time=True,
                                     )
 
                                 admin_recipients = ADMIN_APPROVE_EMAILS or []
