@@ -58,59 +58,46 @@ def _format_utc_offset(offset: timedelta) -> str:
     return f"{sign}{hours:02d}{minutes:02d}"
 
 
-def _build_vtimezone_block(tzid: str, years: set[int]) -> list[str]:
-    """Create VTIMEZONE rules for transition years touched by an event."""
+def _build_vtimezone_block(tzid: str) -> list[str]:
+    """Create an Outlook-compatible RRULE-based VTIMEZONE block."""
+
+    if tzid == "America/Los_Angeles":
+        return [
+            "BEGIN:VTIMEZONE",
+            "TZID:America/Los_Angeles",
+            "X-LIC-LOCATION:America/Los_Angeles",
+            "BEGIN:DAYLIGHT",
+            "TZOFFSETFROM:-0800",
+            "TZOFFSETTO:-0700",
+            "TZNAME:PDT",
+            "DTSTART:19700308T020000",
+            "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU",
+            "END:DAYLIGHT",
+            "BEGIN:STANDARD",
+            "TZOFFSETFROM:-0700",
+            "TZOFFSETTO:-0800",
+            "TZNAME:PST",
+            "DTSTART:19701101T020000",
+            "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU",
+            "END:STANDARD",
+            "END:VTIMEZONE",
+        ]
 
     zone = ZoneInfo(tzid)
-    sorted_years = sorted(years)
-    day = datetime(sorted_years[0], 1, 1)
-    end_day = datetime(sorted_years[-1] + 1, 1, 1)
-    one_day = timedelta(days=1)
-
-    transitions: list[tuple[datetime, timedelta, timedelta]] = []
-    previous_offset = day.replace(hour=12, tzinfo=zone).utcoffset()
-
-    while day < end_day:
-        current_offset = day.replace(hour=12, tzinfo=zone).utcoffset()
-        if current_offset != previous_offset:
-            transitions.append((day, previous_offset, current_offset))
-            previous_offset = current_offset
-        day += one_day
-
-    lines = [
+    offset = datetime.now(zone).utcoffset() or timedelta(0)
+    offset_str = _format_utc_offset(offset)
+    return [
         "BEGIN:VTIMEZONE",
         f"TZID:{tzid}",
         f"X-LIC-LOCATION:{tzid}",
+        "BEGIN:STANDARD",
+        "DTSTART:19700101T000000",
+        f"TZOFFSETFROM:{offset_str}",
+        f"TZOFFSETTO:{offset_str}",
+        f"TZNAME:{datetime.now(zone).tzname() or tzid}",
+        "END:STANDARD",
+        "END:VTIMEZONE",
     ]
-
-    if not transitions:
-        offset = datetime(sorted_years[0], 1, 1, tzinfo=zone).utcoffset() or timedelta(0)
-        offset_str = _format_utc_offset(offset)
-        lines.extend(
-            [
-                "BEGIN:STANDARD",
-                f"DTSTART:{sorted_years[0]}0101T000000",
-                f"TZOFFSETFROM:{offset_str}",
-                f"TZOFFSETTO:{offset_str}",
-                "END:STANDARD",
-            ]
-        )
-    else:
-        for transition_date, offset_from, offset_to in transitions:
-            section = "DAYLIGHT" if offset_to > offset_from else "STANDARD"
-            lines.extend(
-                [
-                    f"BEGIN:{section}",
-                    f"DTSTART:{transition_date.strftime('%Y%m%dT020000')}",
-                    f"TZOFFSETFROM:{_format_utc_offset(offset_from)}",
-                    f"TZOFFSETTO:{_format_utc_offset(offset_to)}",
-                    f"TZNAME:{transition_date.replace(tzinfo=zone).tzname() or tzid}",
-                    f"END:{section}",
-                ]
-            )
-
-    lines.append("END:VTIMEZONE")
-    return lines
 
 
 def generate_ics_content(
@@ -152,19 +139,17 @@ def generate_ics_content(
             end_dt = start_dt + timedelta(hours=1)
 
         if force_utc:
-            local_zone = ZoneInfo(CALENDAR_TIMEZONE)
-            start_utc = start_dt.replace(tzinfo=local_zone).astimezone(UTC)
-            end_utc = end_dt.replace(tzinfo=local_zone).astimezone(UTC)
-            dtstart_line = f"DTSTART:{_format_ics_datetime(start_utc)}Z"
-            dtend_line = f"DTEND:{_format_ics_datetime(end_utc)}Z"
-        elif floating_time:
+            logging.warning(
+                "Ignoring force_utc=True for leave ICS generation to preserve local wall-clock times"
+            )
+
+        if floating_time:
             dtstart_line = f"DTSTART:{_format_ics_datetime(start_dt)}"
             dtend_line = f"DTEND:{_format_ics_datetime(end_dt)}"
         else:
             try:
                 _ = ZoneInfo(CALENDAR_TIMEZONE)
-                years = {start_dt.year, end_dt.year}
-                lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE, years))
+                lines.extend(_build_vtimezone_block(CALENDAR_TIMEZONE))
                 dtstart_line = (
                     f"DTSTART;TZID={CALENDAR_TIMEZONE}:{_format_ics_datetime(start_dt)}"
                 )
