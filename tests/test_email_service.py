@@ -1,8 +1,6 @@
 import importlib
 import os
-from datetime import datetime
 
-import pytest
 
 for key, value in (
     ("SMTP_SERVER", "smtp.test"),
@@ -84,9 +82,16 @@ def test_generate_ics_content_uses_tzid_and_never_utc(monkeypatch):
     assert "METHOD:REQUEST" in ics
     assert "BEGIN:VTIMEZONE" in ics
     assert "TZID:America/Los_Angeles" in ics
-    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
-    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260313T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260316T150000" in ics
+    assert "DTSTART:20260313" not in ics
+    assert "DTEND:20260316" not in ics
+    assert "DTSTART:20260313T" not in ics
+    assert "DTEND:20260316T" not in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260313T063000Z" not in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260316T150000Z" not in ics
     assert "UID:APP-123@leave-management-system" in ics
+    assert "DTSTAMP:" in ics
     assert "ORGANIZER;CN=Leave Bot:mailto:organizer@example.com" in ics
     assert "ATTENDEE;CN=Employee Name;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:employee@example.com" in ics
     assert "SEQUENCE:2" in ics
@@ -114,7 +119,7 @@ def test_generate_ics_content_can_emit_floating_times_without_timezone(monkeypat
     assert "DTSTART:20260307T063000" in ics
     assert "DTEND:20260309T150000" in ics
 
-def test_generate_ics_content_can_emit_utc(monkeypatch):
+def test_generate_ics_content_force_utc_is_ignored_for_leave_events(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
     ics = email_service.generate_ics_content(
@@ -126,9 +131,11 @@ def test_generate_ics_content_can_emit_utc(monkeypatch):
         force_utc=True,
     )
 
-    assert "BEGIN:VTIMEZONE" not in ics
-    assert "DTSTART:20260210T143000Z" in ics
-    assert "DTEND:20260210T230000Z" in ics
+    assert "BEGIN:VTIMEZONE" in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
+    assert "DTSTART:20260210T143000Z" not in ics
+    assert "DTEND:20260210T230000Z" not in ics
 
 
 def test_generate_ics_content_with_local_times_falls_back_without_zoneinfo(monkeypatch):
@@ -152,7 +159,7 @@ def test_generate_ics_content_with_local_times_falls_back_without_zoneinfo(monke
     assert "DTEND:20260210T150000" in ics
 
 
-def test_generate_ics_content_uses_datetime_utc_without_zoneinfo_lookup(monkeypatch):
+def test_generate_ics_content_ignores_force_utc_without_utc_zone_lookup(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
     real_zone_info = email_service.ZoneInfo
@@ -173,28 +180,11 @@ def test_generate_ics_content_uses_datetime_utc_without_zoneinfo_lookup(monkeypa
         force_utc=True,
     )
 
-    assert "DTSTART:20260210T143000Z" in ics
-    assert "DTEND:20260210T230000Z" in ics
+    assert "DTSTART;TZID=America/Los_Angeles:20260210T063000" in ics
+    assert "DTEND;TZID=America/Los_Angeles:20260210T150000" in ics
 
 
-def test_generate_ics_content_utc_conversion_honors_dst(monkeypatch):
-    monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
-
-    ics = email_service.generate_ics_content(
-        start_date="2026-06-10",
-        end_date="2026-06-10",
-        summary="DST check",
-        start_time="06:30",
-        end_time="15:00",
-        force_utc=True,
-    )
-
-    # June in Los Angeles should use daylight time (UTC-07:00).
-    assert "DTSTART:20260610T133000Z" in ics
-    assert "DTEND:20260610T220000Z" in ics
-
-
-def test_generate_ics_content_vtimezone_uses_event_year_transitions(monkeypatch):
+def test_generate_ics_content_vtimezone_uses_rrule_for_los_angeles(monkeypatch):
     monkeypatch.setattr(email_service, "CALENDAR_TIMEZONE", "America/Los_Angeles")
 
     ics = email_service.generate_ics_content(
@@ -206,6 +196,8 @@ def test_generate_ics_content_vtimezone_uses_event_year_transitions(monkeypatch)
     )
 
     assert "BEGIN:DAYLIGHT" in ics
-    assert "DTSTART:20260308T020000" in ics
+    assert "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU" in ics
+    assert "DTSTART:19700308T020000" in ics
     assert "BEGIN:STANDARD" in ics
-    assert "DTSTART:20261101T020000" in ics
+    assert "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU" in ics
+    assert "DTSTART:19701101T020000" in ics
